@@ -30,7 +30,8 @@ public:
 		
 	}
 	
-	~DataMnager() {}
+//	~Datamanager() {}
+	
 	void Init();
 	void DeInit();
 	
@@ -64,6 +65,7 @@ private:
 	std::vector<int> count_p;
 	std::vector<int> count_q;
 };
+
 }
 
 #endif

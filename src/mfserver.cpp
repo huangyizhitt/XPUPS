@@ -4,8 +4,8 @@
 namespace MF{
 
 void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
-        const ps::KVPairs<XPU>& req_data,
-        ps::KVServer<XPU>* server)
+        const ps::KVPairs<int>& req_data,
+        ps::KVServer<int>* server)
 {
 	size_t keys_size = req_data.keys.size();
 	size_t vals_size = req_data.vals.size();
@@ -20,8 +20,8 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 
 void MFServer::PrintXPU()
 {
-	for(std::unordered_map<int, XPU>::iterator it = xpu_info.begin(); it != xpu_info.end(); it++) {
-		printf("Worker %d, XPU: %s\n", it->first, it->second.name);
+	for(std::unordered_map<int, int>::iterator it = xpu_info.begin(); it != xpu_info.end(); it++) {
+		printf("Worker %d, XPU: %d\n", it->first, it->second);
 	}
 }
 	

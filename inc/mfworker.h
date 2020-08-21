@@ -4,15 +4,20 @@
 #include <thread>
 #include "xpu.h"
 #include "ps/ps.h"
+#include "mfdata.h"
 
 namespace MF {
 class MFWorker {
 public:
 	MFWorker(XPU * const xpu) : xpu(xpu) {
 		rank = ps::MyRank();
-		kv_xpu = new ps::KVWorker<XPU>(0);
+		std::vector<ps::Key> keys;
+		std::vector<int> vals;
+		keys.push_back(rank);
+		vals.push_back(xpu->xpu_type);
+		kv_xpu = new ps::KVWorker<int>(0, 0);
 		core_num = std::thread::hardware_concurrency();
-		kv_xpu->Wait(kv_xpu->Push(rank, xpu))
+		kv_xpu->Wait(kv_xpu->Push(keys, vals));
 	}
 
 	~MFWorker() {delete kv_xpu;}
@@ -27,7 +32,7 @@ private:
 	int core_num;
 	XPU *xpu;
 	MF::Data data;
-	ps::KVWorker<XPU>* kv_xpu;
+	ps::KVWorker<int>* kv_xpu;
 };
 
 }

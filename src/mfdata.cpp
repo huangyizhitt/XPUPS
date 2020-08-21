@@ -1,6 +1,8 @@
 #include "mfdata.h"
+#include "utils.h"
 #include <cmath>
 #include <algorithm>
+#include <ctime>
 
 const int nr_threads = 20;
 
@@ -48,7 +50,7 @@ bool DataManager::LoadData()
 	fclose(fp);
 	
 	elapse = cpu_second() - start;
-	printf("rows:%lld, cols:%lld, nnz:%lld, idx:%lld, cost time: %f\n",rows, cols, nnz, idx, elapse);
+	printf("rows:%lu, cols:%lu, nnz:%lu, idx:%lu, cost time: %f\n",rows, cols, nnz, idx, elapse);
 	return true;
 }
 

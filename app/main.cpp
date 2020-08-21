@@ -15,7 +15,7 @@ int main(int argc, char **argv)
     	std::cout << "start server" << std::endl;
     	server = new MF::MFServer();
   	}
-	ps::Start(0);
+	ps::Start();
 
 	if (ps::IsWorker()) {
 		std::cout << "start worker" << std::endl;
@@ -23,7 +23,7 @@ int main(int argc, char **argv)
 		worker = new MF::MFWorker(xpu);
 	}
 
-	ps::Finalize(0, true);
+	ps::Finalize();
 	
 	if(ps::IsServer()) {
 		delete server;

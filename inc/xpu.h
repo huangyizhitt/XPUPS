@@ -18,7 +18,7 @@ struct XPU {
 		float peak_performance, float mem_band, float mem_size, bool is_server) : 
 		xpu_type(xpu_type), core(core), peak_performance(peak_performance), mem_band(mem_band),
 		mem_size(mem_size), is_server(is_server) {strcpy(xpu_name, name);}
-		
+	
 	char xpu_name[64];
 	XPU_TYPE xpu_type;
 	int max_core;
