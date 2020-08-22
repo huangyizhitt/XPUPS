@@ -14,7 +14,17 @@ void MFWorker::PushWorkerXPU()
 	vals.push_back(xpu->mem_band);
 	lens.push_back(2);
 
-	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+	kv_xpu->Push(keys, vals, lens, cmd);
+}
+
+void MFWorker::PullDataFromServer()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_DATA;
+
+	kv_xpu->Wait(kv_xpu->Pull(keys, vals, lens, cmd));
 }
 
 }

@@ -16,11 +16,29 @@ void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
 		printf("Worker: %d, peak_performance: %f, bandwidth: %f, kv pair len: %d\n", req_data.keys[i],
 			req_data.vals[i * req_data.lens[i]], req_data.vals[i * req_data.lens[i] + 1], req_data.lens[i]);
 	}
+}
 
-	ps::KVPairs<float> res;
-	res.keys = req_data.keys;
-    res.vals.resize(keys_size);
+void MFServer::PrepareData()
+{
+	dm.LoadData();
+}
 
+void MFServer::PushDataToWorker(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server)
+{
+	KVPairs<Val> res;
+	size_t keys_size = dm.nnz;
+	size_t vals_size = dm.nnz * 3;
+
+	res.keys.resize(keys_size);
+	res.vals.resize(vals_size);
+	for(size_t i = 0; i < keys_size; i++) {
+		res.keys.push_back(i);
+		res.vals.push_back(dm.data.r_matrix[i].row_index);
+		res.vals.push_back(dm.data.r_matrix[i].col_index);
+		res.vals.push_back(dm.data.r_matrix[i].r);
+	}
 
 	server->Response(req_meta, res);
 }
@@ -39,11 +57,12 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 			break;
 
 		case PULL_DATA:
-
+			PrepareData();
+			PushDataToWorker();
 			break;
 
 		case PULL_FEATURE:
-
+			
 			break;
 
 		default:
