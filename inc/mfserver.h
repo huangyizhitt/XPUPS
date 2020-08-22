@@ -10,9 +10,8 @@ namespace MF{
 class MFServer {
 public:
 	MFServer(XPU * const xpu_inf) : xpu_info(xpu_inf) {
-		server_xpu = new ps::KVServer<int>(0);
+		server_xpu = new ps::KVServer<float>(0);
 		server_xpu->set_request_handle(ReceiveXPUHandle);
-		ps::RegisterExitCallback([](){delete server_xpu; delete xpu_info;})
 	}
 
 	~MFServer() {delete server_xpu;}
@@ -21,7 +20,7 @@ public:
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server);
 
-	void GetWorkerInfo(const ps::KVMeta& req_meta,
+	static void GetWorkerInfo(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server);
 

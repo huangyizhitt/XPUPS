@@ -11,8 +11,7 @@ class MFWorker {
 public:
 	MFWorker(XPU * const xpu) : xpu(xpu), core_num(xpu->core) {
 		rank = ps::MyRank();
-		kv_xpu = new ps::KVWorker<int>(0, 0);		
-		ps::RegisterExitCallback([](){delete kv_xpu;})
+		kv_xpu = new ps::KVWorker<float>(0, 0);		
 	}
 
 	~MFWorker() {delete kv_xpu;}
@@ -28,7 +27,7 @@ private:
 	int core_num;
 	XPU *xpu;
 	MF::Data data;
-	ps::KVWorker<int>* kv_xpu;
+	ps::KVWorker<float>* kv_xpu;
 };
 
 }

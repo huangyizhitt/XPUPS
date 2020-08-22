@@ -31,11 +31,11 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 {
 	
 
-	CMD cmd = req_meta.cmd;
-
+	CMD cmd = (CMD) req_meta.cmd;
+	
 	switch(cmd) {
 		case PUSH_INFO:
-			
+			GetWorkerInfo(req_meta, req_data, server);
 			break;
 
 		case PULL_DATA:
@@ -65,7 +65,7 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 
 void MFServer::PrintWorkerXPU()
 {
-	for(std::unordered_map<int, int>::iterator it = worker_xpu_info.begin(); it != worker_xpu_info.end(); it++) {
+	for(std::unordered_map<int, float>::iterator it = worker_xpu_info.begin(); it != worker_xpu_info.end(); it++) {
 		printf("Worker %d, XPU: %d\n", it->first, it->second);
 	}
 }
