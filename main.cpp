@@ -24,16 +24,8 @@ int main(int argc, char **argv)
 		std::cout << "start worker" << std::endl;
 		xpu = new XPU("W-2155", CPU, 9, 20, 2000, 60, 128, false);
 		worker = new MF::MFWorker(xpu);
+		worker->PushWorkerXPU();
 	}
 
 	ps::Finalize(0, true);
-	
-	if(ps::IsServer()) {
-		delete server;
-	}
-
-	if(ps::IsWorker()) {
-		delete xpu;
-		delete worker;
-	}
 }

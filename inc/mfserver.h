@@ -9,22 +9,29 @@ namespace MF{
 
 class MFServer {
 public:
-	MFServer() {
+	MFServer(XPU * const xpu_inf) : xpu_info(xpu_inf) {
 		server_xpu = new ps::KVServer<int>(0);
 		server_xpu->set_request_handle(ReceiveXPUHandle);
+		ps::RegisterExitCallback([](){delete server_xpu; delete xpu_info;})
 	}
 
 	~MFServer() {delete server_xpu;}
 
 	static void ReceiveXPUHandle(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<int>& req_data,
-                              ps::KVServer<int>* server);
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server);
 
-	void PrintXPU();
+	void GetWorkerInfo(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server);
+
+	void PrintWorkerXPU();
+
 
 private:
-	static std::unordered_map<int, int> xpu_info;
-	ps::KVServer<int>* server_xpu;
+	static std::unordered_map<int, float> worker_xpu_info;			//<rank, performance>
+	ps::KVServer<float>* server_xpu;
+	XPU *xpu_info;
 };
 
 }

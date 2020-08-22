@@ -7,6 +7,12 @@
 #define debugp(fmt, ...)
 #endif 
 
+enum CMD {
+	PUSH_INFO,
+	PULL_DATA,
+	PULL_FEATURE,
+};
+
 long long cpu_microsecond(void);
 double cpu_second(void);
 

@@ -9,20 +9,16 @@
 namespace MF {
 class MFWorker {
 public:
-	MFWorker(XPU * const xpu) : xpu(xpu) {
+	MFWorker(XPU * const xpu) : xpu(xpu), core_num(xpu->core) {
 		rank = ps::MyRank();
-		std::vector<ps::Key> keys;
-		std::vector<int> vals;
-		keys.push_back(rank);
-		vals.push_back(xpu->xpu_type);
-		kv_xpu = new ps::KVWorker<int>(0, 0);
-		core_num = std::thread::hardware_concurrency();
-		kv_xpu->Wait(kv_xpu->Push(keys, vals));
+		kv_xpu = new ps::KVWorker<int>(0, 0);		
+		ps::RegisterExitCallback([](){delete kv_xpu;})
 	}
 
 	~MFWorker() {delete kv_xpu;}
 	
-	
+	void PrepareData();
+	void PushWorkerXPU();
 
 public:
 	int epochs = 50;
