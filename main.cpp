@@ -3,19 +3,22 @@
 #include "mfserver.h"
 #include "mfworker.h"
 
+std::unordered_map<int, int> MF::MFServer::xpu_info;
+
 int main(int argc, char **argv)
 {
 	XPU *xpu;
 	MF::MFServer* server;
 	MF::MFWorker* worker;
+
+	ps::Start(0);
 	if (ps::IsScheduler()) {
     	std::cout << "start scheduler" << std::endl;
   	}
 	if (ps::IsServer()) {
-    	std::cout << "start server" << std::endl;
-    	server = new MF::MFServer();
+    		std::cout << "start server" << std::endl;
+		server = new MF::MFServer();
   	}
-	ps::Start(0);
 
 	if (ps::IsWorker()) {
 		std::cout << "start worker" << std::endl;

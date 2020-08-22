@@ -17,8 +17,8 @@ public:
 	~MFServer() {delete server_xpu;}
 
 	static void ReceiveXPUHandle(const ps::KVMeta& req_meta,
-        			const ps::KVPairs<int>& req_data,
-        			ps::KVServer<int>* server);
+                              const ps::KVPairs<int>& req_data,
+                              ps::KVServer<int>* server);
 
 	void PrintXPU();
 

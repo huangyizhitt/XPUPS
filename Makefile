@@ -16,11 +16,11 @@ INC_DIR = ./inc
 OBJ_DIR = ./obj
 LIB_DIR = ./lib
 LIB = $(LIB_DIR)/libxpu.so
-PS_LIB_DIR = ./ps-lite/build/
-PS_INC = ./ps-lite/include
+PS_LIB = ./ps-lite/build/libps.a -Wl,-rpath,./ps-lite/deps/lib -L./ps-lite/deps/lib -lprotobuf-lite -lzmq
+PS_INC = -I./ps-lite/include -I./ps-lite/src -I./ps-lite/deps/include 
 
-CFLAGS += -I$(INC_DIR) -I$(PS_INC)
-CU_CFLAGS += -I$(INC_DIR) -I$(PS_INC)
+CFLAGS += -I$(INC_DIR) 
+CU_CFLAGS += -I$(INC_DIR) 
 
 SRCS = $(wildcard $(SRC_DIR)/*cpp)
 OBJS = $(patsubst %.cpp,$(OBJ_DIR)/%.o,$(notdir $(SRCS)))
@@ -49,15 +49,15 @@ ifeq ($(check), 1)
 	CU_CFLAGS += -DCAL_RMSE
 endif
 
-$(LIB): $(OBJS) $(CU_OBJS)
-	$(NVCC) $^ -o $@ $(CU_CFLAGS) $(CU_FLAGS) $(CU_LIB_FLAGS) -L$(PS_LIB_DIR) -lps
+mf: main.cpp $(OBJS) $(CU_OBJS)
+	$(CXX) $^ -o $@ $(CFLAGS) $(ARCH_FLAGS) $(PS_INC) $(PS_LIB)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp 
-	$(CXX) -c $< -o $@ $(CFLAGS) $(ARCH_FLAGS) $(PIC_FLAGS)
+	$(CXX) -c $< -o $@ $(CFLAGS) $(ARCH_FLAGS) $(PS_INC)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cu
-	$(NVCC) -c $< -o $@ $(CU_CFLAGS) $(CU_FLAGS) $(CU_PIC_FLAGS) 
+	$(NVCC) -c $< -o $@ $(CU_CFLAGS) $(CU_FLAGS) $(PS_INC)
 .PHONY:
 clean:
-	$(RM) $(OBJS) $(CU_OBJS) $(LIB)
+	$(RM) $(OBJS) $(CU_OBJS) mf
 
