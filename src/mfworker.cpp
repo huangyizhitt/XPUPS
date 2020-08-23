@@ -41,21 +41,25 @@ void MFWorker::PullDataFromServer()
 	std::vector<int> lens;
 	CMD cmd = PULL_DATA;
 
-	for(size_t i = 0; i < 3; i++) {
+	for(size_t i = 0; i < size; i++) {
 		keys.push_back(i);
-		lens.push_back(2);
+		lens.push_back(3);
 	}
 
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
 	
-	printf("receive the data!");
+/*	for(size_t i = 0; i < vals.size(); i++) {
+                printf("vals[%d]: %d\n", i,(int)vals[i]);
+        }*/
 	Data& data = this->data;
-	size_t size = vals.size();
-	int len = 2;
-	for(int i = 0; i < size / 3; i++) {
+	size_t size = keys.size();
+	printf("receive the data, size: %d!\n", size);
+	data.r_matrix.resize(size);	
+	int len = 3;
+	for(int i = 0; i < size; i++) {
 		data.r_matrix[i].row_index = (int)vals[i * len + 0];
 		data.r_matrix[i].col_index = (int)vals[i * len + 1];
-//		data.r_matrix[i].r = (float)vals[i * len + 2];
+		data.r_matrix[i].r = (float)vals[i * len + 2];
 		data_counter++;
 	}
 
@@ -71,13 +75,13 @@ void MFWorker::Test()
 
 	for(size_t i = 0; i < 5; i++) {
 		keys.push_back(i);
-		lens.push_back(1);
+		lens.push_back(3);
 	}
 
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
 
-	for(size_t i = 0; i < 5; i++) {
-		printf("vals[%d]: %d\n", (int)vals[i]);
+	for(size_t i = 0; i < vals.size(); i++) {
+		printf("vals[%d]: %d\n", i,(int)vals[i]);
 	}
 }
 
