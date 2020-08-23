@@ -62,4 +62,23 @@ void MFWorker::PullDataFromServer()
 	printf("recive data count: %ld\n", data_counter);
 }
 
+void MFWorker::Test()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_DATA;
+
+	for(size_t i = 0; i < 5; i++) {
+		keys.push_back(i);
+		lens.push_back(1);
+	}
+
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+
+	for(size_t i = 0; i < 5; i++) {
+		printf("vals[%d]: %d\n", (int)vals[i]);
+	}
+}
+
 }

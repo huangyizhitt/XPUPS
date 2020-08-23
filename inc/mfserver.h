@@ -37,6 +37,10 @@ public:
 
 	static void PrepareData();
 
+	static void Test(const ps::KVMeta& req_meta,
+                          const ps::KVPairs<float>& req_data,
+                          ps::KVServer<float>* server);
+
 
 private:
 	static std::unordered_map<int, float> worker_xpu_info;			//<rank, performance>

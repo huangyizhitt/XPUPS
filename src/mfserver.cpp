@@ -65,6 +65,25 @@ void MFServer::PushDataToWorker(const ps::KVMeta& req_meta,
 	printf("vals_size:%d, lens:%d\n", res.vals.size(), res.lens.size());
 	server->Response(req_meta, res);
 }
+							  
+void MFServer::Test(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t vals_size = req_data.vals.size();
+	ps::KVPairs<float> res;
+
+	res.keys = req_data.keys;
+	res.vals.resize(keys_size);
+
+	for(int i = 0; i < keys_size; i++) {
+		res.vals[i] = i;
+	}
+	res.lens.resize(keys_size);
+
+	server->Response(req_meta, res);
+}
 
 void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
@@ -83,7 +102,8 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 			break;
 
 		case PULL_DATA:
-			PushDataToWorker(req_meta, req_data, server);
+//			PushDataToWorker(req_meta, req_data, server);
+			Test(req_meta, req_data, server);
 			break;
 
 		case PULL_FEATURE:
