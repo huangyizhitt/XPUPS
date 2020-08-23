@@ -25,6 +25,19 @@ void MFWorker::PullDataFromServer()
 	CMD cmd = PULL_DATA;
 
 	kv_xpu->Wait(kv_xpu->Pull(keys, vals, lens, cmd));
+
+	Data& data = this->data;
+	size_t keys_size = keys.size();
+	int len = lens[0];
+
+	for(int i = 0; i < keys_size; i++) {
+		data.r_matrix[i].row_index = (int)vals[i * len + 0];
+		data.r_matrix[i].col_index = (int)vals[i * len + 1];
+		data.r_matrix[i].r = (float)vals[i * len + 2];
+		data_counter++;
+	}
+
+	printf("recive data count: %d\n", data_counter);
 }
 
 }

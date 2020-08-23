@@ -30,14 +30,17 @@ void MFServer::PushDataToWorker(const ps::KVMeta& req_meta,
 	KVPairs<Val> res;
 	size_t keys_size = dm.nnz;
 	size_t vals_size = dm.nnz * 3;
+	size_t lens = 3;
 
 	res.keys.resize(keys_size);
 	res.vals.resize(vals_size);
+	res.vals.resize(dm.nnz);
 	for(size_t i = 0; i < keys_size; i++) {
 		res.keys.push_back(i);
 		res.vals.push_back(dm.data.r_matrix[i].row_index);
 		res.vals.push_back(dm.data.r_matrix[i].col_index);
 		res.vals.push_back(dm.data.r_matrix[i].r);
+		res.lens.push_back(lens);
 	}
 
 	server->Response(req_meta, res);

@@ -9,7 +9,7 @@
 namespace MF {
 class MFWorker {
 public:
-	MFWorker(XPU * const xpu) : xpu(xpu), core_num(xpu->core) {
+	MFWorker(XPU * const xpu) : xpu(xpu), core_num(xpu->core), data_counter(0) {
 		rank = ps::MyRank();
 		kv_xpu = new ps::KVWorker<float>(0, 0);		
 	}
@@ -25,6 +25,7 @@ public:
 private:
 	int rank;
 	int core_num;
+	size_t data_counter;
 	XPU *xpu;
 	MF::Data data;
 	ps::KVWorker<float>* kv_xpu;
