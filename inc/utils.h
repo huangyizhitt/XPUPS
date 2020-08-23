@@ -9,6 +9,7 @@
 
 enum CMD {
 	PUSH_INFO,
+	PULL_DATA_INFO,
 	PULL_DATA,
 	PULL_FEATURE,
 };

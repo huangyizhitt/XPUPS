@@ -4,6 +4,7 @@
 #include "mfworker.h"
 
 std::unordered_map<int, float> MF::MFServer::worker_xpu_info;
+MF::DataManager MF::MFServer::dm("netflix_train.bin");
 
 int main(int argc, char **argv)
 {
@@ -27,6 +28,8 @@ int main(int argc, char **argv)
 		xpu = new XPU("W-2155", CPU, 9, 20, 2000, 60, 128, false);
 		worker = new MF::MFWorker(xpu);
 		worker->PushWorkerXPU();
+//		worker->PullDataInfoFromServer();
+		worker->PullDataFromServer();
 		ps::RegisterExitCallback([worker, xpu](){ delete worker; delete xpu;});
 	}
 

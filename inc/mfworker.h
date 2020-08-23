@@ -18,6 +18,8 @@ public:
 	
 	void PrepareData();
 	void PushWorkerXPU();
+	void PullDataFromServer();
+	void PullDataInfoFromServer();
 
 public:
 	int epochs = 50;
@@ -28,6 +30,8 @@ private:
 	size_t data_counter;
 	XPU *xpu;
 	MF::Data data;
+	size_t start;
+	size_t size;
 	ps::KVWorker<float>* kv_xpu;
 };
 

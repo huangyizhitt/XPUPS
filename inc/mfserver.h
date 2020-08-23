@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include "ps/ps.h"
 #include "xpu.h"
+#include "mfdata.h"
 
 namespace MF{
 
@@ -28,16 +29,20 @@ public:
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server);
 
+	static void PushDataInfoToWorker(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server);
+
 	void PrintWorkerXPU();
 
-	void PrepareData();
+	static void PrepareData();
 
 
 private:
 	static std::unordered_map<int, float> worker_xpu_info;			//<rank, performance>
 	ps::KVServer<float>* server_xpu;
 	XPU *xpu_info;
-	DataManager dm;
+	static DataManager dm;
 };
 
 }

@@ -35,7 +35,7 @@ public:
 	void Init();
 	void DeInit();
 	
-private:
+public:
 	bool LoadData();
 	void CollectDataInfo();
 	void ScaleData(float mf_scale);
@@ -48,7 +48,7 @@ private:
 	void ScaleModel();
 	void ShuffleModel();
 	
-private:
+//private:
 	FILE *fp;
 	const char *train_file_path;
 	int *p_map;

@@ -16,6 +16,22 @@ void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
 		printf("Worker: %d, peak_performance: %f, bandwidth: %f, kv pair len: %d\n", req_data.keys[i],
 			req_data.vals[i * req_data.lens[i]], req_data.vals[i * req_data.lens[i] + 1], req_data.lens[i]);
 	}
+	ps::KVPairs<float> res;
+	server->Response(req_meta, res);
+}
+
+void MFServer::PushDataInfoToWorker(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server)
+{
+	ps::KVPairs<float> res;
+	size_t n = req_data.keys.size();
+	res.keys = req_data.keys;
+	res.vals.push_back(0);
+	res.vals.push_back(dm.nnz);
+	res.lens.resize(n);
+
+	server->Response(req_meta, res);
 }
 
 void MFServer::PrepareData()
@@ -27,22 +43,26 @@ void MFServer::PushDataToWorker(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server)
 {
-	KVPairs<Val> res;
-	size_t keys_size = dm.nnz;
-	size_t vals_size = dm.nnz * 3;
-	size_t lens = 3;
+	ps::KVPairs<float> res;
+	
+	size_t n = req_data.keys.size();
+	res.keys = req_data.keys;
+	res.lens.resize(n);
 
-	res.keys.resize(keys_size);
-	res.vals.resize(vals_size);
-	res.vals.resize(dm.nnz);
-	for(size_t i = 0; i < keys_size; i++) {
-		res.keys.push_back(i);
-		res.vals.push_back(dm.data.r_matrix[i].row_index);
+	for(size_t i = 0; i < n; i++) {
+/*		res.vals.push_back(dm.data.r_matrix[i].row_index);
 		res.vals.push_back(dm.data.r_matrix[i].col_index);
 		res.vals.push_back(dm.data.r_matrix[i].r);
-		res.lens.push_back(lens);
+*/
+
+		res.vals.push_back(1);
+		res.vals.push_back(2);
+//		res.vals.push_back(3);
+		res.lens[i] = 2;
+		printf("Keys:%d\n", res.keys[i]);
 	}
 
+	printf("vals_size:%d, lens:%d\n", res.vals.size(), res.lens.size());
 	server->Response(req_meta, res);
 }
 
@@ -53,15 +73,17 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 	
 
 	CMD cmd = (CMD) req_meta.cmd;
-	
 	switch(cmd) {
 		case PUSH_INFO:
 			GetWorkerInfo(req_meta, req_data, server);
 			break;
+		case PULL_DATA_INFO:
+			PrepareData();
+			PushDataInfoToWorker(req_meta, req_data, server);
+			break;
 
 		case PULL_DATA:
-			PrepareData();
-			PushDataToWorker();
+			PushDataToWorker(req_meta, req_data, server);
 			break;
 
 		case PULL_FEATURE:
