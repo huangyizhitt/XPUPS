@@ -3,7 +3,7 @@
 #include "mfserver.h"
 #include "mfworker.h"
 
-std::unordered_map<int, float> MF::MFServer::worker_xpu_info;
+std::unordered_map<int, XPU_INFO> MF::MFServer::worker_xpu_info;
 MF::DataManager MF::MFServer::dm("netflix_train.bin");
 
 int main(int argc, char **argv)

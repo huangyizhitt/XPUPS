@@ -140,8 +140,12 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 
 void MFServer::PrintWorkerXPU()
 {
-	for(std::unordered_map<int, float>::iterator it = worker_xpu_info.begin(); it != worker_xpu_info.end(); it++) {
-		printf("Worker %d, XPU: %d\n", it->first, it->second);
+	XPU_INFO xpu_info;
+	int worker_rank;
+	for(std::unordered_map<int, XPU_INFO>::iterator it = worker_xpu_info.begin(); it != worker_xpu_info.end(); it++) {
+		worker_rank = it->first;
+		xpu_info = it->second;
+		printf("Worker: %d, XPU TYPE: %d, workers: %d, work_ratio: %d\n", worker_rank, xpu_info.type, xpu_info.workers, xpu_info.work_ratio);
 	}
 }
 
