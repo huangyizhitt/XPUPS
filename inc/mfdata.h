@@ -23,6 +23,16 @@ struct Data{
 	float *q;
 };
 
+//2D Grid
+struct Grid
+{
+	Dim2 gridDim;							//num of block in grid			
+	Dim2 blockDim;              			//num of element in block
+	Dim2 blockStart;						//block start coordinate in grid
+	std::vector<MatrixNode *> blocks;		//blocks[i] point the head of the ith block
+};
+
+
 class DataManager {
 public:
 	DataManager(const char *file) : train_file_path(file)							//build manager and open file	
@@ -34,21 +44,24 @@ public:
 	
 	void Init();
 	void DeInit();
+	void SetGrid(const Dim2& gridDim);
+	void GridProblem(int nr_threads);
 	
-public:
+private:
 	bool LoadData();
 	void CollectDataInfo();
-	void ScaleData(float mf_scale);
+	void ScaleData(float mf_scale, int nr_threads);
 	void ShuffleData();
 	int *GenerateRandomMap(size_t size);
 	int *GenerateInvMap(int *map, size_t size);
 	void InitModel();
-	void GridProblem();
+//	void GridProblem();
 	void DestroyMap(int *map);
 	void ScaleModel();
 	void ShuffleModel();
-	
-//private:
+	int GetBlockId(Grid& grid, MatrixNode& r);					//by matrix node's row and col index;
+	int GetBlockId(Grid& grid, int row, int col);					//by block's row and col index; 
+
 	FILE *fp;
 	const char *train_file_path;
 	int *p_map;
@@ -59,11 +72,13 @@ public:
 	size_t rows = 0;							//row size
 	size_t cols = 0;							//col size
 	int k;										//rows * cols -> rows * k and k * cols
+	int block_size;
 	float means;
 	float stddev;
+	struct Grid grid;
 	Data data;
-	std::vector<int> count_p;
-	std::vector<int> count_q;
+	std::vector<int> counts_p;
+	std::vector<int> counts_q;
 };
 
 }

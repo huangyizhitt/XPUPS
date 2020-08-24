@@ -3,12 +3,15 @@
 #include "mfserver.h"
 #include "mfworker.h"
 
-std::unordered_map<int, XPU_INFO> MF::MFServer::worker_xpu_info;
+std::map<int, XPU_INFO> MF::MFServer::worker_xpu_info;
 MF::DataManager MF::MFServer::dm("netflix_train.bin");
 size_t MF::MFServer::cpus(0);
 size_t MF::MFServer::gpus(0);
 size_t MF::MFServer::fpgas(0);
 size_t MF::MFServer::tpus(0);
+size_t MF::MFServer::max_workers(0);
+size_t MF::MFServer::scale(0);
+
 
 int main(int argc, char **argv)
 {
@@ -22,7 +25,7 @@ int main(int argc, char **argv)
   	}
 	if (ps::IsServer()) {
     		std::cout << "start server" << std::endl;
-		xpu = new XPU("W-2155", CPU, 2, 20, 2, 0, true);
+		xpu = new XPU("W-2155", CPU, 20, 20, 20, 0, true);
 		server = new MF::MFServer(xpu);
 		ps::RegisterExitCallback([server, xpu](){ delete server; delete xpu;});
   	}

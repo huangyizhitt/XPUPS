@@ -4,8 +4,6 @@
 #include <algorithm>
 #include <ctime>
 
-const int nr_threads = 20;
-
 namespace MF {
 
 bool DataManager::LoadData()
@@ -105,7 +103,7 @@ void DataManager::DestroyMap(int *map)
 	}
 }
 
-void DataManager::ScaleData(float mf_scale)
+void DataManager::ScaleData(float mf_scale, int nr_threads)
 {
 	if(mf_scale == 1.0)
 		return;
@@ -144,7 +142,82 @@ void DataManager::Init()
 	inv_q_map = GenerateInvMap(q_map, cols);
 	ShuffleData();
 	printf("time elapsed:%.8fs\n",(cpu_second() - start));
+
+	counts_p.resize(rows, 0);
+	counts_q.resize(cols, 0);
 }
 
+void DataManager::SetGrid(const Dim2& grid_dim)
+{
+	grid.gridDim = grid_dim;
+	int nr_bins_x = grid.gridDim.x;
+	int nr_bins_y = grid.gridDim.y;
+	
+	block_size = nr_bins_x * nr_bins_y;
+
+	grid.blockDim.x = (int)ceil((double)cols / nr_bins_x);
+	grid.blockDim.y = (int)ceil((double)rows / nr_bins_y);
+}
+
+void DataManager::GridProblem(int nr_threads)
+{
+	vector<int> counts(block_size, 0);
+	for(size_t i = 0; i < nnz; i++) {
+		MatrixNode N = data.r_matrix[i];
+		int blockIdx = GetBlockId(grid, N);
+		counts[blockIdx] += 1;
+		counts_p[N.row_index] += 1;
+		counts_p[N.col_index] += 1;
+	}
+
+	std::vector<MatrixNode *>& ptrs = grid.blocks;
+	ptrs.resize(block_size + 1);
+	ptrs[0] = &data.r_matrix;
+
+	for(int block = 0; block < block_size; block++) {
+		ptrs[block+1] = ptrs[block] + counts[block];
+	}
+
+	std::vector<MatrixNode *> pivots(ptrs.begin(), ptrs.end()-1);
+	for(int block = 0; block < block_size; block++) {
+		for(MatrixNode* pivot = pivots[block]; pivot != ptrs[block+1];) {
+			int curr_block = GetBlockId(grid, pivot->row_index, pivot->col_index);
+			if(curr_block == block) {
+				++pivot;
+				continue;
+			}
+
+			MatrixNode *next = pivots[curr_block];
+			swap(*pivot, *next);
+			pivots[curr_block] += 1;
+		}
+	}
+
+#if defined USEOMP
+#pragma omp parallel for num_threads(nr_threads) schedule(dynamic)
+#endif
+    for(mf_int block = 0; block < block_size; ++block)
+    {
+        if(rows > cols)
+            sort(ptrs[block], ptrs[block+1], sort_node_by_p());
+        else
+            sort(ptrs[block], ptrs[block+1], sort_node_by_q());
+    } 	
+
+	for(int block = 0; block < block_size; block++) {
+		MatrixNode *N = ptrs[block];
+		printf("row: %d, col: %d, r: %d\n", N[0]);
+	}
+}
+
+int DataManager::GetBlockId(Grid& grid, MatrixNode& n)
+{
+	return (n.col_index/grid.blockDim.y) * grid.gridDim.x + n.row_index/grid.blockDim.x;
+}
+
+int DataManager::GetBlockId(Grid& grid, int row, int col)
+{
+	return row * grid->gridDim.x + col; 
+}
 
 }

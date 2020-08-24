@@ -1,7 +1,7 @@
 #ifndef _MFSERVER_H_
 #define _MFSERVER_H_
 
-#include <unordered_map>
+#include <map>
 #include "ps/ps.h"
 #include "xpu.h"
 #include "mfdata.h"
@@ -47,9 +47,11 @@ private:
 	static size_t gpus;
 	static size_t fpgas;
 	static size_t tpus;
+	static int max_workers;
+	static int scale;
 	ps::KVServer<float>* server_xpu;
 	XPU *xpu;
-	static std::unordered_map<int, XPU_INFO> worker_xpu_info;			//<XPU_TYPE, workers, work_ratio>
+	static std::map<int, XPU_INFO> worker_xpu_info;			//<XPU_TYPE, workers, work_ratio>
 	static DataManager dm;
 };
 

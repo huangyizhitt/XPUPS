@@ -23,8 +23,10 @@ void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
 	xpu_info.workers = (int)req_data.vals[1];
 	xpu_info.work_ratio = (int)req_data.vals[2];
 	printf("Worker: %d, XPU TYPE: %d, workers: %d, work_ratio: %d\n", worker_rank, xpu_info.type, xpu_info.workers, xpu_info.work_ratio);
-
+	if(xpu_info.workers > max_workers) max_workers = xpu_info.workers;
+	scale += xpu_info.work_ratio;
 	worker_xpu_info.insert(std::make_pair(worker_rank, xpu_info));
+	
 	switch(xpu_info.type) {
 		
 		case CPU:
@@ -69,6 +71,13 @@ void MFServer::PrepareData()
 {
 	if(!data_init_stage) {
 		dm.Init();
+
+		Dim2 gridDim;
+		
+		gridDim.x = 2 * scale;
+		gridDim.y = 2 * scale;
+		dm.SetGrid(gridDim);
+		dm.GridProblem(xpu->workers);
 		data_init_stage = true;
 	}
 }
@@ -169,7 +178,7 @@ void MFServer::PrintWorkerXPU()
 {
 	XPU_INFO xpu_info;
 	int worker_rank;
-	for(std::unordered_map<int, XPU_INFO>::iterator it = worker_xpu_info.begin(); it != worker_xpu_info.end(); it++) {
+	for(std::map<int, XPU_INFO>::iterator it = worker_xpu_info.begin(); it != worker_xpu_info.end(); it++) {
 		worker_rank = it->first;
 		xpu_info = it->second;
 		printf("Worker: %d, XPU TYPE: %d, workers: %d, work_ratio: %d\n", worker_rank, xpu_info.type, xpu_info.workers, xpu_info.work_ratio);
