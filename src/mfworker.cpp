@@ -78,11 +78,10 @@ void MFWorker::PullWorkerAndFeature()
 	CMD cmd = PULL_FEATURE;
 
 	for(int i = 0; i < 3; i++) {
-		keys.push_back(i);
+		keys.push_back(rank+i);
 	}
-
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-
+	printf("receive block and feature!\n");
 	size_t size = keys.size();
 	work_ratio = lens[0];
 	blocks.resize(work_ratio);
@@ -96,14 +95,20 @@ void MFWorker::PullWorkerAndFeature()
 		q = (float *)aligned_alloc(64, size_q * sizeof(float));
 	}
 
-	memcpy(&blocks[0], &vals[0], sizeof(int) * work_ratio);
+	for(int i = 0; i < work_ratio; i++) {
+		blocks[i] = (int)vals[i];
+	}
 	memcpy(p, &vals[work_ratio], sizeof(float) * size_p);
 	memcpy(q, &vals[work_ratio+size_p], size_q * sizeof(float));
 
-	printf("work_ratio: %d, m: %d, n: %d\n");
+	printf("work_ratio: %d, m: %d, n: %d\n", work_ratio, m, n);
 	for(int i = 0; i < work_ratio; i++) {
 		printf("block id: %d\n", blocks[i]);
 	}
+
+	for(int i = 0; i < 5; i++) {
+		printf("p[%d]: %.2f, q[%d]: %.2f\n", i, p[i], i, q[i]);
+	}	
 }
 
 void MFWorker::Test()

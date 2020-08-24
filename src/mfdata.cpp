@@ -175,12 +175,13 @@ void DataManager::SetGrid(const Dim2& grid_dim)
 	
 	block_size = nr_bins_x * nr_bins_y;
 	remain_blocks = block_size;
+	counts_epoch.resize(block_size, 0);
 
 	grid.blockDim.x = (int)ceil((double)cols / nr_bins_x);
 	grid.blockDim.y = (int)ceil((double)rows / nr_bins_y);
 
 	busy_x.resize(nr_bins_x, false);
-	busy_y.resize(nr_bins_y, true);
+	busy_y.resize(nr_bins_y, false);
 }
 
 void DataManager::GridData(int nr_threads)
@@ -194,7 +195,7 @@ void DataManager::GridData(int nr_threads)
 		int blockIdx = GetBlockId(grid, N);
 		counts[blockIdx] += 1;
 		counts_p[N.row_index] += 1;
-		counts_p[N.col_index] += 1;
+		counts_q[N.col_index] += 1;
 	}
 
 	std::vector<MatrixNode *>& ptrs = grid.blocks;
@@ -286,7 +287,7 @@ void DataManager::InitModel()
 
 int DataManager::FindFreeBlock()
 {
-	std::lock_guard<mutex> lock(mtx);
+	std::lock_guard<std::mutex> lock(mtx);
 	int blockid = GetBlockId(grid, block_y, block_x);
 	
 	while(busy_x[block_x] || busy_y[block_y] || counts_epoch[blockid] != current_epoch) {

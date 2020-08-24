@@ -20,6 +20,7 @@ public:
 	void PushWorkerXPU();
 	void PullDataFromServer();
 	void PullDataInfoFromServer();
+	void PullWorkerAndFeature();
 	void Test();
 
 public:

@@ -41,7 +41,6 @@ int main(int argc, char **argv)
 		worker->PullWorkerAndFeature();
 //		worker->Test();
 
-		for(int i = 0; i < e)
 
 		ps::RegisterExitCallback([worker, xpu](){ delete worker; delete xpu;});
 	}
