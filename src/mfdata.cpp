@@ -134,7 +134,7 @@ void DataManager::Init()
 	
 	LoadData();
 	CollectDataInfo();
-	scale = max((float)1e-4, stddev);
+	scale = std::max((float)1e-4, stddev);
 
 	printf("shuffle problem ...\n");
 	start = cpu_second();
