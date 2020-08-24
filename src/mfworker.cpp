@@ -10,9 +10,10 @@ void MFWorker::PushWorkerXPU()
 	std::vector<int> lens;
 	CMD cmd = PUSH_INFO;
 	keys.push_back(rank);
-	vals.push_back(xpu->peak_performance);
-	vals.push_back(xpu->mem_band);
-	lens.push_back(2);
+	vals.push_back(xpu->xpu_type);
+	vals.push_back(xpu->workers);
+	vals.push_back(xpu->worker_ratio);
+	lens.push_back(3);
 
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 	

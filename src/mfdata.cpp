@@ -127,4 +127,24 @@ void DataManager::ShuffleData()
     }
 }
 
+void DataManager::Init()
+{
+	float scale = 1.0;
+	double start, elapse;
+	
+	LoadData();
+	CollectDataInfo();
+	scale = max((float)1e-4, stddev);
+
+	printf("shuffle problem ...\n");
+	start = cpu_second();
+	p_map = GenerateRandomMap(rows);
+	q_map = GenerateRandomMap(cols);
+	inv_p_map = GenerateInvMap(p_map, rows);
+	inv_q_map = GenerateInvMap(q_map, cols);
+	ShuffleData();
+	printf("time elapsed:%.8fs\n",(cpu_second() - start));
+}
+
+
 }

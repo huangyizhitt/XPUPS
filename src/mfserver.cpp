@@ -12,10 +12,17 @@ void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
 	size_t vals_size = req_data.vals.size();
 	size_t lens_size = req_data.lens.size();
 
-	for(int i = 0; i < keys_size; i++) {
-		printf("Worker: %d, peak_performance: %f, bandwidth: %f, kv pair len: %d\n", req_data.keys[i],
-			req_data.vals[i * req_data.lens[i]], req_data.vals[i * req_data.lens[i] + 1], req_data.lens[i]);
-	}
+	int worker_rank = req_data.keys[0];
+	XPU_INFO xpu_info;
+	
+
+	xpu_info.type = (XPU_TYPE)req_data.vals[0];
+	xpu_info.workers = (int)req_data.vals[1];
+	xpu_info.work_ratio = (int)req_data.vals[2];
+	printf("Worker: %d, XPU TYPE: %d, workers: %d, work_ratio: %d\n", worker_rank, xpu_info.type, xpu_info.workers, xpu_info.work_ratio);
+
+	worker_xpu_info.insert(std::make_pair(worker_rank, xpu_info));
+	
 	ps::KVPairs<float> res;
 	server->Response(req_meta, res);
 }
@@ -36,7 +43,7 @@ void MFServer::PushDataInfoToWorker(const ps::KVMeta& req_meta,
 
 void MFServer::PrepareData()
 {
-	dm.LoadData();
+	dm.Init();
 }
 
 void MFServer::PushDataToWorker(const ps::KVMeta& req_meta,

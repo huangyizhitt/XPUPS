@@ -43,9 +43,9 @@ public:
 
 
 private:
-	static std::unordered_map<int, float> worker_xpu_info;			//<rank, performance>
 	ps::KVServer<float>* server_xpu;
-	XPU *xpu_info;
+	XPU *xpu;
+	static std::unordered_map<int, XPU_INFO> worker_xpu_info;			//<XPU_TYPE, workers, work_ratio>
 	static DataManager dm;
 };
 
