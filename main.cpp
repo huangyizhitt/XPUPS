@@ -9,9 +9,9 @@ size_t MF::MFServer::cpus(0);
 size_t MF::MFServer::gpus(0);
 size_t MF::MFServer::fpgas(0);
 size_t MF::MFServer::tpus(0);
-size_t MF::MFServer::max_workers(0);
-size_t MF::MFServer::scale(0);
-
+int MF::MFServer::max_workers(0);
+int MF::MFServer::scale(0);
+int MF::MFServer::nr_threads(0);
 
 int main(int argc, char **argv)
 {
@@ -27,6 +27,7 @@ int main(int argc, char **argv)
     		std::cout << "start server" << std::endl;
 		xpu = new XPU("W-2155", CPU, 20, 20, 20, 0, true);
 		server = new MF::MFServer(xpu);
+		server->SetThreads(xpu->workers);
 		ps::RegisterExitCallback([server, xpu](){ delete server; delete xpu;});
   	}
 

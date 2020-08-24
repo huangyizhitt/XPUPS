@@ -40,7 +40,7 @@ public:
 	static void Test(const ps::KVMeta& req_meta,
                           const ps::KVPairs<float>& req_data,
                           ps::KVServer<float>* server);
-
+	static void SetThreads(const int& t) {nr_threads = t;}
 
 private:
 	static size_t cpus;
@@ -49,8 +49,9 @@ private:
 	static size_t tpus;
 	static int max_workers;
 	static int scale;
+	static int nr_threads;
 	ps::KVServer<float>* server_xpu;
-	XPU *xpu;
+        XPU *xpu;
 	static std::map<int, XPU_INFO> worker_xpu_info;			//<XPU_TYPE, workers, work_ratio>
 	static DataManager dm;
 };

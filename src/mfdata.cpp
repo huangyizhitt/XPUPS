@@ -3,8 +3,25 @@
 #include <cmath>
 #include <algorithm>
 #include <ctime>
+#include <unordered_set>
 
 namespace MF {
+
+struct sort_node_by_p
+{
+    bool operator() (MatrixNode const &lhs, MatrixNode const &rhs)
+    {
+        return std::tie(lhs.row_index, lhs.col_index) < std::tie(rhs.row_index, rhs.col_index);
+    }
+};
+
+struct sort_node_by_q
+{
+    bool operator() (MatrixNode const &lhs, MatrixNode const &rhs)
+    {
+        return std::tie(lhs.col_index, lhs.row_index) < std::tie(rhs.col_index, rhs.row_index);
+    }
+};
 
 bool DataManager::LoadData()
 {
@@ -52,7 +69,7 @@ bool DataManager::LoadData()
 	return true;
 }
 
-void DataManager::CollectDataInfo()
+void DataManager::CollectDataInfo(int nr_threads)
 {
 	float ex = 0, ex2 = 0;
 	
@@ -125,13 +142,13 @@ void DataManager::ShuffleData()
     }
 }
 
-void DataManager::Init()
+void DataManager::Init(int nr_threads)
 {
 	float scale = 1.0;
 	double start, elapse;
 	
 	LoadData();
-	CollectDataInfo();
+	CollectDataInfo(nr_threads);
 	scale = std::max((float)1e-4, stddev);
 
 	printf("shuffle problem ...\n");
@@ -161,7 +178,10 @@ void DataManager::SetGrid(const Dim2& grid_dim)
 
 void DataManager::GridProblem(int nr_threads)
 {
-	vector<int> counts(block_size, 0);
+	printf("Grid Problem to all XPU...\n");
+	double start, elapse;
+	start = cpu_second();
+	std::vector<int> counts(block_size, 0);
 	for(size_t i = 0; i < nnz; i++) {
 		MatrixNode N = data.r_matrix[i];
 		int blockIdx = GetBlockId(grid, N);
@@ -172,52 +192,53 @@ void DataManager::GridProblem(int nr_threads)
 
 	std::vector<MatrixNode *>& ptrs = grid.blocks;
 	ptrs.resize(block_size + 1);
-	ptrs[0] = &data.r_matrix;
+	ptrs[0] = &data.r_matrix[0];
 
 	for(int block = 0; block < block_size; block++) {
 		ptrs[block+1] = ptrs[block] + counts[block];
 	}
 
-	std::vector<MatrixNode *> pivots(ptrs.begin(), ptrs.end()-1);
-	for(int block = 0; block < block_size; block++) {
-		for(MatrixNode* pivot = pivots[block]; pivot != ptrs[block+1];) {
-			int curr_block = GetBlockId(grid, pivot->row_index, pivot->col_index);
-			if(curr_block == block) {
-				++pivot;
-				continue;
-			}
+	std::vector<MatrixNode*> pivots(ptrs.begin(), ptrs.end()-1);
+    	for(int block = 0; block < block_size; ++block)
+    	{
+        	for(MatrixNode* pivot = pivots[block]; pivot != ptrs[block+1];)
+        	{
+            		int curr_block = GetBlockId(grid, *pivot);
+			if(curr_block == block)
+            		{
+               			++pivot;
+                		continue;
+            		}
 
-			MatrixNode *next = pivots[curr_block];
-			swap(*pivot, *next);
-			pivots[curr_block] += 1;
-		}
-	}
+            		MatrixNode *next = pivots[curr_block];
+			std::swap(*pivot, *next);
+            		pivots[curr_block] += 1;
+        	}
+    	}
+	
 
 #if defined USEOMP
 #pragma omp parallel for num_threads(nr_threads) schedule(dynamic)
 #endif
-    for(mf_int block = 0; block < block_size; ++block)
+    for(int block = 0; block < block_size; ++block)
     {
         if(rows > cols)
-            sort(ptrs[block], ptrs[block+1], sort_node_by_p());
+            std::sort(ptrs[block], ptrs[block+1], sort_node_by_p());
         else
-            sort(ptrs[block], ptrs[block+1], sort_node_by_q());
+            std::sort(ptrs[block], ptrs[block+1], sort_node_by_q());
     } 	
-
-	for(int block = 0; block < block_size; block++) {
-		MatrixNode *N = ptrs[block];
-		printf("row: %d, col: %d, r: %d\n", N[0]);
-	}
+    elapse = cpu_second() - start;
+    printf("Grid Problem to all XPU complete, cost: %.8f\n", elapse);
 }
 
 int DataManager::GetBlockId(Grid& grid, MatrixNode& n)
 {
-	return (n.col_index/grid.blockDim.y) * grid.gridDim.x + n.row_index/grid.blockDim.x;
+	return (n.row_index/grid.blockDim.y) * grid.gridDim.x + n.col_index/grid.blockDim.x;
 }
 
 int DataManager::GetBlockId(Grid& grid, int row, int col)
 {
-	return row * grid->gridDim.x + col; 
+	return row * grid.gridDim.x + col; 
 }
 
 }

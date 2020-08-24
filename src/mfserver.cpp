@@ -1,5 +1,7 @@
 #include "mfserver.h"
 #include "utils.h"
+#include "ps/base.h"
+#include "ps/internal/postoffice.h"
 #include <cstdio>
 #include <atomic>
 
@@ -70,14 +72,14 @@ void MFServer::PushDataInfoToWorker(const ps::KVMeta& req_meta,
 void MFServer::PrepareData()
 {
 	if(!data_init_stage) {
-		dm.Init();
+		dm.Init(nr_threads);
 
 		Dim2 gridDim;
 		
 		gridDim.x = 2 * scale;
 		gridDim.y = 2 * scale;
 		dm.SetGrid(gridDim);
-		dm.GridProblem(xpu->workers);
+		dm.GridProblem(nr_threads);
 		data_init_stage = true;
 	}
 }

@@ -42,14 +42,14 @@ public:
 	
 //	~Datamanager() {}
 	
-	void Init();
+	void Init(int nr_threads);
 	void DeInit();
 	void SetGrid(const Dim2& gridDim);
 	void GridProblem(int nr_threads);
 	
-private:
+//private:
 	bool LoadData();
-	void CollectDataInfo();
+	void CollectDataInfo(int nr_threads);
 	void ScaleData(float mf_scale, int nr_threads);
 	void ShuffleData();
 	int *GenerateRandomMap(size_t size);
