@@ -4,7 +4,7 @@
 #include "mfworker.h"
 
 std::map<int, XPU_INFO> MF::MFServer::worker_xpu_info;
-MF::DataManager MF::MFServer::dm("netflix_train.bin");
+MF::DataManager MF::MFServer::dm("netflix_train.bin", 128, 20);
 size_t MF::MFServer::cpus(0);
 size_t MF::MFServer::gpus(0);
 size_t MF::MFServer::fpgas(0);
@@ -38,7 +38,11 @@ int main(int argc, char **argv)
 		worker->PushWorkerXPU();
 		worker->PullDataInfoFromServer();
 		worker->PullDataFromServer();
+		worker->PullWorkerAndFeature();
 //		worker->Test();
+
+		for(int i = 0; i < e)
+
 		ps::RegisterExitCallback([worker, xpu](){ delete worker; delete xpu;});
 	}
 

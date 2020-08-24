@@ -33,6 +33,9 @@ public:
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server);
 
+	static void PushBlockAndFeature(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server);
 
 	void PrintWorkerXPU();
 
@@ -52,7 +55,7 @@ private:
 	static int scale;
 	static int nr_threads;
 	ps::KVServer<float>* server_xpu;
-        XPU *xpu;
+	XPU *xpu;
 	static std::map<int, XPU_INFO> worker_xpu_info;			//<XPU_TYPE, workers, work_ratio>
 	static DataManager dm;
 };

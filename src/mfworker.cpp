@@ -1,7 +1,10 @@
 #include "mfworker.h"
 #include "utils.h"
+#include <cstdlib>
 
 namespace MF {
+
+static bool alloc_feature(false);
 
 void MFWorker::PushWorkerXPU()
 {
@@ -65,6 +68,42 @@ void MFWorker::PullDataFromServer()
 	}
 
 	printf("recive data count: %ld\n", data_counter);
+}
+
+void MFWorker::PullWorkerAndFeature()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_FEATURE;
+
+	for(int i = 0; i < 3; i++) {
+		keys.push_back(i);
+	}
+
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+
+	size_t size = keys.size();
+	work_ratio = lens[0];
+	blocks.resize(work_ratio);
+	m = lens[1];
+	n = lens[2];
+	int size_p = m * k;
+	int size_q = n * k;
+
+	if(!alloc_feature) {
+		p = (float *)aligned_alloc(64, size_p * sizeof(float));
+		q = (float *)aligned_alloc(64, size_q * sizeof(float));
+	}
+
+	memcpy(&blocks[0], &vals[0], sizeof(int) * work_ratio);
+	memcpy(p, &vals[work_ratio], sizeof(float) * size_p);
+	memcpy(q, &vals[work_ratio+size_p], size_q * sizeof(float));
+
+	printf("work_ratio: %d, m: %d, n: %d\n");
+	for(int i = 0; i < work_ratio; i++) {
+		printf("block id: %d\n", blocks[i]);
+	}
 }
 
 void MFWorker::Test()

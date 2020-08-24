@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <cstdio>
+#include <mutex>
 
 namespace MF{
 
@@ -42,7 +43,7 @@ struct Grid
 
 class DataManager {
 public:
-	DataManager(const char *file) : train_file_path(file)							//build manager and open file	
+	DataManager(const char *file, int k, int epoch) : train_file_path(file), k(k), epoch(epoch)							//build manager and open file	
 	{
 		
 	}
@@ -53,7 +54,6 @@ public:
 	void DeInit();
 	void SetGrid(const Dim2& gridDim);
 	void GridData(int nr_threads);
-	void ChoseBlock();
 	
 //private:
 	bool LoadData();
@@ -69,6 +69,7 @@ public:
 	void ShuffleModel();
 	int GetBlockId(Grid& grid, MatrixNode& r);					//by matrix node's row and col index;
 	int GetBlockId(Grid& grid, int row, int col);					//by block's row and col index; 
+	int FindFreeBlock();
 
 	FILE *fp;
 	const char *train_file_path;
@@ -81,14 +82,24 @@ public:
 	size_t cols = 0;							//col size
 	int k;										//rows * cols -> rows * k and k * cols
 	int block_size;
+	int epoch;
+	int current_epoch = 0;
+	int remain_blocks;							//remain blocks in current epoch
+	int block_x = 0;
+	int block_y = 0;
+	int move = 0;
 	float means;
 	float stddev;
 	float scale;
 	struct Grid grid;
 	Data data;
 	Model model;
+	std::mutex mtx;
 	std::vector<int> counts_p;
 	std::vector<int> counts_q;
+	std::vector<int> counts_epoch;				//counts the block epoch;
+	std::vector<bool> busy_x;
+	std::vector<bool> busy_y;
 };
 
 }

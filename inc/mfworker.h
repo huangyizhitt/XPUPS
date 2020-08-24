@@ -23,17 +23,24 @@ public:
 	void Test();
 
 public:
-	int epochs = 50;
+	int epochs = 20;
 
 private:
 	int rank;
 	int core_num;
+	int m;
+	int n;
+	int k = 128;
+	int work_ratio;
+	float *p;
+	float *q;
 	size_t data_counter;
 	XPU *xpu;
 	MF::Data data;
 	size_t start;
 	size_t size;
 	ps::KVWorker<float>* kv_xpu;
+	std::vector<int> blocks;					//current hand blocks id
 };
 
 }

@@ -86,6 +86,41 @@ void MFServer::PrepareData()
 	}
 }
 
+//push free block id, format <xpu_rank, {free block id by work_ratio}>
+//push feature matrix p, format<1, {model->p}>
+//push feature matrix q, format<2, {model->q}>
+void MFServer::PushBlockAndFeature(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	int xpu_rank = req_data.keys[0];   //keys[0]->rank, keys[1]->rank+1, keys[2]->rank+2
+	int work_ratio = worker_xpu_info[xpu_rank].work_ratio;
+
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.lens.resize(keys_size);
+	res.lens[0] = work_ratio;
+	res.lens[1] = dm.rows;			  //len[0]=work_ratio, len[1]=rows, len[2]=rows;
+	res.lens[2] = dm.cols; 
+
+	int size_p = dm.rows * dm.k;
+	int size_q = dm.cols * dm.k;
+	res.vals.resize(work_ratio+size_p+size_q);
+
+	for(int i = 0; i < res.vals.size(); i++) {
+		if(i < work_ratio) {
+			res.vals[i] = dm.FindFreeBlock();
+		} else if(i < work_ratio + size_p) {
+			res.vals[i] = dm.model.p[i-work_ratio];
+		} else {
+			res.vals[i] = dm.model.q[i-work_ratio-size_p];
+		}
+	}
+
+	server->Response(req_meta, res);
+}
+
 void MFServer::PushDataToWorker(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server)
@@ -158,7 +193,7 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 			break;
 
 		case PULL_FEATURE:
-			
+			PushBlockAndFeature(req_meta, req_data, server);
 			break;
 
 		default:
@@ -188,6 +223,5 @@ void MFServer::PrintWorkerXPU()
 		printf("Worker: %d, XPU TYPE: %d, workers: %d, work_ratio: %d\n", worker_rank, xpu_info.type, xpu_info.workers, xpu_info.work_ratio);
 	}
 }
-
-	
+							  
 }
