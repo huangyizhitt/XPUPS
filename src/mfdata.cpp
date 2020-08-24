@@ -5,7 +5,7 @@
 #include <ctime>
 #include <unordered_set>
 #include <numeric>
-
+#include <random>
 
 namespace MF {
 
@@ -245,11 +245,6 @@ int DataManager::GetBlockId(Grid& grid, int row, int col)
 }
 
 
-void DataManager::InitFeatureP()
-{
-	
-}
-
 void DataManager::InitModel()
 {
 	
@@ -268,19 +263,19 @@ void DataManager::InitModel()
 	auto init1 = [&](std::vector<float>& feature, size_t size, std::vector<int>& counts)
 	{
 		for(size_t i = 0; i < size; ++i)
-        {
-            if(counts[i] > 0) {
+        	{
+            		if(counts[i] > 0) {
 				for(size_t j = 0; j < k; j++)
-                    feature[i * k + j] = (float)(distribution(generator)*s);
+                    			feature[i * k + j] = (float)(distribution(generator)*s);
 			} else {
-                for(size_t j = 0; d < k; j++)
-                    feature[i * k + j] = std::numeric_limits<float>::quiet_NaN();
-            }
-        }
-	}
+                		for(size_t j = 0; j < k; j++)
+                    			feature[i * k + j] = std::numeric_limits<float>::quiet_NaN();
+            		}
+        	}
+	};
 
 	init1(model.p, rows, counts_p);
-	init1(model.q, rows, counts_q);
+	init1(model.q, cols, counts_q);
 
 	printf("init model success!\n");
 }
