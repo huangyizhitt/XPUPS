@@ -5,7 +5,7 @@
 
 namespace MF{
 
-static std::atomic<bool> data_init = false;
+static std::atomic<bool> data_init_stage(false);
 
 void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
@@ -67,9 +67,9 @@ void MFServer::PushDataInfoToWorker(const ps::KVMeta& req_meta,
 
 void MFServer::PrepareData()
 {
-	if(!data_init) {
+	if(!data_init_stage) {
 		dm.Init();
-		data_init = true;
+		data_init_stage = true;
 	}
 }
 
