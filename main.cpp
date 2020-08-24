@@ -18,14 +18,14 @@ int main(int argc, char **argv)
   	}
 	if (ps::IsServer()) {
     		std::cout << "start server" << std::endl;
-		xpu = new XPU("W-2155", CPU, 2, 20, 2000, 60, 128, true);
+		xpu = new XPU("W-2155", CPU, 2, 20, 2, 0, true);
 		server = new MF::MFServer(xpu);
 		ps::RegisterExitCallback([server, xpu](){ delete server; delete xpu;});
   	}
 
 	if (ps::IsWorker()) {
 		std::cout << "start worker" << std::endl;
-		xpu = new XPU("W-2155", CPU, 9, 20, 2000, 60, 128, false);
+		xpu = new XPU("W-2155", CPU, 9, 20, 9, 1, false);
 		worker = new MF::MFWorker(xpu);
 		worker->PushWorkerXPU();
 		worker->PullDataInfoFromServer();

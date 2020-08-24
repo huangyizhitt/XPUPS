@@ -10,7 +10,7 @@ namespace MF{
 
 class MFServer {
 public:
-	MFServer(XPU * const xpu_inf) : xpu_info(xpu_inf) {
+	MFServer(XPU * const xpu_inf) : cpus(0), gpus(0), fpgas(0), tpus(0), xpu(xpu_inf) {
 		server_xpu = new ps::KVServer<float>(0);
 		server_xpu->set_request_handle(ReceiveXPUHandle);
 	}
@@ -43,6 +43,10 @@ public:
 
 
 private:
+	size_t cpus;
+	size_t gpus;
+	size_t fpgas;
+	size_t tpus;
 	ps::KVServer<float>* server_xpu;
 	XPU *xpu;
 	static std::unordered_map<int, XPU_INFO> worker_xpu_info;			//<XPU_TYPE, workers, work_ratio>
