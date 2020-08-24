@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <ctime>
 #include <unordered_set>
+#include <numeric>
+
 
 namespace MF {
 
@@ -144,8 +146,8 @@ void DataManager::ShuffleData()
 
 void DataManager::Init(int nr_threads)
 {
-	float scale = 1.0;
 	double start, elapse;
+	scale = 1.0f;
 	
 	LoadData();
 	CollectDataInfo(nr_threads);
@@ -158,6 +160,7 @@ void DataManager::Init(int nr_threads)
 	inv_p_map = GenerateInvMap(p_map, rows);
 	inv_q_map = GenerateInvMap(q_map, cols);
 	ShuffleData();
+	ScaleData(1.0/scale, nr_threads);
 	printf("time elapsed:%.8fs\n",(cpu_second() - start));
 
 	counts_p.resize(rows, 0);
@@ -176,7 +179,7 @@ void DataManager::SetGrid(const Dim2& grid_dim)
 	grid.blockDim.y = (int)ceil((double)rows / nr_bins_y);
 }
 
-void DataManager::GridProblem(int nr_threads)
+void DataManager::GridData(int nr_threads)
 {
 	printf("Grid Problem to all XPU...\n");
 	double start, elapse;
@@ -239,6 +242,47 @@ int DataManager::GetBlockId(Grid& grid, MatrixNode& n)
 int DataManager::GetBlockId(Grid& grid, int row, int col)
 {
 	return row * grid.gridDim.x + col; 
+}
+
+
+void DataManager::InitFeatureP()
+{
+	
+}
+
+void DataManager::InitModel()
+{
+	
+	model.m = rows;
+	model.n = cols;
+	model.k = k;
+	model.scale = means / scale;
+
+	std::default_random_engine generator;
+    std::uniform_real_distribution<float> distribution(0.0, 1.0);
+	float s = (float)sqrt(1.0/k);
+	
+	model.p.resize(rows * k, 0);
+	model.q.resize(k * cols, 0);
+
+	auto init1 = [&](std::vector<float>& feature, size_t size, std::vector<int>& counts)
+	{
+		for(size_t i = 0; i < size; ++i)
+        {
+            if(counts[i] > 0) {
+				for(size_t j = 0; j < k; j++)
+                    feature[i * k + j] = (float)(distribution(generator)*s);
+			} else {
+                for(size_t j = 0; d < k; j++)
+                    feature[i * k + j] = std::numeric_limits<float>::quiet_NaN();
+            }
+        }
+	}
+
+	init1(model.p, rows, counts_p);
+	init1(model.q, rows, counts_q);
+
+	printf("init model success!\n");
 }
 
 }

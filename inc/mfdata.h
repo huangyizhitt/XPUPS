@@ -19,8 +19,15 @@ struct MatrixNode {
 
 struct Data{
 	std::vector<MatrixNode> r_matrix;
-	float *p;
-	float *q;
+};
+
+struct Model{
+	int m;
+	int n;
+	int k;
+	float scale;
+	std::vector<float> p;           //m*k
+	std::vector<float> q;			//k*n
 };
 
 //2D Grid
@@ -45,7 +52,8 @@ public:
 	void Init(int nr_threads);
 	void DeInit();
 	void SetGrid(const Dim2& gridDim);
-	void GridProblem(int nr_threads);
+	void GridData(int nr_threads);
+	void ChoseBlock();
 	
 //private:
 	bool LoadData();
@@ -75,8 +83,10 @@ public:
 	int block_size;
 	float means;
 	float stddev;
+	float scale;
 	struct Grid grid;
 	Data data;
+	Model model;
 	std::vector<int> counts_p;
 	std::vector<int> counts_q;
 };

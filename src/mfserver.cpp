@@ -72,6 +72,7 @@ void MFServer::PushDataInfoToWorker(const ps::KVMeta& req_meta,
 void MFServer::PrepareData()
 {
 	if(!data_init_stage) {
+
 		dm.Init(nr_threads);
 
 		Dim2 gridDim;
@@ -79,7 +80,8 @@ void MFServer::PrepareData()
 		gridDim.x = 2 * scale;
 		gridDim.y = 2 * scale;
 		dm.SetGrid(gridDim);
-		dm.GridProblem(nr_threads);
+		dm.GridData(nr_threads);
+		dm.InitModel();
 		data_init_stage = true;
 	}
 }
