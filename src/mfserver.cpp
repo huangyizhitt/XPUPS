@@ -1,8 +1,11 @@
 #include "mfserver.h"
 #include "utils.h"
 #include <cstdio>
+#include <atomic>
 
 namespace MF{
+
+static std::atomic<bool> data_init = false;
 
 void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
@@ -22,6 +25,27 @@ void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
 	printf("Worker: %d, XPU TYPE: %d, workers: %d, work_ratio: %d\n", worker_rank, xpu_info.type, xpu_info.workers, xpu_info.work_ratio);
 
 	worker_xpu_info.insert(std::make_pair(worker_rank, xpu_info));
+	switch(xpu_info.type) {
+		
+		case CPU:
+			cpus++;
+			break;
+		
+		case GPU:
+			gpus++;
+			break;
+		
+		case FPGA:
+			fpgas++;
+			break;
+		
+		case TPU:
+			tpus++;
+			break;
+
+		default:
+			break;
+	}
 	
 	ps::KVPairs<float> res;
 	server->Response(req_meta, res);
@@ -43,7 +67,10 @@ void MFServer::PushDataInfoToWorker(const ps::KVMeta& req_meta,
 
 void MFServer::PrepareData()
 {
-	dm.Init();
+	if(!data_init) {
+		dm.Init();
+		data_init = true;
+	}
 }
 
 void MFServer::PushDataToWorker(const ps::KVMeta& req_meta,
