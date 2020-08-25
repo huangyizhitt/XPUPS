@@ -41,7 +41,7 @@ struct Grid
 };
 
 enum EpochStatus {
-	CompleteOnce,
+	CompleteOnece,
 	CompleteAll,
 	UnComplete,
 };

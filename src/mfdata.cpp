@@ -307,22 +307,28 @@ int DataManager::FindFreeBlock()
 	}
 
 	busy_x[block_x] = true;
-	busy_y[block_y] = true;
-	
+	busy_y[block_y] = true;	
+	remain_blocks--;
 	return blockid;
 }
 
 EpochStatus DataManager::EpochComplete()
 {
 	std::lock_guard<std::mutex> lock(mtx);
-	if(current_epoch == epoch) return CompleteAll;
-	if(remain_blocks) return UnComplete;
-	remain_blocks = block_size;
-	current_epoch++;
-	block_x = 0;
-	block_y = 0;
-	move = 0;
-	return CompleteOnce;
+	
+	if(remain_blocks > 0) return UnComplete;
+	
+	if(remain_blocks == 0 && current_epoch < epoch) {
+		current_epoch++;
+		//Recovery schedule
+		remain_blocks = block_size;
+        	block_x = 0;
+        	block_y = 0;
+        	move = 0;
+		return CompleteOnece;
+	}
+
+	if(current_epoch == epoch) return CompleteAll;	
 }
 
 void DataManager::SetBlockFree(int blockId)
@@ -333,7 +339,6 @@ void DataManager::SetBlockFree(int blockId)
 	busy_x[x] = false;
 	busy_y[y] = false;
 	counts_epoch[blockId]++;
-	remain_blocks--;
 }
 
 }

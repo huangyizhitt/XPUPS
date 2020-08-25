@@ -108,7 +108,7 @@ int MFWorker::PullBlockAndFeature()
 	memcpy(q, &vals[work_ratio+size_p], size_q * sizeof(float));
 
 	for(int i = 0; i < work_ratio; i++) {
-		printf("block id: %d\n", blocks[i]);
+		printf("[worker %d] block id: %d\n", rank, blocks[i]);
 	}
 
 	return 0;

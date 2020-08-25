@@ -1,5 +1,6 @@
 #include "utils.h"
 #include <sys/time.h>
+#include <cstdio>
 
 long long cpu_microsecond(void)
 {
@@ -23,7 +24,7 @@ double cpu_second(void)
     return t;
 }
 
-void print_feature_head(float *p, float *q, int head = 5, bool is_server = false)
+void print_feature_head(float *p, float *q, int head, bool is_server)
 {
 	const char *name = (is_server ? "Server" : "Worker");
 
