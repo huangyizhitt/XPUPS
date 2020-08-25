@@ -118,6 +118,10 @@ void MFServer::PushBlockAndFeature(const ps::KVMeta& req_meta,
 		}
 	}
 
+	for(int i = 0; i < 5; i++) {
+		printf("Server: p[%d]=%.2f, q[%d]=%.2f\n", i, dm.model.p[i], i, dm.model.q[i]);
+	}
+	printf("will respose block and feature!\n");
 	server->Response(req_meta, res);
 }
 
