@@ -149,7 +149,7 @@ void MFServer::PushDataToWorker(const ps::KVMeta& req_meta,
 	server->Response(req_meta, res);
 }
 
-//pull feature format {keys0, feature_p} {keys1, feature_q} {lens0: m} {lens1: n}
+//pull feature format {keys0, feature_p} {keys1, feature_q} {lens0: m*k} {lens1: n*k}
 void MFServer::PullFeature(const ps::KVMeta& req_meta,
 							const ps::KVPairs<float>& req_data,
 							ps::KVServer<float>* server)
@@ -159,11 +159,12 @@ void MFServer::PullFeature(const ps::KVMeta& req_meta,
 	size_t size_p = dm.rows * dm.k;
 	size_t size_q = dm.cols * dm.k;
 
-	if(size_p  != req_data.lens[0] || size_q != req_data.lens[1]) {
+	printf("feature size: %ld\n", vals_size);
+	if(size_p != req_data.lens[0] || size_q != req_data.lens[1]) {
 		printf("[Server] receive feature fail!\n");
 		exit(-1);
 	}
-
+	
 /*	res.keys = req_data.keys;
 	res.lens.resize(keys_size);	*/
 

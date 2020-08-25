@@ -111,7 +111,7 @@ void MFWorker::PullWorkerAndFeature()
 	}	
 }
 
-//push format {keys0, feature_p} {keys1, feature_q} {lens0: m} {lens1: n}
+//push format {keys0, feature_p} {keys1, feature_q} {lens0: m*k} {lens1: n*k}
 void MFWorker::PushFeature()
 {
 	std::vector<ps::Key> keys;
@@ -126,8 +126,8 @@ void MFWorker::PushFeature()
 
 	keys.push_back(0);
 	keys.push_back(1);
-	lens.push_back(m);
-	lens.push_back(n);
+	lens.push_back(size_p);
+	lens.push_back(size_q);
 
 	memcpy(&vals[0], p, sizeof(float) * size_p);
 	memcpy(&vals[size_p], q, sizeof(float) * size_q);
