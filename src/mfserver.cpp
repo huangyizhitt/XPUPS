@@ -119,10 +119,7 @@ void MFServer::PushBlockAndFeature(const ps::KVMeta& req_meta,
 		}
 	}
 
-	for(int i = 0; i < 5; i++) {
-		printf("Server: p[%d]=%.2f, q[%d]=%.2f\n", i, dm.model.p[i], i, dm.model.q[i]);
-	}
-	printf("will respose block and feature!\n");
+	debugp("will respose block and feature!\n");
 	server->Response(req_meta, res);
 }
 
@@ -146,7 +143,7 @@ void MFServer::PushDataToWorker(const ps::KVMeta& req_meta,
 		res.vals[i+2-start] = (dm.data.r_matrix[i/3].r);
 	}
 
-	printf("start: %d, keys_size: %d, vals_size:%d, lens:%d\n", start, keys_size, res.vals.size(), res.lens.size());
+	debugp("start: %d, keys_size: %d, vals_size:%d, lens:%d\n", start, keys_size, res.vals.size(), res.lens.size());
 	server->Response(req_meta, res);
 }
 
@@ -161,7 +158,7 @@ void MFServer::PullFeature(const ps::KVMeta& req_meta,
 	size_t size_q = dm.cols * dm.k;
 	int work_ratio = req_data.lens[0];
 
-	printf("feature size: %ld\n", vals_size);
+	debugp("feature size: %ld\n", vals_size);
 	if(size_p != req_data.lens[1] || size_q != req_data.lens[2]) {
 		printf("[Server] receive feature fail!\n");
 		exit(-1);
@@ -176,10 +173,6 @@ void MFServer::PullFeature(const ps::KVMeta& req_meta,
 
 	for(int i = 0; i < work_ratio; i++) {
 		dm.SetBlockFree(req_data.vals[i]);
-	}
-
-	for(int i = 0; i < 5; i++) {
-		printf("[Server] p[%d]: %.2f, q[%d]: %.2f\n", i, dm.model.p[i], i, dm.model.q[i]);
 	}
 	
 	ps::KVPairs<float> res;
@@ -221,7 +214,7 @@ void MFServer::PushStopWorker(const ps::KVMeta& req_meta,
 	res.lens.resize(keys_size);
 	for(size_t i = 0; i < keys_size; i++) 
 		res.vals.push_back(STOP_WORKER);	
-	printf("[Server] Will Stop the worker: %d\n", req_meta.sender);
+	
 	server->Response(req_meta, res);
 }
 

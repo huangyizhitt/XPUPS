@@ -35,7 +35,7 @@ void MFWorker::PullDataInfoFromServer()
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
 	start = (size_t)vals[0];
 	size = (size_t)vals[1];
-	printf("start: %ld, size: %ld\n", start, size);
+	debugp("start: %ld, size: %ld\n", start, size);
 }
 
 void MFWorker::PullDataFromServer()
@@ -54,7 +54,7 @@ void MFWorker::PullDataFromServer()
 
 	Data& data = this->data;
 	size_t size = keys.size();
-	printf("receive the data, size: %d!\n", size);
+	debugp("receive the data, size: %d!\n", size);
 	data.r_matrix.resize(size);	
 	int len = 3;
 	for(int i = 0; i < size; i++) {
@@ -64,11 +64,11 @@ void MFWorker::PullDataFromServer()
 		data_counter++;
 	}
 
-	printf("recive data count: %ld\n", data_counter);
+	debugp("recive data count: %ld\n", data_counter);
 }
 
 //return value: 1 all epoch complete, 0 receive block and feature
-int MFWorker::PullWorkerAndFeature()
+int MFWorker::PullBlockAndFeature()
 {
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
@@ -80,7 +80,7 @@ int MFWorker::PullWorkerAndFeature()
 	}
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
 
-	printf("receive block and feature!\n");
+	debugp("receive block and feature!\n");
 	size_t size = keys.size();
 
 	if(vals[0] == STOP_WORKER) {
@@ -107,14 +107,9 @@ int MFWorker::PullWorkerAndFeature()
 	memcpy(p, &vals[work_ratio], sizeof(float) * size_p);
 	memcpy(q, &vals[work_ratio+size_p], size_q * sizeof(float));
 
-	printf("work_ratio: %d, m: %d, n: %d\n", work_ratio, m, n);
 	for(int i = 0; i < work_ratio; i++) {
 		printf("block id: %d\n", blocks[i]);
 	}
-
-	for(int i = 0; i < 5; i++) {
-		printf("p[%d]: %.2f, q[%d]: %.2f\n", i, p[i], i, q[i]);
-	}	
 
 	return 0;
 }
@@ -147,10 +142,6 @@ void MFWorker::PushFeature()
 	
 	memcpy(&vals[work_ratio], p, sizeof(float) * size_p);
 	memcpy(&vals[work_ratio + size_p], q, sizeof(float) * size_q);
-
-	for(int i = 0; i < 5; i++) {
-		printf("[Worker] p[%d]: %.2f, q[%d]: %.2f\n", i, p[i], i, q[i]);
-	}
 
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 }

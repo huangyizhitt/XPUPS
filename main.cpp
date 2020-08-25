@@ -34,14 +34,14 @@ int main(int argc, char **argv)
 
 	if (ps::IsWorker()) {
 		std::cout << "start worker" << std::endl;
-		xpu = new XPU("W-2155", CPU, 9, 20, 9, 1, false);
+		xpu = new XPU("W-2155", CPU, 9, 20, 9, 2, false);
 		worker = new MF::MFWorker(xpu);
 		worker->PushWorkerXPU();
 		worker->PullDataInfoFromServer();
 		worker->PullDataFromServer();
 
 		while(true) {
-			int ret = worker->PullWorkerAndFeature();
+			int ret = worker->PullBlockAndFeature();
 			if(ret) break;
 			worker->PushFeature();
 		}

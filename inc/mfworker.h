@@ -21,7 +21,7 @@ public:
 	void PushWorkerXPU();
 	void PullDataFromServer();
 	void PullDataInfoFromServer();
-	int PullWorkerAndFeature();
+	int PullBlockAndFeature();
 	void Test();
 
 public:
