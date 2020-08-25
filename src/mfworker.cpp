@@ -83,7 +83,7 @@ int MFWorker::PullWorkerAndFeature()
 	printf("receive block and feature!\n");
 	size_t size = keys.size();
 
-	if(size == 1 && vals[0] == STOP_WORKER) {
+	if(vals[0] == STOP_WORKER) {
 		printf("Worker %d will stop!\n", rank);
 		return 1;
 	}

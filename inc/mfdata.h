@@ -76,7 +76,7 @@ public:
 	int GetBlockId(Grid& grid, int row, int col);					//by block's row and col index; 
 	int FindFreeBlock();
 	void SetBlockFree(int blockId);
-	bool EpochComplete();
+	EpochStatus EpochComplete();
 
 	FILE *fp;
 	const char *train_file_path;

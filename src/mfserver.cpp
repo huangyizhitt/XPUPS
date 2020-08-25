@@ -214,12 +214,13 @@ void MFServer::PushStopWorker(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server)
 {
+	size_t keys_size = req_data.keys.size();
 	ps::KVPairs<float> res;
 
-	res.keys.resize(1);
-	res.lens.resize(1);
-	res.vals.push_back(STOP_WORKER);
-	
+	res.keys = req_data.keys;
+	res.lens.resize(keys_size);
+	for(size_t i = 0; i < keys_size; i++) 
+		res.vals.push_back(STOP_WORKER);	
 	printf("[Server] Will Stop the worker: %d\n", req_meta.sender);
 	server->Response(req_meta, res);
 }
@@ -229,6 +230,7 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
                               ps::KVServer<float>* server)
 {
 	CMD cmd = (CMD) req_meta.cmd;
+	EpochStatus status;
 	switch(cmd) {
 		case PUSH_INFO:
 			GetWorkerInfo(req_meta, req_data, server);
@@ -244,8 +246,7 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 			break;
 
 		case PULL_FEATURE:
-			EpochStatus status = dm.EpochComplete();
-
+			status = dm.EpochComplete();
 			if(status == CompleteAll) {
 				PushStopWorker(req_meta, req_data, server);
 				break;

@@ -314,10 +314,14 @@ int DataManager::FindFreeBlock()
 
 EpochStatus DataManager::EpochComplete()
 {
+	std::lock_guard<std::mutex> lock(mtx);
 	if(current_epoch == epoch) return CompleteAll;
 	if(remain_blocks) return UnComplete;
 	remain_blocks = block_size;
 	current_epoch++;
+	block_x = 0;
+	block_y = 0;
+	move = 0;
 	return CompleteOnce;
 }
 
