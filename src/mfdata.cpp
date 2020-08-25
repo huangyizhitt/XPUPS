@@ -308,7 +308,6 @@ int DataManager::FindFreeBlock()
 
 	busy_x[block_x] = true;
 	busy_y[block_y] = true;	
-	remain_blocks--;
 	return blockid;
 }
 
@@ -339,6 +338,7 @@ void DataManager::SetBlockFree(int blockId)
 	busy_x[x] = false;
 	busy_y[y] = false;
 	counts_epoch[blockId]++;
+	remain_blocks--;
 }
 
 }

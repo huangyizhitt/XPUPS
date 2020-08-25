@@ -174,6 +174,13 @@ void MFServer::PullFeature(const ps::KVMeta& req_meta,
 	for(int i = 0; i < work_ratio; i++) {
 		dm.SetBlockFree(req_data.vals[i]);
 	}
+
+	EpochStatus status = dm.EpochComplete();
+
+	if(status == CompleteOnece) {
+		//commpute loss
+		printf("Epoch: %d, loss: \n", dm.current_epoch);
+	}
 	
 	ps::KVPairs<float> res;
 	server->Response(req_meta, res);
@@ -245,10 +252,6 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 				break;
 			} 
 		
-			if(status == CompleteOnce) {
-				//commpute loss
-				printf("Epoch: %d, loss: \n", dm.current_epoch);
-			}
 				
 			PushBlockAndFeature(req_meta, req_data, server);
 			break;
