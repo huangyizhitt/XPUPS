@@ -17,6 +17,7 @@ public:
 	~MFWorker() {delete kv_xpu;}
 	
 	void PrepareData();
+	void PushFeature();
 	void PushWorkerXPU();
 	void PullDataFromServer();
 	void PullDataInfoFromServer();

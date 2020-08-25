@@ -88,8 +88,8 @@ void MFWorker::PullWorkerAndFeature()
 	blocks.resize(work_ratio);
 	m = lens[1];
 	n = lens[2];
-	int size_p = m * k;
-	int size_q = n * k;
+	size_t size_p = m * k;
+	size_t size_q = n * k;
 
 	if(!alloc_feature) {
 		p = (float *)aligned_alloc(64, size_p * sizeof(float));
@@ -105,6 +105,35 @@ void MFWorker::PullWorkerAndFeature()
 		printf("block id: %d\n", blocks[i]);
 	}
 }
+
+//push format {keys0, feature_p} {keys1, feature_q} {lens0: m} {lens1: n}
+void MFWorker::PushFeature()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PUSH_FEATURE;
+
+	size_t size_p = m * k;
+	size_t size_q = n * k; 
+
+	vals.resize(size_p+size_q);
+
+	keys.push_back(0);
+	keys.push_back(1);
+	lens.push_back(m);
+	lens.push_back(n);
+
+	memcpy(&vals[0], p, sizeof(float) * size_p);
+	memcpy(&vals[size_p], q, sizeof(float) * size_q);
+
+	for(int i = 0; i < 5; i++) {
+		printf("[Worker] p[%d]: %.2f, q[%d]: %.2f\n", i, p[i], i, q[i]);
+	}
+
+	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+}
+
 
 void MFWorker::Test()
 {

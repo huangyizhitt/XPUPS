@@ -284,6 +284,7 @@ void DataManager::InitModel()
 	printf("init model success!\n");
 }
 
+//Find the free orthogonal block
 int DataManager::FindFreeBlock()
 {
 	std::lock_guard<mutex> lock(mtx);

@@ -12,6 +12,7 @@ enum CMD {
 	PULL_DATA_INFO,
 	PULL_DATA,
 	PULL_FEATURE,
+	PUSH_FEATURE,
 };
 
 long long cpu_microsecond(void);

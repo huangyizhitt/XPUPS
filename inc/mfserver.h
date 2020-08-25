@@ -37,6 +37,10 @@ public:
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server);
 
+	static void PullFeature(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server);
+
 	void PrintWorkerXPU();
 
 	static void PrepareData();

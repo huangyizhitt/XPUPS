@@ -139,14 +139,41 @@ void MFServer::PushDataToWorker(const ps::KVMeta& req_meta,
 		res.vals[i-start] = (dm.data.r_matrix[i/3].row_index);
 		res.vals[i+1-start] = (dm.data.r_matrix[i/3].col_index);
 		res.vals[i+2-start] = (dm.data.r_matrix[i/3].r);
-/*		res.vals[i-start] = i;
-                res.vals[i+1-start] = i+1;
-                res.vals[i+2-start] = i+2; */
 	}
 
 	printf("start: %d, keys_size: %d, vals_size:%d, lens:%d\n", start, keys_size, res.vals.size(), res.lens.size());
 	server->Response(req_meta, res);
 }
+
+//pull feature format {keys0, feature_p} {keys1, feature_q} {lens0: m} {lens1: n}
+void MFServer::PullFeature(const ps::KVMeta& req_meta,
+							const ps::KVPairs<float>& req_data,
+							ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t vals_size = req_data.vals.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+
+	if(size_p  != req_data.lens[0] || size_q != req_data.lens[1]) {
+		printf("[Server] receive feature fail!\n");
+		exit(-1);
+	}
+
+/*	res.keys = req_data.keys;
+	res.lens.resize(keys_size);	*/
+
+	memcpy(&dm.model.p[0], &req_data.vals[0], sizeof(float) * size_p);
+	memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
+
+	for(int i = 0; i < 5; i++) {
+		printf("[Server] p[%d]: %.2f, q[%d]: %.2f\n", i, dm.model.p[i], i, dm.model.q[i]);
+	}
+	
+	ps::KVPairs<float> res;
+	server->Response(req_meta, res);
+}
+
 							  
 void MFServer::Test(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
@@ -196,6 +223,10 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 			PushBlockAndFeature(req_meta, req_data, server);
 			break;
 
+		case PUSH_FEATURE:
+			PullFeature(req_meta, req_data, server);
+			break;
+		
 		default:
 			break;
 	}

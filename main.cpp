@@ -39,6 +39,7 @@ int main(int argc, char **argv)
 		worker->PullDataInfoFromServer();
 		worker->PullDataFromServer();
 		worker->PullWorkerAndFeature();
+		worker->PushFeature();
 //		worker->Test();
 
 		for(int i = 0; i < e)
