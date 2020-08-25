@@ -68,7 +68,7 @@ void MFWorker::PullDataFromServer()
 }
 
 //return value: 1 all epoch complete, 0 receive block and feature
-int MFWorker::PullBlockAndFeature()
+void MFWorker::PullBlockAndFeature()
 {
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
@@ -83,11 +83,6 @@ int MFWorker::PullBlockAndFeature()
 	debugp("receive block and feature!\n");
 	size_t size = keys.size();
 
-	if(vals[0] == STOP_WORKER) {
-		printf("Worker %d will stop!\n", rank);
-		return 1;
-	}
-	
 	work_ratio = lens[0];
 	blocks.resize(work_ratio);
 	
@@ -111,11 +106,10 @@ int MFWorker::PullBlockAndFeature()
 		printf("[worker %d] block id: %d\n", rank, blocks[i]);
 	}
 
-	return 0;
 }
 
 //push format {keys0, feature_p} {keys1, feature_q} {lens0: m*k} {lens1: n*k}
-void MFWorker::PushFeature()
+int MFWorker::PushFeature()
 {
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
@@ -144,6 +138,13 @@ void MFWorker::PushFeature()
 	memcpy(&vals[work_ratio + size_p], q, sizeof(float) * size_q);
 
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+	
+	if(vals[0] == STOP_WORKER) {
+		printf("Worker %d will stop!\n", rank);
+		return 1;
+	} else {
+		return 0;
+	}
 }
 
 

@@ -41,9 +41,10 @@ int main(int argc, char **argv)
 		worker->PullDataFromServer();
 
 		while(true) {
-			int ret = worker->PullBlockAndFeature();
+			worker->PullBlockAndFeature();
+			
+			int ret = worker->PushFeature();
 			if(ret) break;
-			worker->PushFeature();
 		}
 //		worker->Test();
 

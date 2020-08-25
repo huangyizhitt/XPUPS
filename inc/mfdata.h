@@ -91,8 +91,9 @@ public:
 	int k;										//rows * cols -> rows * k and k * cols
 	int block_size;
 	int epoch;
-	int current_epoch = 0;
+	int current_epoch = 1;
 	int remain_blocks;							//remain blocks in current epoch
+	int complete_blocks;
 	int block_x = 0;
 	int block_y = 0;
 	int move = 0;

@@ -17,11 +17,11 @@ public:
 	~MFWorker() {delete kv_xpu;}
 	
 	void PrepareData();
-	void PushFeature();
+	int PushFeature();
 	void PushWorkerXPU();
 	void PullDataFromServer();
 	void PullDataInfoFromServer();
-	int PullBlockAndFeature();
+	void PullBlockAndFeature();
 	void Test();
 
 public:

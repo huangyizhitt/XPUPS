@@ -175,6 +175,7 @@ void DataManager::SetGrid(const Dim2& grid_dim)
 	
 	block_size = nr_bins_x * nr_bins_y;
 	remain_blocks = block_size;
+	complete_blocks = 0;
 	counts_epoch.resize(block_size, 0);
 
 	grid.blockDim.x = (int)ceil((double)cols / nr_bins_x);
@@ -328,9 +329,9 @@ EpochStatus DataManager::EpochComplete()
 {
 	std::lock_guard<std::mutex> lock(mtx);
 	
-	if(remain_blocks > 0) return UnComplete;
+	if(complete_blocks < block_size) return UnComplete;
 	
-	if(remain_blocks == 0 && current_epoch < epoch) {
+	if(complete_blocks == block_size && current_epoch < epoch) {
 		
 		return CompleteOnece;
 	}
@@ -346,6 +347,7 @@ void DataManager::SetBlockFree(int blockId)
 	busy_x[x] = false;
 	busy_y[y] = false;
 	counts_epoch[blockId]++;
+	complete_blocks++;
 }
 
 }

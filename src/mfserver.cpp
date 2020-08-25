@@ -180,13 +180,18 @@ void MFServer::PullFeature(const ps::KVMeta& req_meta,
 	EpochStatus status = dm.EpochComplete();
 
 	if(status == CompleteOnece) {
-		dm.ClearBlockTable();
 		//commpute loss
 		printf("Epoch: %d, loss: \n", dm.current_epoch);
+		dm.ClearBlockTable();
 	}
-	
-	ps::KVPairs<float> res;
-	server->Response(req_meta, res);
+
+	if(status == CompleteAll) {
+		PushStopWorker(req_meta, req_data, server);
+		break;
+	} else {
+		ps::KVPairs<float> res;
+		server->Response(req_meta, res);
+	}
 }
 
 							  
@@ -233,7 +238,7 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
                               ps::KVServer<float>* server)
 {
 	CMD cmd = (CMD) req_meta.cmd;
-	EpochStatus status;
+	
 	switch(cmd) {
 		case PUSH_INFO:
 			GetWorkerInfo(req_meta, req_data, server);
@@ -249,13 +254,7 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 			break;
 
 		case PULL_FEATURE:
-			status = dm.EpochComplete();
-			if(status == CompleteAll) {
-				PushStopWorker(req_meta, req_data, server);
-				break;
-			} 
-		
-				
+			
 			PushBlockAndFeature(req_meta, req_data, server);
 			break;
 				
