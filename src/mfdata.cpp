@@ -176,7 +176,7 @@ void DataManager::SetGrid(const Dim2& grid_dim)
 	block_size = nr_bins_x * nr_bins_y;
 	remain_blocks = block_size;
 	complete_blocks = 0;
-	counts_epoch.resize(block_size, 0);
+	counts_epoch.resize(block_size, 1);
 
 	grid.blockDim.x = (int)ceil((double)cols / nr_bins_x);
 	grid.blockDim.y = (int)ceil((double)rows / nr_bins_y);
@@ -320,6 +320,7 @@ void DataManager::ClearBlockTable()
 	current_epoch++;
 	//Recovery schedule
 	remain_blocks = block_size;
+	complete_blocks = 0;
 	block_x = 0;
 	block_y = 0;
 	move = 0;

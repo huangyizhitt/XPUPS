@@ -186,8 +186,9 @@ void MFServer::PullFeature(const ps::KVMeta& req_meta,
 	}
 
 	if(status == CompleteAll) {
-		PushStopWorker(req_meta, req_data, server);
-		break;
+	//	PushStopWorker(req_meta, req_data, server);
+		printf("Epoch: %d, loss: \n", dm.current_epoch);
+		ps::Finalize(0, true);
 	} else {
 		ps::KVPairs<float> res;
 		server->Response(req_meta, res);
