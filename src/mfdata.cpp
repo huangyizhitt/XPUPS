@@ -313,4 +313,13 @@ int DataManager::FindFreeBlock()
 	return blockid;
 }
 
+void DataManager::SetBlockFree(int blockId)
+{
+	int y = blockId / grid.gridDim.x;
+	int x = blockId % grid.gridDim.x;
+	std::lock_guard<std::mutex> lock(mtx);
+	busy_x[x] = false;
+	busy_y[y] = false;
+}
+
 }

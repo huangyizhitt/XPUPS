@@ -100,12 +100,13 @@ void MFServer::PushBlockAndFeature(const ps::KVMeta& req_meta,
 	ps::KVPairs<float> res;
 	res.keys = req_data.keys;
 	res.lens.resize(keys_size);
-	res.lens[0] = work_ratio;
-	res.lens[1] = dm.rows;			  //len[0]=work_ratio, len[1]=rows, len[2]=rows;
-	res.lens[2] = dm.cols; 
 
+	//len[0]=work_ratio, len[1]=size_p, len[2]=size_q;
+	res.lens[0] = work_ratio;
 	int size_p = dm.rows * dm.k;
 	int size_q = dm.cols * dm.k;
+	res.lens[1] = size_p;			  
+	res.lens[2] = size_q;
 	res.vals.resize(work_ratio+size_p+size_q);
 
 	for(int i = 0; i < res.vals.size(); i++) {
@@ -158,9 +159,10 @@ void MFServer::PullFeature(const ps::KVMeta& req_meta,
 	size_t vals_size = req_data.vals.size();
 	size_t size_p = dm.rows * dm.k;
 	size_t size_q = dm.cols * dm.k;
+	int work_ratio = req_data.lens[0];
 
 	printf("feature size: %ld\n", vals_size);
-	if(size_p != req_data.lens[0] || size_q != req_data.lens[1]) {
+	if(size_p != req_data.lens[1] || size_q != req_data.lens[2]) {
 		printf("[Server] receive feature fail!\n");
 		exit(-1);
 	}
@@ -168,8 +170,13 @@ void MFServer::PullFeature(const ps::KVMeta& req_meta,
 /*	res.keys = req_data.keys;
 	res.lens.resize(keys_size);	*/
 
-	memcpy(&dm.model.p[0], &req_data.vals[0], sizeof(float) * size_p);
-	memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
+	//需要修改同步参数法则
+	memcpy(&dm.model.p[0], &req_data.vals[work_ratio], sizeof(float) * size_p);
+	memcpy(&dm.model.q[0], &req_data.vals[work_ratio+size_p], sizeof(float) * size_q);
+
+	for(int i = 0; i < work_ratio; i++) {
+		dm.SetBlockFree(req_data.vals[i]);
+	}
 
 	for(int i = 0; i < 5; i++) {
 		printf("[Server] p[%d]: %.2f, q[%d]: %.2f\n", i, dm.model.p[i], i, dm.model.q[i]);

@@ -85,10 +85,11 @@ void MFWorker::PullWorkerAndFeature()
 	size_t size = keys.size();
 	work_ratio = lens[0];
 	blocks.resize(work_ratio);
-	m = lens[1];
-	n = lens[2];
-	size_t size_p = m * k;
-	size_t size_q = n * k;
+	
+	size_t size_p = lens[1];
+	size_t size_q = lens[2];
+	m = size_p / k;
+	n = size_q / k;
 
 	if(!alloc_feature) {
 		p = (float *)aligned_alloc(64, size_p * sizeof(float));
@@ -122,15 +123,23 @@ void MFWorker::PushFeature()
 	size_t size_p = m * k;
 	size_t size_q = n * k; 
 
-	vals.resize(size_p+size_q);
+	vals.resize(work_ratio+size_p+size_q);
 
 	keys.push_back(0);
 	keys.push_back(1);
+	keys.push_back(2);
+
+	lens.push_back(work_ratio);
 	lens.push_back(size_p);
 	lens.push_back(size_q);
 
-	memcpy(&vals[0], p, sizeof(float) * size_p);
-	memcpy(&vals[size_p], q, sizeof(float) * size_q);
+	for(int i = 0; i < work_ratio; i++) 
+	{
+		vals[i] = blocks[i];
+	}
+	
+	memcpy(&vals[work_ratio], p, sizeof(float) * size_p);
+	memcpy(&vals[work_ratio + size_p], q, sizeof(float) * size_q);
 
 	for(int i = 0; i < 5; i++) {
 		printf("[Worker] p[%d]: %.2f, q[%d]: %.2f\n", i, p[i], i, q[i]);

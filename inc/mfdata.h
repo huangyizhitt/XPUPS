@@ -70,6 +70,7 @@ public:
 	int GetBlockId(Grid& grid, MatrixNode& r);					//by matrix node's row and col index;
 	int GetBlockId(Grid& grid, int row, int col);					//by block's row and col index; 
 	int FindFreeBlock();
+	void SetBlockFree(int blockId);
 
 	FILE *fp;
 	const char *train_file_path;
