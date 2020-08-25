@@ -96,6 +96,7 @@ void MFServer::PushBlockAndFeature(const ps::KVMeta& req_meta,
 	size_t keys_size = req_data.keys.size();
 	int xpu_rank = req_data.keys[0];   //keys[0]->rank, keys[1]->rank+1, keys[2]->rank+2
 	int work_ratio = worker_xpu_info[xpu_rank].work_ratio;
+	int blockId;
 
 	ps::KVPairs<float> res;
 	res.keys = req_data.keys;
@@ -111,7 +112,8 @@ void MFServer::PushBlockAndFeature(const ps::KVMeta& req_meta,
 
 	for(int i = 0; i < res.vals.size(); i++) {
 		if(i < work_ratio) {
-			res.vals[i] = dm.FindFreeBlock();
+			while((blockId = dm.FindFreeBlock()) < 0);					//sync epoch
+			res.vals[i] = blockId;
 		} else if(i < work_ratio + size_p) {
 			res.vals[i] = dm.model.p[i-work_ratio];
 		} else {
@@ -178,6 +180,7 @@ void MFServer::PullFeature(const ps::KVMeta& req_meta,
 	EpochStatus status = dm.EpochComplete();
 
 	if(status == CompleteOnece) {
+		dm.ClearBlockTable();
 		//commpute loss
 		printf("Epoch: %d, loss: \n", dm.current_epoch);
 	}

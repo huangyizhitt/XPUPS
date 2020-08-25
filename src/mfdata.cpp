@@ -289,6 +289,7 @@ void DataManager::InitModel()
 int DataManager::FindFreeBlock()
 {
 	std::lock_guard<std::mutex> lock(mtx);
+	if(remain_blocks == 0) return -1;
 	int blockid = GetBlockId(grid, block_y, block_x);
 	
 	while(busy_x[block_x] || busy_y[block_y] || counts_epoch[blockid] != current_epoch) {
@@ -308,7 +309,19 @@ int DataManager::FindFreeBlock()
 
 	busy_x[block_x] = true;
 	busy_y[block_y] = true;	
+	remain_blocks--;
 	return blockid;
+}
+
+void DataManager::ClearBlockTable()
+{
+	std::lock_guard<std::mutex> lock(mtx);
+	current_epoch++;
+	//Recovery schedule
+	remain_blocks = block_size;
+	block_x = 0;
+	block_y = 0;
+	move = 0;
 }
 
 EpochStatus DataManager::EpochComplete()
@@ -318,12 +331,7 @@ EpochStatus DataManager::EpochComplete()
 	if(remain_blocks > 0) return UnComplete;
 	
 	if(remain_blocks == 0 && current_epoch < epoch) {
-		current_epoch++;
-		//Recovery schedule
-		remain_blocks = block_size;
-        	block_x = 0;
-        	block_y = 0;
-        	move = 0;
+		
 		return CompleteOnece;
 	}
 
@@ -338,7 +346,6 @@ void DataManager::SetBlockFree(int blockId)
 	busy_x[x] = false;
 	busy_y[y] = false;
 	counts_epoch[blockId]++;
-	remain_blocks--;
 }
 
 }

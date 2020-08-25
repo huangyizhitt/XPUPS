@@ -77,6 +77,7 @@ public:
 	int FindFreeBlock();
 	void SetBlockFree(int blockId);
 	EpochStatus EpochComplete();
+	void ClearBlockTable();
 
 	FILE *fp;
 	const char *train_file_path;
