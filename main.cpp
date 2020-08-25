@@ -13,6 +13,7 @@ int MF::MFServer::max_workers(0);
 int MF::MFServer::scale(0);
 int MF::MFServer::nr_threads(0);
 
+
 int main(int argc, char **argv)
 {
 	XPU *xpu;
@@ -38,8 +39,12 @@ int main(int argc, char **argv)
 		worker->PushWorkerXPU();
 		worker->PullDataInfoFromServer();
 		worker->PullDataFromServer();
-		worker->PullWorkerAndFeature();
-		worker->PushFeature();
+
+		while(true) {
+			int ret = worker->PullWorkerAndFeature();
+			if(ret) break;
+			worker->PushFeature();
+		}
 //		worker->Test();
 
 

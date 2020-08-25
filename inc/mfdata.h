@@ -40,6 +40,11 @@ struct Grid
 	std::vector<MatrixNode *> blocks;		//blocks[i] point the head of the ith block
 };
 
+enum EpochStatus {
+	CompleteOnce,
+	CompleteAll,
+	UnComplete,
+};
 
 class DataManager {
 public:
@@ -71,6 +76,7 @@ public:
 	int GetBlockId(Grid& grid, int row, int col);					//by block's row and col index; 
 	int FindFreeBlock();
 	void SetBlockFree(int blockId);
+	bool EpochComplete();
 
 	FILE *fp;
 	const char *train_file_path;

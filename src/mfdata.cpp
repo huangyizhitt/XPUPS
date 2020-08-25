@@ -308,9 +308,17 @@ int DataManager::FindFreeBlock()
 
 	busy_x[block_x] = true;
 	busy_y[block_y] = true;
-	counts_epoch[blockid]++;
-	remain_blocks--;
+	
 	return blockid;
+}
+
+EpochStatus DataManager::EpochComplete()
+{
+	if(current_epoch == epoch) return CompleteAll;
+	if(remain_blocks) return UnComplete;
+	remain_blocks = block_size;
+	current_epoch++;
+	return CompleteOnce;
 }
 
 void DataManager::SetBlockFree(int blockId)
@@ -320,6 +328,8 @@ void DataManager::SetBlockFree(int blockId)
 	std::lock_guard<std::mutex> lock(mtx);
 	busy_x[x] = false;
 	busy_y[y] = false;
+	counts_epoch[blockId]++;
+	remain_blocks--;
 }
 
 }
