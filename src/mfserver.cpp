@@ -64,9 +64,10 @@ void MFServer::PushDataInfoToWorker(const ps::KVMeta& req_meta,
 	size_t n = req_data.keys.size();
 	res.keys = req_data.keys;
 	int rank = req_data.keys[0];
-	size_t start = 0;
-	size_t size = 0;
-	dm.SplitData(start, size, worker_xpu_info[rank]);
+	int start = 0;
+	int size = 0;
+	
+	dm.SplitData(start, size, worker_xpu_info[rank].work_ratio);
 	res.vals.push_back(start);							//push start and size to Worker;
 	res.vals.push_back(size);
 	res.lens.resize(n);
@@ -91,7 +92,9 @@ void MFServer::PrepareData()
 	}
 }
 
-void MFServer::ProcessInitData()
+void MFServer::ProcessInitData(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server)
 {
 	ps::KVPairs<float> res;
 	size_t n = req_data.keys.size();
@@ -101,12 +104,17 @@ void MFServer::ProcessInitData()
 	PrepareData();
 	
 	int rank = req_data.keys[0];
-	size_t start = 0;
-	size_t size = 0;
-	dm.SplitData(start, size, worker_xpu_info[rank]);
-	printf("[Server] start: %d, size: %d\n", start, size);
-	res.vals.push_back(start);
-	res.vals.push_back(size);
+	int start = 0;
+	int size = 0;
+
+
+	dm.SplitData(start, size, worker_xpu_info[rank].work_ratio);
+	float val1 = (float)start;
+	float val2 = (float)size;
+	printf("[Server] start: %f, size: %f\n", val1, val2);
+	res.vals.push_back(val1);
+	res.vals.push_back(val2);
+	res.lens[0] = 2;
 	server->Response(req_meta, res);
 }
 
@@ -288,7 +296,7 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 			break;
 
 		case INIT_DATA:
-			ProcessInitData();
+			ProcessInitData(req_meta, req_data, server);
 			break;
 			
 		case PULL_DATA_INFO:
@@ -321,7 +329,7 @@ void MFServer::PrintWorkerXPU()
 {
 	XPU_INFO xpu_info;
 	int worker_rank;
-	for(std::map<int, XPU_INFO>::iterator it = worker_xpu_info.begin(); it != worker_xpu_info.end(); it++) {
+	for(std::unordered_map<int, XPU_INFO>::iterator it = worker_xpu_info.begin(); it != worker_xpu_info.end(); it++) {
 		worker_rank = it->first;
 		xpu_info = it->second;
 		printf("Worker: %d, XPU TYPE: %d, workers: %d, work_ratio: %d\n", worker_rank, xpu_info.type, xpu_info.workers, xpu_info.work_ratio);

@@ -1,7 +1,7 @@
 #ifndef _MFSERVER_H_
 #define _MFSERVER_H_
 
-#include <map>
+#include <unordered_map>
 #include "ps/ps.h"
 #include "xpu.h"
 #include "mfdata.h"
@@ -45,6 +45,9 @@ public:
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server);
 
+	static void ProcessInitData(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server);
 	void PrintWorkerXPU();
 
 	static void PrepareData();
@@ -64,7 +67,7 @@ private:
 	static int nr_threads;
 	ps::KVServer<float>* server_xpu;
 	XPU *xpu;
-	static std::map<int, XPU_INFO> worker_xpu_info;			//<XPU_TYPE, workers, work_ratio>
+	static std::unordered_map<int, XPU_INFO> worker_xpu_info;			//<XPU_TYPE, workers, work_ratio>
 	static DataManager dm;
 };
 

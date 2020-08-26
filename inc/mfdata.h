@@ -79,7 +79,7 @@ public:
 	EpochStatus EpochComplete();
 	void ClearBlockTable();
 	void CountFeature();
-	void SplitData(int& start, int& size);
+	void SplitData(int& start, int& size, int work_ratio);
 
 	FILE *fp;
 	const char *train_file_path;

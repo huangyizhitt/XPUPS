@@ -157,8 +157,8 @@ void MFWorker::InitTestData()
 	keys.push_back(rank);
 	lens.push_back(2);
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-	start = (size_t)vals[0];
-	size = (size_t)vals[1];
+	start = (int)vals[0];
+	size = (int)vals[1];
 	printf("[Worker %d] start: %ld, size: %ld\n", rank, start, size);
 }
 

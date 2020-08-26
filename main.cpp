@@ -5,7 +5,7 @@
 #include "mfserver.h"
 #include "mfworker.h"
 
-std::map<int, XPU_INFO> MF::MFServer::worker_xpu_info;
+std::unordered_map<int, XPU_INFO> MF::MFServer::worker_xpu_info;
 MF::DataManager MF::MFServer::dm("netflix_train.bin", 128, 3);
 size_t MF::MFServer::cpus(0);
 size_t MF::MFServer::gpus(0);
