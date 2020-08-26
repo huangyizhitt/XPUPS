@@ -78,6 +78,8 @@ public:
 	void SetBlockFree(int blockId);
 	EpochStatus EpochComplete();
 	void ClearBlockTable();
+	void CountFeature();
+	void SplitData(int& start, int& size);
 
 	FILE *fp;
 	const char *train_file_path;
@@ -104,6 +106,7 @@ public:
 	Data data;
 	Model model;
 	std::mutex mtx;
+	std::vector<int> counts;					//counts every block size;
 	std::vector<int> counts_p;
 	std::vector<int> counts_q;
 	std::vector<int> counts_epoch;				//counts the block epoch;

@@ -1,5 +1,7 @@
 #include <iostream>
 #include "ps/ps.h"
+#include "ps/base.h"
+#include "ps/internal/postoffice.h"
 #include "mfserver.h"
 #include "mfworker.h"
 
@@ -37,15 +39,9 @@ int main(int argc, char **argv)
 		xpu = new XPU("W-2155", CPU, 9, 20, 9, 1, false);
 		worker = new MF::MFWorker(xpu);
 		worker->PushWorkerXPU();
-		worker->PullDataInfoFromServer();
-		worker->PullDataFromServer();
-
-		while(true) {
-			worker->PullBlockAndFeature();
-			
-			int ret = worker->PushFeature();
-			if(ret) break;
-		}
+		worker->InitTestData();
+		
+	
 //		worker->Test();
 
 

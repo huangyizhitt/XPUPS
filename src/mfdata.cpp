@@ -190,7 +190,7 @@ void DataManager::GridData(int nr_threads)
 	printf("Grid Problem to all XPU...\n");
 	double start, elapse;
 	start = cpu_second();
-	std::vector<int> counts(block_size, 0);
+	counts.resize(block_size, 0);
 	for(size_t i = 0; i < nnz; i++) {
 		MatrixNode N = data.r_matrix[i];
 		int blockIdx = GetBlockId(grid, N);
@@ -250,6 +250,15 @@ int DataManager::GetBlockId(Grid& grid, int row, int col)
 	return row * grid.gridDim.x + col; 
 }
 
+void DataManager::CountFeature()
+{
+	for(size_t i = 0; i < nnz; i++) {
+		MatrixNode N = data.r_matrix[i];
+		int blockIdx = GetBlockId(grid, N);
+		counts_p[N.row_index] += 1;
+		counts_q[N.col_index] += 1;
+	}
+}
 
 void DataManager::InitModel()
 {
@@ -350,5 +359,21 @@ void DataManager::SetBlockFree(int blockId)
 	counts_epoch[blockId]++;
 	complete_blocks++;
 }
+
+//注意，以后是否要加入轮转
+void DataManager::SplitData(int& start, int& size, int work_ratio)
+{
+	std::lock_guard<std::mutex> lock(mtx);
+	start = 0, size = 0;
+	for(int i = 0; i < block_x; i++) {							//find start block;
+		start += counts[i];
+	}
+
+	for(int i = block_x; i < block_x + work_ratio; i++) {		//find block size;
+		size += counts[i];
+	}
+	block_x+=work_ratio;
+}
+
 
 }

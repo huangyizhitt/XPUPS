@@ -3,11 +3,12 @@
 #include "ps/base.h"
 #include "ps/internal/postoffice.h"
 #include <cstdio>
-#include <atomic>
+#include <mutex>
 
 namespace MF{
 
-static std::atomic<bool> data_init_stage(false);
+static bool data_init_stage(false);
+//static std::mutex mtx;
 
 void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
@@ -62,14 +63,55 @@ void MFServer::PushDataInfoToWorker(const ps::KVMeta& req_meta,
 	ps::KVPairs<float> res;
 	size_t n = req_data.keys.size();
 	res.keys = req_data.keys;
-	res.vals.push_back(0);
-	res.vals.push_back(dm.nnz);
+	int rank = req_data.keys[0];
+	size_t start = 0;
+	size_t size = 0;
+	dm.SplitData(start, size, worker_xpu_info[rank]);
+	res.vals.push_back(start);							//push start and size to Worker;
+	res.vals.push_back(size);
 	res.lens.resize(n);
 
 	server->Response(req_meta, res);
 }
 
 void MFServer::PrepareData()
+{
+	if(!data_init_stage) {
+
+		dm.Init(nr_threads);
+
+		Dim2 gridDim;
+		
+		gridDim.x = 1;
+		gridDim.y = scale;
+		dm.SetGrid(gridDim);
+		dm.GridData(nr_threads);
+		dm.InitModel();
+		data_init_stage = true;
+	}
+}
+
+void MFServer::ProcessInitData()
+{
+	ps::KVPairs<float> res;
+	size_t n = req_data.keys.size();
+	res.keys = req_data.keys;
+	res.lens.resize(n);
+	
+	PrepareData();
+	
+	int rank = req_data.keys[0];
+	size_t start = 0;
+	size_t size = 0;
+	dm.SplitData(start, size, worker_xpu_info[rank]);
+	printf("[Server] start: %d, size: %d\n", start, size);
+	res.vals.push_back(start);
+	res.vals.push_back(size);
+	server->Response(req_meta, res);
+}
+
+/*
+void MFServer::PrepareData1()
 {
 	if(!data_init_stage) {
 
@@ -84,7 +126,7 @@ void MFServer::PrepareData()
 		dm.InitModel();
 		data_init_stage = true;
 	}
-}
+}*/
 
 //push free block id, format <xpu_rank, {free block id by work_ratio}>
 //push feature matrix p, format<1, {model->p}>
@@ -244,9 +286,13 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 		case PUSH_INFO:
 			GetWorkerInfo(req_meta, req_data, server);
 			break;
+
+		case INIT_DATA:
+			ProcessInitData();
+			break;
+			
 		case PULL_DATA_INFO:
-			PrepareData();
-			PushDataInfoToWorker(req_meta, req_data, server);
+			
 			break;
 
 		case PULL_DATA:
@@ -267,17 +313,7 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 		default:
 			break;
 	}
-
-/*	ps::KVPairs<float> res;
-	res.keys = req_data.keys;
-    res.vals.resize(keys_size);
-	for(size_t i = 0; i < keys_size; i++) {
-		if (req_meta.push) {
-			worker_xpu_info.insert(std::make_pair(req_data.keys[i], req_data.vals[i]));
-		}
-	}
-
-	server->Response(req_meta, res); */       
+   
 }
 
 

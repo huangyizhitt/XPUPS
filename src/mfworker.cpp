@@ -45,7 +45,7 @@ void MFWorker::PullDataFromServer()
 	std::vector<int> lens;
 	CMD cmd = PULL_DATA;
 
-	for(size_t i = 0; i < size; i++) {
+	for(size_t i = start; i < start+size; i++) {
 		keys.push_back(i);
 		lens.push_back(3);
 	}
@@ -147,6 +147,20 @@ int MFWorker::PushFeature()
 	}
 }
 
+void MFWorker::InitTestData()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = INIT_DATA;
+
+	keys.push_back(rank);
+	lens.push_back(2);
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+	start = (size_t)vals[0];
+	size = (size_t)vals[1];
+	printf("[Worker %d] start: %ld, size: %ld\n", rank, start, size);
+}
 
 void MFWorker::Test()
 {

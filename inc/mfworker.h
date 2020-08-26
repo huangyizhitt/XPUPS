@@ -22,6 +22,8 @@ public:
 	void PullDataFromServer();
 	void PullDataInfoFromServer();
 	void PullBlockAndFeature();
+	void InitTestData();
+	int GetWorkerID() const  {return rank;}
 	void Test();
 
 public:
