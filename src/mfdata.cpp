@@ -375,5 +375,20 @@ void DataManager::SplitData(int& start, int& size, int work_ratio)
 	block_x+=work_ratio;
 }
 
+//公共，可以提到基类
+void DataManager::PrintHead(int head)
+{
+	for(int i = 0; i < head; i++) {
+		printf("u: %d, v: %d, r: %.2f\n", data.r_matrix[i].row_index, data.r_matrix[i].col_index, data.r_matrix[i].r);
+	}	
+}
+
+
+void WorkerDM::PrintHead(int head)
+{
+	for(int i = 0; i < head; i++) {
+		printf("u: %d, v: %d, r: %.2f\n", data.r_matrix[i].row_index, data.r_matrix[i].col_index, data.r_matrix[i].r);
+	}	
+}
 
 }

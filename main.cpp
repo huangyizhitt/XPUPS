@@ -40,7 +40,7 @@ int main(int argc, char **argv)
 		worker = new MF::MFWorker(xpu);
 		worker->PushWorkerXPU();
 		worker->InitTestData();
-		
+		worker->PullDataFromServer();
 	
 //		worker->Test();
 

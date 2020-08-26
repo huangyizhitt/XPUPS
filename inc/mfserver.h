@@ -48,6 +48,11 @@ public:
 	static void ProcessInitData(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server);
+
+	static void ProcessPullData(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server);
+	
 	void PrintWorkerXPU();
 
 	static void PrepareData();

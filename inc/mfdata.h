@@ -80,6 +80,7 @@ public:
 	void ClearBlockTable();
 	void CountFeature();
 	void SplitData(int& start, int& size, int work_ratio);
+	void PrintHead(int head = 5);
 
 	FILE *fp;
 	const char *train_file_path;
@@ -112,6 +113,13 @@ public:
 	std::vector<int> counts_epoch;				//counts the block epoch;
 	std::vector<bool> busy_x;
 	std::vector<bool> busy_y;
+};
+
+class WorkerDM {
+
+	void PrintHead(int head = 5);
+
+	Data data;
 };
 
 }

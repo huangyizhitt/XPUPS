@@ -52,19 +52,20 @@ void MFWorker::PullDataFromServer()
 
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
 
-	Data& data = this->data;
+	Data& data = this->dm.data;
 	size_t size = keys.size();
 	debugp("receive the data, size: %d!\n", size);
 	data.r_matrix.resize(size);	
+	data_counter = size;
 	int len = 3;
 	for(int i = 0; i < size; i++) {
 		data.r_matrix[i].row_index = (int)vals[i * len + 0];
 		data.r_matrix[i].col_index = (int)vals[i * len + 1];
 		data.r_matrix[i].r = (float)vals[i * len + 2];
-		data_counter++;
 	}
 
-	debugp("recive data count: %ld\n", data_counter);
+	printf("Recive data count: %ld\n", data_counter);
+	dm.PrintHead(3);
 }
 
 //return value: 1 all epoch complete, 0 receive block and feature

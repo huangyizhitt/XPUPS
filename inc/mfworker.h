@@ -40,7 +40,7 @@ private:
 	float *q;
 	size_t data_counter;
 	XPU *xpu;
-	MF::Data data;
+	WorkerDM dm;
 	size_t start;
 	size_t size;
 	ps::KVWorker<float>* kv_xpu;
