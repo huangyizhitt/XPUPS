@@ -80,7 +80,7 @@ public:
 	void ClearBlockTable();
 	void CountFeature();
 	void SplitData(int& start, int& size, int work_ratio);
-	void PrintHead(int head = 5);
+	void PrintHead(int start, int head = 5);
 
 	FILE *fp;
 	const char *train_file_path;
@@ -116,8 +116,8 @@ public:
 };
 
 class WorkerDM {
-
-	void PrintHead(int head = 5);
+public:
+	void PrintHead(int rank, int head = 5);
 
 	Data data;
 };

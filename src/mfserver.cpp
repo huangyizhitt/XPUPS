@@ -132,7 +132,7 @@ void MFServer::ProcessPullData(const ps::KVMeta& req_meta,
 
 	size_t start = req_data.keys[0];
 
-	for(size_t i = start, size_t j = 0; i < start + keys_size; i++, j+=3) {
+	for(size_t i = start, j = 0; i < start + keys_size; i++, j+=3) {
 		res.vals[j] = (dm.data.r_matrix[i].row_index);
 		res.vals[j+1] = (dm.data.r_matrix[i].col_index);
 		res.vals[j+2] = (dm.data.r_matrix[i].r);
@@ -141,7 +141,7 @@ void MFServer::ProcessPullData(const ps::KVMeta& req_meta,
 
 	debugp("start: %d, keys_size: %d, vals_size:%d, lens:%d\n", start, keys_size, res.vals.size(), res.lens.size());
 	printf("[Server] Send data %d\n", keys_size);
-	dm.PrintHead(3);
+	dm.PrintHead(start, 3);
 	server->Response(req_meta, res);
 }
 

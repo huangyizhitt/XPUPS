@@ -376,18 +376,18 @@ void DataManager::SplitData(int& start, int& size, int work_ratio)
 }
 
 //公共，可以提到基类
-void DataManager::PrintHead(int head)
+void DataManager::PrintHead(int start, int head)
 {
-	for(int i = 0; i < head; i++) {
-		printf("u: %d, v: %d, r: %.2f\n", data.r_matrix[i].row_index, data.r_matrix[i].col_index, data.r_matrix[i].r);
+	for(int i = start; i < start+head; i++) {
+		printf("[Server]u: %d, v: %d, r: %.2f\n", data.r_matrix[i].row_index, data.r_matrix[i].col_index, data.r_matrix[i].r);
 	}	
 }
 
 
-void WorkerDM::PrintHead(int head)
+void WorkerDM::PrintHead(int rank, int head)
 {
 	for(int i = 0; i < head; i++) {
-		printf("u: %d, v: %d, r: %.2f\n", data.r_matrix[i].row_index, data.r_matrix[i].col_index, data.r_matrix[i].r);
+		printf("[Worker %d]u: %d, v: %d, r: %.2f\n", rank, data.r_matrix[i].row_index, data.r_matrix[i].col_index, data.r_matrix[i].r);
 	}	
 }
 

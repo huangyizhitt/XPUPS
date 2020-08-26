@@ -65,7 +65,7 @@ void MFWorker::PullDataFromServer()
 	}
 
 	printf("Recive data count: %ld\n", data_counter);
-	dm.PrintHead(3);
+	dm.PrintHead(rank, 3);
 }
 
 //return value: 1 all epoch complete, 0 receive block and feature
