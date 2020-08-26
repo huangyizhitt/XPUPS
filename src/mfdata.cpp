@@ -486,4 +486,12 @@ void WorkerDM::PrintHead(int rank, int head)
 	}	
 }
 
+void WorkerDM::ClearBlockFlags()
+{
+	remain_blocks = block_size;
+	for(int i = 0; i < busy_x.size(); i++) {
+		busy_x[i] = 0;
+		busy_y[i] = 0;
+	}
+}
 }

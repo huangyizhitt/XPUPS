@@ -122,7 +122,10 @@ public:
 	void GridData(int rank);
 	int GetBlockId(Grid& grid, MatrixNode& r);					//by matrix node's row and col index;
 	int GetBlockId(Grid& grid, int row, int col);					//by block's row and col index; 
+	int GetFreeBlock();
 	
+	void ClearBlockFlags();
+
 	size_t nnz = 0;
 	size_t rows = 0;
 	size_t cols = 0;

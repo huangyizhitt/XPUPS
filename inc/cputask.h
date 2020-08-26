@@ -3,6 +3,8 @@
 
 #include "mfdata.h"
 #include <atomic>
+#include <mutex>
+#include <condition_variable>
 
 extern std::mutex cpu_workers_barrier_mutex;
 extern std::condition_variable cpu_workers_barrier_con;
@@ -11,7 +13,7 @@ extern std::condition_variable control_wake_up_con;
 extern std::atomic<int> cpu_workers_complelte;
 extern std::atomic<int> epoch;
 
-using namespace MF{
+namespace MF{
 
 struct CPUArgs {
 	int tid;

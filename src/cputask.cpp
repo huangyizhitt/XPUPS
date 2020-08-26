@@ -12,15 +12,14 @@ std::atomic<int> cpu_workers_complelte(0);
 std::atomic<int> epoch(0);
 
 
-using namespace MF{
+namespace MF{
 
 void sgd_kernel_hogwild_cpu(CPUArgs *cpu_args)
 {
-	CPUArgs *cpu_args;
 	WorkerDM *dm = cpu_args->dm;
 	Grid *grid = &dm->grid;
 	int k = dm->k;
-	int target_epoch = cpu_args->epoch;
+	int target_epoch = cpu_args->target_epoch;
 	float *p = cpu_args->p;
 	float *q = cpu_args->q;
 	float lrate = cpu_args->lrate;
@@ -31,7 +30,7 @@ void sgd_kernel_hogwild_cpu(CPUArgs *cpu_args)
 		{
 			printf("threads %d will block!\n", cpu_args->tid);
 			std::unique_lock<std::mutex> unique_lock(cpu_workers_barrier_mutex);
-			cpu_workers_barrier_con.wait(unique_lock, [&](){return dm->remain_blocks > 0;})
+			cpu_workers_barrier_con.wait(unique_lock, [&](){return dm->remain_blocks > 0;});
 		}
 		printf("threads %d will recover!\n", cpu_args->tid);
 											

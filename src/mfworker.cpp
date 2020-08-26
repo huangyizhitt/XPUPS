@@ -202,7 +202,7 @@ void MFWorker::CreateTasks()
 void MFWorker::StartUpTasks()
 {
 	printf("will start up all tasks!\n");
-	dm->remain_blocks = dm->block_size;
+	dm.ClearBlockFlags();
 	cpu_workers_complelte = 0;
 	cpu_workers_barrier_con.notify_all();
 	std::unique_lock<std::mutex> unique_lock(control_wake_up_mutex);

@@ -1,4 +1,5 @@
 #include <iostream>
+#include <unistd.h>
 #include "ps/ps.h"
 #include "ps/base.h"
 #include "ps/internal/postoffice.h"
@@ -46,7 +47,7 @@ int main(int argc, char **argv)
 		worker->CreateTasks();
 
 		for(int i = 0; i < epoch; i++) {
-			//pull feature
+			sleep(0.5);//pull feature
 			worker->StartUpTasks();			//start up tasks to compute 
 			//push feature
 		}
