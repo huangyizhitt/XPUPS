@@ -35,6 +35,7 @@ int main(int argc, char **argv)
   	}
 
 	if (ps::IsWorker()) {
+		int epoch = 20;
 		std::cout << "start worker" << std::endl;
 		xpu = new XPU("W-2155", CPU, 9, 20, 9, 1, false);
 		worker = new MF::MFWorker(xpu);

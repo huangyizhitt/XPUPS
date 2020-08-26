@@ -24,6 +24,7 @@ public:
 	void PullBlockAndFeature();
 	void InitTestData();
 	int GetWorkerID() const  {return rank;}
+	void GridProblem();
 	void Test();
 
 public:
@@ -35,6 +36,7 @@ private:
 	int m;
 	int n;
 	int k = 128;
+	int epoch;
 	int work_ratio;
 	float *p;
 	float *q;
