@@ -1,21 +1,21 @@
 #include "cputask.h"
-#include <mutex>
-#include <condition_variable>
+#include <pthread.h>
 #include <vector>
 #include <atomic>
 
-std::mutex cpu_workers_barrier_mutex;
-std::condition_variable cpu_workers_barrier_con;
-std::mutex control_wake_up_mutex;
-std::condition_variable control_wake_up_con;
+pthread_cond_t cpu_workers_barrier_con = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t cpu_workers_barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t control_wake_up_con = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t control_wake_up_mutex = PTHREAD_MUTEX_INITIALIZER;
 std::atomic<int> cpu_workers_complelte(0);
 std::atomic<int> epoch(0);
 
 
 namespace MF{
 
-void sgd_kernel_hogwild_cpu(CPUArgs *cpu_args)
+void *sgd_kernel_hogwild_cpu(void *args)
 {
+	CPUArgs *cpu_args = (CPUArgs *)args;
 	WorkerDM *dm = cpu_args->dm;
 	Grid *grid = &dm->grid;
 	int k = dm->k;
@@ -29,8 +29,9 @@ void sgd_kernel_hogwild_cpu(CPUArgs *cpu_args)
 	while(true) {
 		{
 			printf("threads %d will block!\n", cpu_args->tid);
-			std::unique_lock<std::mutex> unique_lock(cpu_workers_barrier_mutex);
-			cpu_workers_barrier_con.wait(unique_lock, [&](){return dm->remain_blocks > 0;});
+			pthread_mutex_lock(&cpu_workers_barrier_mutex);
+			pthread_cond_wait(&cpu_workers_barrier_con, &cpu_workers_barrier_mutex);
+			pthread_mutex_unlock(&cpu_workers_barrier_mutex);
 		}
 		printf("threads %d will recover!\n", cpu_args->tid);
 											
@@ -51,11 +52,12 @@ void sgd_kernel_hogwild_cpu(CPUArgs *cpu_args)
 			}
 		}
 
+		pthread_mutex_lock(&control_wake_up_mutex);
 		cpu_workers_complelte++;
-		std::unique_lock<std::mutex> unique_lock(control_wake_up_mutex);
 		if(cpu_workers_complelte == cpu_args->workers) {
-			control_wake_up_con.notify_one();
+			pthread_cond_signal(&control_wake_up_con);
 		}
+		pthread_mutex_unlock(&control_wake_up_mutex);
 
 		if(epoch == target_epoch) {
 			printf("threads %d will stop!\n");

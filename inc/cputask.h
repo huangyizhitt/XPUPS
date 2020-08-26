@@ -6,10 +6,10 @@
 #include <mutex>
 #include <condition_variable>
 
-extern std::mutex cpu_workers_barrier_mutex;
-extern std::condition_variable cpu_workers_barrier_con;
-extern std::mutex control_wake_up_mutex;
-extern std::condition_variable control_wake_up_con;
+extern pthread_mutex_t cpu_workers_barrier_mutex;
+extern pthread_cond_t cpu_workers_barrier_con;
+extern pthread_mutex_t control_wake_up_mutex;
+extern pthread_cond_t control_wake_up_con;
 extern std::atomic<int> cpu_workers_complelte;
 extern std::atomic<int> epoch;
 
@@ -27,7 +27,7 @@ struct CPUArgs {
 	WorkerDM *dm;
 };
 
-void sgd_kernel_hogwild_cpu(CPUArgs *cpu_args);
+void *sgd_kernel_hogwild_cpu(void *args);
 
 
 }

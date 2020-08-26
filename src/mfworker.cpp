@@ -195,7 +195,17 @@ void MFWorker::CreateTasks()
 		arg.q = q;
 		arg.dm = &dm;
 		args.push_back(arg);
-		threads.emplace_back(sgd_kernel_hogwild_cpu, &args[i]);
+	}
+
+	for(int i = 0; i < core_num; i++) {
+		pthread_create(&tid[i], NULL, sgd_kernel_hogwild_cpu, &args[i]);
+	}
+}
+
+void MFWorker::JoinTasks()
+{
+	for(int i = 0; i < core_num; i++) {
+		pthread_join(&tid[i], NULL);
 	}
 }
 
@@ -203,10 +213,10 @@ void MFWorker::StartUpTasks()
 {
 	printf("will start up all tasks!\n");
 	dm.ClearBlockFlags();
+	pthread_mutex_lock(&cpu_workers_barrier_mutex);
 	cpu_workers_complelte = 0;
-	cpu_workers_barrier_con.notify_all();
-	std::unique_lock<std::mutex> unique_lock(control_wake_up_mutex);
-	control_wake_up_con.wait(unique_lock, [&](){return cpu_workers_complelte == core_num;});
+	pthread_cond_broadcast(&cpu_workers_barrier_con);
+	pthread_mutex_unlock(&cpu_workers_barrier_mutex);
 	epoch++;
 }
 

@@ -28,6 +28,7 @@ public:
 	void GridProblem();
 	void CreateTasks();
 	void StartUpTasks();
+	void JoinTasks();
 	void Test();
 
 public:
@@ -53,7 +54,7 @@ private:
 	ps::KVWorker<float>* kv_xpu;
 	std::vector<int> blocks;					//current hand blocks id
 	std::vector<CPUArgs> args;
-	std::vector<std::thread> threads;
+	pthread_t tid[core_num];
 };
 
 }
