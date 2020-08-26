@@ -38,7 +38,7 @@ int main(int argc, char **argv)
 	if (ps::IsWorker()) {
 		int epoch = 20;
 		std::cout << "start worker" << std::endl;
-		xpu = new XPU("W-2155", CPU, 9, 20, 9, 1, false);
+		xpu = new XPU("W-2155", CPU, 4, 20, 4, 1, false);
 		worker = new MF::MFWorker(xpu);
 		worker->PushWorkerXPU();
 		worker->InitTestData();
@@ -47,11 +47,11 @@ int main(int argc, char **argv)
 		worker->CreateTasks();
 
 		for(int i = 0; i < epoch; i++) {
-			sleep(0.5);//pull feature
+			sleep(2);
 			worker->StartUpTasks();			//start up tasks to compute 
 			//push feature
 		}
-
+		worker->JoinTasks();
 		ps::RegisterExitCallback([worker, xpu](){ delete worker; delete xpu;});
 	}
 

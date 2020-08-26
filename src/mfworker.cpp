@@ -168,7 +168,7 @@ void MFWorker::InitTestData()
 	dm.rows = (int)vals[2];
 	dm.cols = (int)vals[3];
 	dm.nnz = size;
-	printf("[Worker %d] start: %ld, size: %ld\n", rank, start, size);
+	printf("[Worker %d] start: %d, size: %d, rows: %d, cols: %d\n", rank, start, size, dm.rows, dm.cols);
 }
 
 void MFWorker::GridProblem()
@@ -177,12 +177,14 @@ void MFWorker::GridProblem()
 		
 	gridDim.x = 2 * core_num + 1;
 	gridDim.y = 2 * core_num + 1;
+	printf("x:%d, y:%d\n", gridDim.x, gridDim.y);
 	dm.SetGrid(gridDim);
 	dm.GridData(rank);
 }
 
 void MFWorker::CreateTasks()
 {
+	tids.resize(core_num);
 	for(int i = 0; i < core_num; i++) {
 		CPUArgs arg;
 		arg.tid = i;
@@ -198,26 +200,32 @@ void MFWorker::CreateTasks()
 	}
 
 	for(int i = 0; i < core_num; i++) {
-		pthread_create(&tid[i], NULL, sgd_kernel_hogwild_cpu, &args[i]);
+		pthread_create(&tids[i], NULL, sgd_kernel_hogwild_cpu, &args[i]);
 	}
 }
 
 void MFWorker::JoinTasks()
 {
 	for(int i = 0; i < core_num; i++) {
-		pthread_join(&tid[i], NULL);
+		pthread_join(tids[i], NULL);
 	}
 }
 
 void MFWorker::StartUpTasks()
 {
-	printf("will start up all tasks!\n");
 	dm.ClearBlockFlags();
 	pthread_mutex_lock(&cpu_workers_barrier_mutex);
-	cpu_workers_complelte = 0;
+	cpu_workers_complete = 0;
+	epoch++;
 	pthread_cond_broadcast(&cpu_workers_barrier_con);
 	pthread_mutex_unlock(&cpu_workers_barrier_mutex);
-	epoch++;
+
+	if(cpu_workers_complete == 0) {
+		printf("control_thread will block!\n");
+		pthread_cond_wait(&control_wake_up_con,&control_wake_up_mutex);
+	}
+	printf("control_thread wake up and do something...!\n");
+	pthread_mutex_unlock(&control_wake_up_mutex);
 }
 
 void MFWorker::Test()

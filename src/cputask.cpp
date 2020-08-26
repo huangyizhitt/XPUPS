@@ -2,12 +2,13 @@
 #include <pthread.h>
 #include <vector>
 #include <atomic>
+#include <iostream>
 
 pthread_cond_t cpu_workers_barrier_con = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t cpu_workers_barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t control_wake_up_con = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t control_wake_up_mutex = PTHREAD_MUTEX_INITIALIZER;
-std::atomic<int> cpu_workers_complelte(0);
+std::atomic<int> cpu_workers_complete(0);
 std::atomic<int> epoch(0);
 
 
@@ -27,17 +28,16 @@ void *sgd_kernel_hogwild_cpu(void *args)
 	float lambda_q = cpu_args->lambda_q;
 
 	while(true) {
-		{
-			printf("threads %d will block!\n", cpu_args->tid);
-			pthread_mutex_lock(&cpu_workers_barrier_mutex);
-			pthread_cond_wait(&cpu_workers_barrier_con, &cpu_workers_barrier_mutex);
-			pthread_mutex_unlock(&cpu_workers_barrier_mutex);
-		}
+		printf("threads %d will block!\n", cpu_args->tid);
+		pthread_mutex_lock(&cpu_workers_barrier_mutex);
+		pthread_cond_wait(&cpu_workers_barrier_con, &cpu_workers_barrier_mutex);
+		pthread_mutex_unlock(&cpu_workers_barrier_mutex);
+		
 		printf("threads %d will recover!\n", cpu_args->tid);
 											
 		int blockId;
 		std::vector<MatrixNode *>& ptrs = grid->blocks;
-		while((blockId = dm->GetFreeBlock()) > 0) {
+		while((blockId = dm->GetFreeBlock(epoch)) >= 0) {
 			for(MatrixNode *N = ptrs[blockId]; N != ptrs[blockId+1]; N++) {
 				int u = N->row_index;
 				int v = N->col_index;
@@ -45,22 +45,23 @@ void *sgd_kernel_hogwild_cpu(void *args)
 
 				int base_p = u * k;
 				int base_q = v * k;
-
+				
 /*				float ruv = r - inner_product(p + base_p, q + base_q);
 
 				sgd_update(p+base_p, q+base_q, ruv, lrate, lambda_p, lambda_q); */
 			}
+			dm->RecoverBlockFree(blockId);
 		}
 
 		pthread_mutex_lock(&control_wake_up_mutex);
-		cpu_workers_complelte++;
-		if(cpu_workers_complelte == cpu_args->workers) {
+		cpu_workers_complete++;
+		if(cpu_workers_complete == cpu_args->workers) {
+			printf("will wake up control thread!\n");
 			pthread_cond_signal(&control_wake_up_con);
 		}
 		pthread_mutex_unlock(&control_wake_up_mutex);
-
 		if(epoch == target_epoch) {
-			printf("threads %d will stop!\n");
+			printf("threads %d will stop!\n", cpu_args->tid);
 			break;
 		}
 	}

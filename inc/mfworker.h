@@ -54,7 +54,7 @@ private:
 	ps::KVWorker<float>* kv_xpu;
 	std::vector<int> blocks;					//current hand blocks id
 	std::vector<CPUArgs> args;
-	pthread_t tid[core_num];
+	std::vector<pthread_t> tids;
 };
 
 }

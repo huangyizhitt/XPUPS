@@ -122,7 +122,8 @@ public:
 	void GridData(int rank);
 	int GetBlockId(Grid& grid, MatrixNode& r);					//by matrix node's row and col index;
 	int GetBlockId(Grid& grid, int row, int col);					//by block's row and col index; 
-	int GetFreeBlock();
+	int GetFreeBlock(int epoch);
+	void RecoverBlockFree(int blockId);
 	
 	void ClearBlockFlags();
 
@@ -143,6 +144,7 @@ public:
 	std::vector<int> counts;
 	std::vector<bool> busy_x;
 	std::vector<bool> busy_y;
+	std::vector<int> counts_epoch;
 };
 
 }
