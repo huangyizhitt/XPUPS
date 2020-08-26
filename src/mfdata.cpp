@@ -402,7 +402,6 @@ void WorkerDM::SetGrid(const Dim2& grid_dim)
 	int nr_bins_y = grid.gridDim.y;
 	
 	block_size = nr_bins_x * nr_bins_y;
-	remain_blocks = block_size;
 
 	grid.blockDim.x = (int)ceil((double)cols / nr_bins_x);
 	grid.blockDim.y = (int)ceil((double)rows / nr_bins_y);
@@ -453,6 +452,32 @@ void WorkerDM::GridData(int rank)
     printf("Grid Problem to all XPU complete, cost: %.8f\n", elapse);
 }
 
+int WorkerDM::GetFreeBlock()
+{
+	std::lock_guard<std::mutex> lock(mtx);
+	if(remain_blocks == 0) return -1;
+	int blockid = GetBlockId(grid, block_y, block_x);
+	
+	while(busy_x[block_x] || busy_y[block_y]) {
+		block_x++;
+		block_y++;
+	
+		if(block_y >= grid.gridDim.y) {
+			move++;
+			block_x = move;
+			block_y = 0;
+		} else if(block_x == grid.gridDim.x) {
+			block_x = 0;
+		}
+
+		blockid = GetBlockId(grid, block_y, block_x);
+	}
+
+	busy_x[block_x] = true;
+	busy_y[block_y] = true;	
+	remain_blocks--;
+	return blockid;
+}
 
 void WorkerDM::PrintHead(int rank, int head)
 {

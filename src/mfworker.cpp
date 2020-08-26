@@ -1,5 +1,6 @@
 #include "mfworker.h"
 #include "utils.h"
+#include "cputask.h"
 #include <cstdlib>
 
 namespace MF {
@@ -178,6 +179,35 @@ void MFWorker::GridProblem()
 	gridDim.y = 2 * core_num + 1;
 	dm.SetGrid(gridDim);
 	dm.GridData(rank);
+}
+
+void MFWorker::CreateTasks()
+{
+	for(int i = 0; i < core_num; i++) {
+		CPUArgs arg;
+		arg.tid = i;
+		arg.workers = core_num;
+		arg.target_epoch = epochs;
+		arg.lambda_p = lambda_p;
+		arg.lambda_q = lambda_q;
+		arg.lrate = lrate;
+		arg.p = p;
+		arg.q = q;
+		arg.dm = &dm;
+		args.push_back(arg);
+		threads.emplace_back(sgd_kernel_hogwild_cpu, &args[i]);
+	}
+}
+
+void MFWorker::StartUpTasks()
+{
+	printf("will start up all tasks!\n");
+	dm->remain_blocks = dm->block_size;
+	cpu_workers_complelte = 0;
+	cpu_workers_barrier_con.notify_all();
+	std::unique_lock<std::mutex> unique_lock(control_wake_up_mutex);
+	control_wake_up_con.wait(unique_lock, [&](){return cpu_workers_complelte == core_num;});
+	epoch++;
 }
 
 void MFWorker::Test()

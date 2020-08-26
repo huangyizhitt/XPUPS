@@ -5,6 +5,7 @@
 #include "xpu.h"
 #include "ps/ps.h"
 #include "mfdata.h"
+#include "cputask.h"
 
 namespace MF {
 class MFWorker {
@@ -25,6 +26,8 @@ public:
 	void InitTestData();
 	int GetWorkerID() const  {return rank;}
 	void GridProblem();
+	void CreateTasks();
+	void StartUpTasks();
 	void Test();
 
 public:
@@ -36,8 +39,10 @@ private:
 	int m;
 	int n;
 	int k = 128;
-	int epoch;
 	int work_ratio;
+	float lambda_p;
+	float lambda_q;
+	float lrate;
 	float *p;
 	float *q;
 	size_t data_counter;
@@ -47,6 +52,8 @@ private:
 	size_t size;
 	ps::KVWorker<float>* kv_xpu;
 	std::vector<int> blocks;					//current hand blocks id
+	std::vector<CPUArgs> args;
+	std::vector<std::thread> threads;
 };
 
 }

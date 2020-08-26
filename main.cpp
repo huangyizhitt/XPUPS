@@ -43,12 +43,11 @@ int main(int argc, char **argv)
 		worker->InitTestData();
 		worker->PullDataFromServer();
 		worker->GridProblem();
+		worker->CreateTasks();
 
 		for(int i = 0; i < epoch; i++) {
 			//pull feature
-
-			//compute
-
+			worker->StartUpTasks();			//start up tasks to compute 
 			//push feature
 		}
 

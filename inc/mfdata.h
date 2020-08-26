@@ -132,6 +132,7 @@ public:
 	int block_y = 0;
 	int move = 0;
 	int remain_blocks = 0;
+	int complete_blocks = 0;
 	struct Grid grid;
 	Data data;
 	Model model;
