@@ -118,8 +118,27 @@ public:
 class WorkerDM {
 public:
 	void PrintHead(int rank, int head = 5);
-
+	void SetGrid(const Dim2& grid_dim);
+	void GridData(int rank);
+	int GetBlockId(Grid& grid, MatrixNode& r);					//by matrix node's row and col index;
+	int GetBlockId(Grid& grid, int row, int col);					//by block's row and col index; 
+	
+	size_t nnz = 0;
+	size_t rows = 0;
+	size_t cols = 0;
+	int k;
+	int block_size;
+	int block_x = 0;
+	int block_y = 0;
+	int move = 0;
+	int remain_blocks = 0;
+	struct Grid grid;
 	Data data;
+	Model model;
+	std::mutex mtx;
+	std::vector<int> counts;
+	std::vector<bool> busy_x;
+	std::vector<bool> busy_y;
 };
 
 }

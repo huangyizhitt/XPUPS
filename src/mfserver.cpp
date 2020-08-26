@@ -107,14 +107,13 @@ void MFServer::ProcessInitData(const ps::KVMeta& req_meta,
 	int start = 0;
 	int size = 0;
 
-
 	dm.SplitData(start, size, worker_xpu_info[rank].work_ratio);
-	float val1 = (float)start;
-	float val2 = (float)size;
-	printf("[Server] start: %f, size: %f\n", val1, val2);
-	res.vals.push_back(val1);
-	res.vals.push_back(val2);
-	res.lens[0] = 2;
+
+	res.vals.push_back((float)start);
+	res.vals.push_back((float)size);
+	res.vals.push_back((float)dm.rows);
+	res.vals.push_back((float)dm.cols);
+	res.lens[0] = 4;
 	server->Response(req_meta, res);
 }
 

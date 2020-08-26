@@ -156,11 +156,28 @@ void MFWorker::InitTestData()
 	CMD cmd = INIT_DATA;
 
 	keys.push_back(rank);
-	lens.push_back(2);
+	lens.push_back(0);
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+	if(lens[0] != 4) {
+		printf("[Worker %d] InitTestData: receive data fail!\n");
+	}
+	
 	start = (int)vals[0];
 	size = (int)vals[1];
+	dm.rows = (int)vals[2];
+	dm.cols = (int)vals[3];
+	dm.nnz = size;
 	printf("[Worker %d] start: %ld, size: %ld\n", rank, start, size);
+}
+
+void MFWorker::GridProblem()
+{
+	Dim2 gridDim;
+		
+	gridDim.x = 2 * core_num + 1;
+	gridDim.y = 2 * core_num + 1;
+	dm.SetGrid(gridDim);
+	dm.GridData(rank);
 }
 
 void MFWorker::Test()

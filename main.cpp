@@ -41,9 +41,15 @@ int main(int argc, char **argv)
 		worker->PushWorkerXPU();
 		worker->InitTestData();
 		worker->PullDataFromServer();
-	
-//		worker->Test();
+		worker->GridProblem();
 
+		for(int i = 0; i < epoch; i++) {
+			//pull feature
+
+			//compute
+
+			//push feature
+		}
 
 		ps::RegisterExitCallback([worker, xpu](){ delete worker; delete xpu;});
 	}

@@ -384,6 +384,76 @@ void DataManager::PrintHead(int start, int head)
 }
 
 
+int WorkerDM::GetBlockId(Grid& grid, MatrixNode& n)
+{
+	return (n.row_index/grid.blockDim.y) * grid.gridDim.x + n.col_index/grid.blockDim.x;
+}
+
+int WorkerDM::GetBlockId(Grid& grid, int row, int col)
+{
+	return row * grid.gridDim.x + col; 
+}
+
+
+void WorkerDM::SetGrid(const Dim2& grid_dim)
+{
+	grid.gridDim = grid_dim;
+	int nr_bins_x = grid.gridDim.x;
+	int nr_bins_y = grid.gridDim.y;
+	
+	block_size = nr_bins_x * nr_bins_y;
+	remain_blocks = block_size;
+
+	grid.blockDim.x = (int)ceil((double)cols / nr_bins_x);
+	grid.blockDim.y = (int)ceil((double)rows / nr_bins_y);
+
+	busy_x.resize(nr_bins_x, false);
+	busy_y.resize(nr_bins_y, false);
+}
+
+void WorkerDM::GridData(int rank)
+{
+	printf("Grid Problem in Worker %d...\n", rank);
+	double start, elapse;
+	start = cpu_second();
+	counts.resize(block_size, 0);
+	for(size_t i = 0; i < nnz; i++) {
+		MatrixNode N = data.r_matrix[i];
+		int blockIdx = GetBlockId(grid, N);
+		counts[blockIdx] += 1;
+	}
+
+	std::vector<MatrixNode *>& ptrs = grid.blocks;
+	ptrs.resize(block_size + 1);
+	ptrs[0] = &data.r_matrix[0];
+
+	for(int block = 0; block < block_size; block++) {
+		ptrs[block+1] = ptrs[block] + counts[block];
+	}
+
+	std::vector<MatrixNode*> pivots(ptrs.begin(), ptrs.end()-1);
+    	for(int block = 0; block < block_size; ++block)
+    	{
+        	for(MatrixNode* pivot = pivots[block]; pivot != ptrs[block+1];)
+        	{
+            		int curr_block = GetBlockId(grid, *pivot);
+					if(curr_block == block)
+            		{
+               			++pivot;
+                		continue;
+            		}
+
+            		MatrixNode *next = pivots[curr_block];
+					std::swap(*pivot, *next);
+            		pivots[curr_block] += 1;
+        	}
+    	}
+	
+    elapse = cpu_second() - start;
+    printf("Grid Problem to all XPU complete, cost: %.8f\n", elapse);
+}
+
+
 void WorkerDM::PrintHead(int rank, int head)
 {
 	for(int i = 0; i < head; i++) {
