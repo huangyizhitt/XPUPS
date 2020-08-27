@@ -407,7 +407,14 @@ void WorkerDM::SetGrid(const Dim2& grid_dim)
 
 	busy_x.resize(nr_bins_x, false);
 	busy_y.resize(nr_bins_y, false);
-	counts_epoch.resize(block_size, 1);
+//	counts_epoch.resize(block_size, 1);
+	ready_queue.resize(block_size);
+	using_queue.resize(block_size);
+	for(int y = 0; y < nr_bins_y; y++) {
+		for(int x = 0; x < nr_bins_x; x++) {
+			ready_queue.push_back(Block(x, y, y * nr_bins_x + x));
+		}
+	}
 }
 
 void WorkerDM::GridData(int rank)
@@ -452,7 +459,29 @@ void WorkerDM::GridData(int rank)
     printf("Grid Problem to all XPU complete, cost: %.8f\n", elapse);
 }
 
-int WorkerDM::GetFreeBlock(int epoch)
+int WorkerDM::GetFreeBlock()
+{
+	std::lock_guard<std::mutex> lock(mtx);
+	if(ready_queue.empty()) return -1;
+	//find free block;
+	Block block = ready_queue.front();
+	ready_queue.pop_front();
+	while(busy_x[block->x] || busy_y[block->y]) {
+		ready_queue.push_back(block);
+		block = ready_queue.front();
+		ready_queue.pop_front();
+	}
+
+	//store free block into using queue
+	using_queue.push_back(block);
+	busy_x[block->x] = true;
+	busy_y[block->y] = true;
+
+	return block->id;
+}
+
+
+/*int WorkerDM::GetFreeBlock(int epoch)
 {
 	std::lock_guard<std::mutex> lock(mtx);
 	if(remain_blocks == 0) return -1;
@@ -476,7 +505,7 @@ int WorkerDM::GetFreeBlock(int epoch)
 	busy_y[block_y] = true;
 	remain_blocks--;
 	return blockid;
-}
+} */
 
 void WorkerDM::PrintHead(int rank, int head)
 {
@@ -487,11 +516,7 @@ void WorkerDM::PrintHead(int rank, int head)
 
 void WorkerDM::ClearBlockFlags()
 {
-	remain_blocks = block_size;
-
-	block_x = 0;
-	block_y = 0;
-	move = 0;
+	ready_queue.swap(using_queue);
 }
 
 void WorkerDM::RecoverBlockFree(int blockId)
@@ -499,6 +524,5 @@ void WorkerDM::RecoverBlockFree(int blockId)
 	std::lock_guard<std::mutex> lock(mtx);
 	busy_x[blockId % grid.gridDim.x] = false;
 	busy_y[blockId / grid.gridDim.x] = false;
-	counts_epoch[blockId] += 1;
 }
 }

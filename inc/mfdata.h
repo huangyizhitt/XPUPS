@@ -4,6 +4,7 @@
 #include <vector>
 #include <cstdio>
 #include <mutex>
+#include <deque>
 
 namespace MF{
 
@@ -115,6 +116,13 @@ public:
 	std::vector<bool> busy_y;
 };
 
+struct Block {
+	Block(const int x = 0, const int y = 0, const int id = 0) : x(x), y(y), id(id) {}
+	int x;
+	int y;
+	int id;
+};
+
 class WorkerDM {
 public:
 	void PrintHead(int rank, int head = 5);
@@ -123,6 +131,7 @@ public:
 	int GetBlockId(Grid& grid, MatrixNode& r);					//by matrix node's row and col index;
 	int GetBlockId(Grid& grid, int row, int col);					//by block's row and col index; 
 	int GetFreeBlock(int epoch);
+	int GetFreeBlock();
 	void RecoverBlockFree(int blockId);
 	
 	void ClearBlockFlags();
@@ -145,6 +154,8 @@ public:
 	std::vector<bool> busy_x;
 	std::vector<bool> busy_y;
 	std::vector<int> counts_epoch;
+	std::deque<Block> ready_queue;
+	std::deque<Block> using_queue;
 };
 
 }
