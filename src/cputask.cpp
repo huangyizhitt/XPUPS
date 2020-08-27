@@ -69,7 +69,9 @@ void *sgd_kernel_hogwild_cpu(void *args)
 		double start = cpu_second();		
 		int blockId;
 		std::vector<MatrixNode *>& ptrs = grid->blocks;
-		while((blockId = dm->GetFreeBlock()) >= 0) {
+		while((blockId = dm->GetFreeBlock()) != -1) {
+			if(blockId == -2) continue;
+			printf("[Thread %d] blockId %d\n", cpu_args->tid, blockId);
 			for(MatrixNode *N = ptrs[blockId]; N != ptrs[blockId+1]; N++) {
 				int u = N->row_index;
 				int v = N->col_index;

@@ -149,7 +149,8 @@ public:
 	struct Grid grid;
 	Data data;
 	Model model;
-	std::mutex mtx;
+	pthread_spinlock_t lock;
+//	std::mutex	mtx;
 	std::vector<int> counts;
 	std::vector<bool> busy_x;
 	std::vector<bool> busy_y;

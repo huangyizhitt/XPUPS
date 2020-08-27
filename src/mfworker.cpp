@@ -187,8 +187,8 @@ void MFWorker::GridProblem()
 {
 	Dim2 gridDim;
 		
-	gridDim.x = 2 * core_num + 1;
-	gridDim.y = 2 * core_num + 1;
+	gridDim.x =  2*core_num + 1;
+	gridDim.y =  2*core_num + 1;
 	printf("x:%d, y:%d\n", gridDim.x, gridDim.y);
 	dm.SetGrid(gridDim);
 	dm.GridData(rank);
@@ -226,7 +226,6 @@ void MFWorker::JoinTasks()
 
 void MFWorker::StartUpTasks()
 {
-	dm.ClearBlockFlags();
 	pthread_mutex_lock(&cpu_workers_barrier_mutex);
 	cpu_workers_complete = 0;
 	epoch++;
@@ -239,6 +238,7 @@ void MFWorker::StartUpTasks()
 	}
 	printf("control_thread wake up and do something...!\n");
 	pthread_mutex_unlock(&control_wake_up_mutex);
+	dm.ClearBlockFlags();
 }
 
 void MFWorker::Test()

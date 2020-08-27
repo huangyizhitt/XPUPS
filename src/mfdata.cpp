@@ -408,13 +408,15 @@ void WorkerDM::SetGrid(const Dim2& grid_dim)
 	busy_x.resize(nr_bins_x, false);
 	busy_y.resize(nr_bins_y, false);
 //	counts_epoch.resize(block_size, 1);
-	ready_queue.resize(block_size);
-	using_queue.resize(block_size);
+//	ready_queue.resize(block_size);
+//	using_queue.resize(block_size);
 	for(int y = 0; y < nr_bins_y; y++) {
 		for(int x = 0; x < nr_bins_x; x++) {
 			ready_queue.push_back(Block(x, y, y * nr_bins_x + x));
 		}
 	}
+
+	pthread_spin_init(&lock, PTHREAD_PROCESS_PRIVATE);
 }
 
 void WorkerDM::GridData(int rank)
@@ -461,23 +463,37 @@ void WorkerDM::GridData(int rank)
 
 int WorkerDM::GetFreeBlock()
 {
-	std::lock_guard<std::mutex> lock(mtx);
-	if(ready_queue.empty()) return -1;
+	pthread_spin_lock(&lock);
+//	std::lock_guard<std::mutex> lock(mtx);
+	if(ready_queue.empty()) {
+		pthread_spin_unlock(&lock); 
+		return -1;
+	}
 	//find free block;
 	Block block = ready_queue.front();
 	ready_queue.pop_front();
-	while(busy_x[block->x] || busy_y[block->y]) {
+
+	// following code will cause dead lock
+	/*	while(busy_x[block.x] || busy_y[block.y]) {
 		ready_queue.push_back(block);
 		block = ready_queue.front();
 		ready_queue.pop_front();
+	}*/
+
+
+	if(busy_x[block.x] || busy_y[block.y]) {
+		ready_queue.push_back(block);
+		pthread_spin_unlock(&lock);
+                return -2;		
 	}
 
 	//store free block into using queue
 	using_queue.push_back(block);
-	busy_x[block->x] = true;
-	busy_y[block->y] = true;
-
-	return block->id;
+	busy_x[block.x] = true;
+	busy_y[block.y] = true;
+	pthread_spin_unlock(&lock);
+	printf("blockId:%d\n", block.id);
+	return block.id;
 }
 
 
@@ -521,8 +537,10 @@ void WorkerDM::ClearBlockFlags()
 
 void WorkerDM::RecoverBlockFree(int blockId)
 {
-	std::lock_guard<std::mutex> lock(mtx);
+//	std::lock_guard<std::mutex> lock(mtx);
+	pthread_spin_lock(&lock);
 	busy_x[blockId % grid.gridDim.x] = false;
 	busy_y[blockId / grid.gridDim.x] = false;
+	pthread_spin_unlock(&lock);
 }
 }
