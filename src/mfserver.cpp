@@ -159,8 +159,8 @@ void MFServer::ProcessPullFeature(const ps::KVMeta& req_meta,
 	res.vals.resize(vals_size);
 	res.lens.resize(keys_size);
 
-	res.lens.lens[0] = size_p;
-	res.lens.lens[1] = size_q;
+	res.lens[0] = size_p;
+	res.lens[1] = size_q;
 
 	memcpy(&res.vals[0], &dm.model.p[0], size_p);
 	memcpy(&res.vals[size_p], &dm.model.q[0], size_q);
@@ -175,7 +175,7 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 	size_t keys_size = req_data.keys.size();
 	size_t size_p = dm.rows * dm.k;
 	size_t size_q = dm.cols * dm.k;
-	size_t vals_size = req_data.size();
+	size_t vals_size = req_data.vals.size();
 
 	ps::KVPairs<float> res;
 	res.keys = req_data.keys;

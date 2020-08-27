@@ -176,8 +176,8 @@ void MFWorker::InitTestData()
 	m = dm.rows = (int)vals[2];
 	n = dm.cols = (int)vals[3];
 	dm.nnz = size;
-	size_p = m * k;
-	size_q = n * k;
+	size_t size_p = m * k;
+	size_t size_q = n * k;
 	p = (float *)aligned_alloc(64, size_p * sizeof(float));
 	q = (float *)aligned_alloc(64, size_q * sizeof(float));
 	printf("[Worker %d] start: %d, size: %d, rows: %d, cols: %d\n", rank, start, size, dm.rows, dm.cols);

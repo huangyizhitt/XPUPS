@@ -3,6 +3,7 @@
 #include <vector>
 #include <atomic>
 #include <iostream>
+#include "utils.h"
 
 pthread_cond_t cpu_workers_barrier_con = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t cpu_workers_barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -61,7 +62,7 @@ void *sgd_kernel_hogwild_cpu(void *args)
 		pthread_mutex_unlock(&cpu_workers_barrier_mutex);
 		
 		printf("threads %d will recover!\n", cpu_args->tid);
-											
+		double start = cpu_second();		
 		int blockId;
 		std::vector<MatrixNode *>& ptrs = grid->blocks;
 		while((blockId = dm->GetFreeBlock(epoch)) >= 0) {
@@ -79,6 +80,8 @@ void *sgd_kernel_hogwild_cpu(void *args)
 			}
 			dm->RecoverBlockFree(blockId);
 		}
+		double elapse = cpu_second() - start;
+		printf("compute elapse: %.4f\n", elapse);
 
 		pthread_mutex_lock(&control_wake_up_mutex);
 		cpu_workers_complete++;
