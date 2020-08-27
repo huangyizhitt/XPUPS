@@ -3,6 +3,7 @@
 #include <vector>
 #include <atomic>
 #include <iostream>
+#include <immintrin.h>
 #include "utils.h"
 
 pthread_cond_t cpu_workers_barrier_con = PTHREAD_COND_INITIALIZER;
@@ -15,10 +16,73 @@ std::atomic<int> epoch(0);
 
 namespace MF{
 #ifdef USE_AVX2
+static inline float inner_product(float *p, float *q, int k)
+{
+	float product;
+	__m256 r_vec = _mm256_setzero_ps();
+	
+	for(int i = 0; i < k; i += 8) {
+		r_vec = _mm256_fmadd_ps(_mm256_load_ps(p+i), _mm256_load_ps(q+i), r_vec);
+	}
 
+	r_vec = _mm256_add_ps(r_vec, _mm256_permute2f128_ps(r_vec, r_vec, 0x1));
+    r_vec = _mm256_hadd_ps(r_vec, r_vec);
+    r_vec = _mm256_hadd_ps(r_vec, r_vec);
+    _mm_store_ss(&product, _mm256_castps256_ps128(r_vec));
+	return product;
+}
 
+static inline void sgd_update(float *p, float *q, int k, float err, float lrate, float lambda_p, float lambda_q)
+{
+	__m256 r_vec, lrate_vec, lambda_p_vec, lambda_q_vec, p_vec, q_vec, tmp_p_vec, tmp_q_vec, mid_p_vec, mid_q_vec;
+	r_vec = _mm256_set1_ps(err);
+    lrate_vec = _mm256_set1_ps(lrate);
+    lambda_p_vec = _mm256_set1_ps(lambda_p);
+    lambda_q_vec = _mm256_set1_ps(lambda_q);
+
+	for(int pos = 0; pos < k; pos += 8) {
+		tmp_p_vec = _mm256_load_ps(p + pos);
+        	tmp_q_vec = _mm256_load_ps(q + pos);
+
+        	mid_p_vec = _mm256_mul_ps(lambda_p_vec, tmp_p_vec);
+       	 	mid_q_vec = _mm256_mul_ps(lambda_q_vec, tmp_q_vec);
+
+		p_vec = _mm256_fmadd_ps(lrate_vec, _mm256_fmsub_ps(r_vec, tmp_q_vec, mid_p_vec), tmp_p_vec);	
+        	q_vec = _mm256_fmadd_ps(lrate_vec, _mm256_fmsub_ps(r_vec, tmp_p_vec, mid_q_vec), tmp_q_vec);
+		
+		_mm256_store_ps(p+pos, p_vec);
+        _mm256_store_ps(q+pos, q_vec);
+	}
+}
 #elif USE_AVX512
+static inline float inner_product(float *p, float *q, int k)
+{
+	__m512 r_vec = _mm512_setzero_ps();
+	for(int i = 0; i < k; i+=16) {
+		r_vec = _mm512_fmadd_ps(_mm512_load_ps(p+i), _mm512_load_ps(q+i), r_vec);
+	}
+	return _mm512_reduce_add_ps(r_vec);	
+}
 
+static inline void sgd_update(float *p, float *q, int k, float err, float lrate, float lambda_p, float lambda_q)
+{
+	__m512 err_vec, lrate_vec, lambda_p_vec, lambda_q_vec, tmp_p_vec, tmp_q_vec, p_vec, q_vec;
+	err_vec = _mm512_set1_ps(err);
+    lrate_vec = _mm512_set1_ps(lrate);
+    lambda_p_vec = _mm512_set1_ps(lambda_p);
+    lambda_q_vec = _mm512_set1_ps(lambda_q);
+
+	for(int i = 0; i < k; i+=16) {
+		tmp_p_vec = _mm512_load_ps(p + i);
+        tmp_q_vec = _mm512_load_ps(q + i);
+
+		p_vec = _mm512_fmadd_ps(lrate_vec, _mm512_fmsub_ps(err_vec, tmp_q_vec, _mm512_mul_ps(lambda_p_vec, tmp_p_vec)), tmp_p_vec);
+         	_mm512_store_ps(p+i, p_vec);
+
+		q_vec = _mm512_fmadd_ps(lrate_vec, _mm512_fmsub_ps(err_vec, tmp_p_vec, _mm512_mul_ps(lambda_q_vec, tmp_q_vec)), tmp_q_vec);
+        	_mm512_store_ps(q+i, q_vec);
+	}
+}
 
 #else
 static inline void sgd_update(float *p, float *q, int k, float err, float lrate, float lambda_p, float lambda_q)
