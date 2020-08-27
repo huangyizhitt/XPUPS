@@ -1,7 +1,7 @@
 #ifndef _MFWORKER_H_
 #define _MFWORKER_H_
 
-#include <pthread>
+#include <pthread.h>
 #include <sched.h>
 #include "xpu.h"
 #include "ps/ps.h"
