@@ -3,8 +3,9 @@
 
 #include "mfdata.h"
 #include <atomic>
-#include <mutex>
-#include <condition_variable>
+#include <phtread.h>
+#include <sched.h>
+
 
 extern pthread_mutex_t cpu_workers_barrier_mutex;
 extern pthread_cond_t cpu_workers_barrier_con;
@@ -25,6 +26,7 @@ struct CPUArgs {
 	float *p;
 	float *q;
 	WorkerDM *dm;
+	cpu_set_t *cpuset;
 };
 
 void *sgd_kernel_hogwild_cpu(void *args);

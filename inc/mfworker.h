@@ -1,7 +1,8 @@
 #ifndef _MFWORKER_H_
 #define _MFWORKER_H_
 
-#include <thread>
+#include <pthread>
+#include <sched.h>
 #include "xpu.h"
 #include "ps/ps.h"
 #include "mfdata.h"
@@ -30,6 +31,8 @@ public:
 	void CreateTasks();
 	void StartUpTasks();
 	void JoinTasks();
+	void InitCPUAffinity();
+	void SetCPUAffinity();
 	void Test();
 
 public:
@@ -49,6 +52,7 @@ private:
 	float *q;
 	size_t data_counter;
 	XPU *xpu;
+	cpu_set_t cpuset;
 	WorkerDM dm;
 	size_t start;
 	size_t size;

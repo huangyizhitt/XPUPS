@@ -208,6 +208,7 @@ void MFWorker::CreateTasks()
 		arg.p = p;
 		arg.q = q;
 		arg.dm = &dm;
+		arg.cpuset = &cpuset;
 		args.push_back(arg);
 	}
 
@@ -257,6 +258,15 @@ void MFWorker::Test()
 	for(size_t i = 0; i < vals.size(); i++) {
 		printf("vals[%d]: %d\n", i,(int)vals[i]);
 	}
+}
+
+void MFWorker::InitCPUAffinity()
+{
+	CPU_ZERO(&cpuset);
+	int start = rank * core_num;
+	int size = core_num;
+	for (int i = start; i < start + size; i++)
+        CPU_SET(i, &cpuset);
 }
 
 }

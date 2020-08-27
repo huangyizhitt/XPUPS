@@ -54,6 +54,10 @@ void *sgd_kernel_hogwild_cpu(void *args)
 	float lrate = cpu_args->lrate;
 	float lambda_p = cpu_args->lambda_p;
 	float lambda_q = cpu_args->lambda_q;
+	cpu_set_t cpuset = *(cpu_args->cpuset);
+	pthread_t thread;
+
+	pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
 
 	while(true) {
 		printf("threads %d will block!\n", cpu_args->tid);
