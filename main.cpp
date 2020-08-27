@@ -5,6 +5,7 @@
 #include "ps/internal/postoffice.h"
 #include "mfserver.h"
 #include "mfworker.h"
+#include "utils.h"
 
 std::unordered_map<int, XPU_INFO> MF::MFServer::worker_xpu_info;
 MF::DataManager MF::MFServer::dm("netflix_train.bin", 128, 3);
@@ -47,12 +48,15 @@ int main(int argc, char **argv)
 		worker->GridProblem();
 		worker->CreateTasks();
 
+		double start, elapse;
+		start = cpu_second();
 		for(int i = 0; i < epoch; i++) {
 			worker->PullFeature();			//Pull feature
 			worker->StartUpTasks();			//start up tasks to compute 
 			worker->PushFeature();			//push feature
 		}
-		
+		elapse = cpu_second() - start;
+		printf("20 epoch cost time: %.3f\n", elapse);
 		worker->JoinTasks();
 		ps::RegisterExitCallback([worker, xpu](){ delete worker; delete xpu;});
 	}

@@ -66,7 +66,6 @@ void *sgd_kernel_hogwild_cpu(void *args)
 		pthread_mutex_unlock(&cpu_workers_barrier_mutex);
 		
 		debugp("threads %d will recover!\n", cpu_args->tid);
-		double start = cpu_second();		
 		int blockId;
 		std::vector<MatrixNode *>& ptrs = grid->blocks;
 		while((blockId = dm->GetFreeBlock()) != -1) {
@@ -86,13 +85,11 @@ void *sgd_kernel_hogwild_cpu(void *args)
 			}
 			dm->RecoverBlockFree(blockId);
 		}
-		double elapse = cpu_second() - start;
-		printf("compute elapse: %.4f\n", elapse);
 
 		pthread_mutex_lock(&control_wake_up_mutex);
 		cpu_workers_complete++;
 		if(cpu_workers_complete == cpu_args->workers) {
-			printf("will wake up control thread!\n");
+			debugp("will wake up control thread!\n");
 			pthread_cond_signal(&control_wake_up_con);
 		}
 		pthread_mutex_unlock(&control_wake_up_mutex);

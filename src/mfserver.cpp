@@ -26,7 +26,7 @@ void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
 	xpu_info.type = (XPU_TYPE)req_data.vals[0];
 	xpu_info.workers = (int)req_data.vals[1];
 	xpu_info.work_ratio = (int)req_data.vals[2];
-	debugp("Worker: %d, XPU TYPE: %d, workers: %d, work_ratio: %d\n", worker_rank, xpu_info.type, xpu_info.workers, xpu_info.work_ratio);
+	printf("Worker: %d, XPU TYPE: %d, threads: %d, work_ratio: %d\n", worker_rank, xpu_info.type, xpu_info.workers, xpu_info.work_ratio);
 	if(xpu_info.workers > max_workers) max_workers = xpu_info.workers;
 	scale += xpu_info.work_ratio;
 	worker_xpu_info.insert(std::make_pair(worker_rank, xpu_info));

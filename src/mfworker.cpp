@@ -22,7 +22,7 @@ void MFWorker::PushWorkerXPU()
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 	
 }
-
+/*
 void MFWorker::PullDataInfoFromServer()
 {
 	std::vector<ps::Key> keys;
@@ -37,7 +37,7 @@ void MFWorker::PullDataInfoFromServer()
 	start = (size_t)vals[0];
 	size = (size_t)vals[1];
 	debugp("start: %ld, size: %ld\n", start, size);
-}
+}*/
 
 void MFWorker::PullDataFromServer()
 {
@@ -193,7 +193,7 @@ void MFWorker::StartUpTasks()
 	pthread_mutex_unlock(&cpu_workers_barrier_mutex);
 
 	if(cpu_workers_complete == 0) {
-		printf("control_thread will block!\n");
+		debugp("control_thread will block!\n");
 		pthread_cond_wait(&control_wake_up_con,&control_wake_up_mutex);
 	}
 	debugp("control_thread wake up and do something...!\n");
