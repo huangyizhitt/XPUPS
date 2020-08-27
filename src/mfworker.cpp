@@ -65,8 +65,8 @@ void MFWorker::PullDataFromServer()
 		data.r_matrix[i].r = (float)vals[i * len + 2];
 	}
 
-	printf("Recive data count: %ld\n", data_counter);
-	dm.PrintHead(rank, 3);
+	debugp("Recive data count: %ld\n", data_counter);
+//	dm.PrintHead(rank, 3);
 }
 
 
@@ -90,46 +90,6 @@ void MFWorker::PullFeature()
 	memcpy(q, &vals[size_p], sizeof(float) * size_q);
 }
 
-//return value: 1 all epoch complete, 0 receive block and feature
-void MFWorker::PullBlockAndFeature()
-{
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = PULL_FEATURE;
-
-	for(int i = 0; i < 3; i++) {
-		keys.push_back(rank+i);
-	}
-	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-
-	debugp("receive block and feature!\n");
-	size_t size = keys.size();
-
-	work_ratio = lens[0];
-	blocks.resize(work_ratio);
-	
-	size_t size_p = lens[1];
-	size_t size_q = lens[2];
-	m = size_p / k;
-	n = size_q / k;
-
-	if(!alloc_feature) {
-		p = (float *)aligned_alloc(64, size_p * sizeof(float));
-		q = (float *)aligned_alloc(64, size_q * sizeof(float));
-	}
-
-	for(int i = 0; i < work_ratio; i++) {
-		blocks[i] = (int)vals[i];
-	}
-	memcpy(p, &vals[work_ratio], sizeof(float) * size_p);
-	memcpy(q, &vals[work_ratio+size_p], size_q * sizeof(float));
-
-	for(int i = 0; i < work_ratio; i++) {
-		printf("[worker %d] block id: %d\n", rank, blocks[i]);
-	}
-
-}
 
 //push format {keys0, feature_p} {keys1, feature_q} {lens0: m*k} {lens1: n*k}
 void MFWorker::PushFeature()
@@ -180,7 +140,7 @@ void MFWorker::InitTestData()
 	size_t size_q = n * k;
 	p = (float *)aligned_alloc(64, size_p * sizeof(float));
 	q = (float *)aligned_alloc(64, size_q * sizeof(float));
-	printf("[Worker %d] start: %d, size: %d, rows: %d, cols: %d\n", rank, start, size, dm.rows, dm.cols);
+	debugp("[Worker %d] start: %ld, size: %ld, rows: %d, cols: %d\n", rank, start, size, dm.rows, dm.cols);
 }
 
 void MFWorker::GridProblem()
@@ -189,7 +149,7 @@ void MFWorker::GridProblem()
 		
 	gridDim.x =  2*core_num + 1;
 	gridDim.y =  2*core_num + 1;
-	printf("x:%d, y:%d\n", gridDim.x, gridDim.y);
+	
 	dm.SetGrid(gridDim);
 	dm.GridData(rank);
 }
@@ -236,7 +196,7 @@ void MFWorker::StartUpTasks()
 		printf("control_thread will block!\n");
 		pthread_cond_wait(&control_wake_up_con,&control_wake_up_mutex);
 	}
-	printf("control_thread wake up and do something...!\n");
+	debugp("control_thread wake up and do something...!\n");
 	pthread_mutex_unlock(&control_wake_up_mutex);
 	dm.ClearBlockFlags();
 }

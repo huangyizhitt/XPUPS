@@ -10,6 +10,7 @@ namespace MF{
 static bool data_init_stage(false);
 //static std::mutex mtx;
 
+//Get Worker XPU Info
 void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server)
@@ -25,7 +26,7 @@ void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
 	xpu_info.type = (XPU_TYPE)req_data.vals[0];
 	xpu_info.workers = (int)req_data.vals[1];
 	xpu_info.work_ratio = (int)req_data.vals[2];
-	printf("Worker: %d, XPU TYPE: %d, workers: %d, work_ratio: %d\n", worker_rank, xpu_info.type, xpu_info.workers, xpu_info.work_ratio);
+	debugp("Worker: %d, XPU TYPE: %d, workers: %d, work_ratio: %d\n", worker_rank, xpu_info.type, xpu_info.workers, xpu_info.work_ratio);
 	if(xpu_info.workers > max_workers) max_workers = xpu_info.workers;
 	scale += xpu_info.work_ratio;
 	worker_xpu_info.insert(std::make_pair(worker_rank, xpu_info));
@@ -92,6 +93,7 @@ void MFServer::PrepareData()
 	}
 }
 
+//Prepare training data and send the data info to workers
 void MFServer::ProcessInitData(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server)
@@ -117,6 +119,8 @@ void MFServer::ProcessInitData(const ps::KVMeta& req_meta,
 	server->Response(req_meta, res);
 }
 
+//Process PULLDATA cmd from Workers, will send Data to Workers
+//Data format{keys[0], MatrixNode[0]}
 void MFServer::ProcessPullData(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server)
@@ -139,12 +143,12 @@ void MFServer::ProcessPullData(const ps::KVMeta& req_meta,
 	}
 
 	debugp("start: %d, keys_size: %d, vals_size:%d, lens:%d\n", start, keys_size, res.vals.size(), res.lens.size());
-	printf("[Server] Send data %d\n", keys_size);
-	dm.PrintHead(start, 3);
+	//dm.PrintHead(start, 3);
 	server->Response(req_meta, res);
 }
 
-
+//Process PULL_FEATURE cmd from workers, will send feature to workers
+//Data format{keys[0], p, keys[1], q}
 void MFServer::ProcessPullFeature(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server)
@@ -168,6 +172,8 @@ void MFServer::ProcessPullFeature(const ps::KVMeta& req_meta,
 	server->Response(req_meta, res);
 }
 
+//Process PUSH_FEATURE CMD from workers, will get feature from workers
+//Data format{keys[0], p, keys[1], q}
 void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server)
@@ -371,10 +377,6 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 
 		case INIT_DATA:
 			ProcessInitData(req_meta, req_data, server);
-			break;
-			
-		case PULL_DATA_INFO:
-			
 			break;
 
 		case PULL_DATA:

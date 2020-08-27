@@ -60,18 +60,18 @@ void *sgd_kernel_hogwild_cpu(void *args)
 	pthread_setaffinity_np(thread, sizeof(cpu_set_t), cpu_args->cpuset);
 
 	while(true) {
-		printf("threads %d will block!\n", cpu_args->tid);
+		debugp("threads %d will block!\n", cpu_args->tid);
 		pthread_mutex_lock(&cpu_workers_barrier_mutex);
 		pthread_cond_wait(&cpu_workers_barrier_con, &cpu_workers_barrier_mutex);
 		pthread_mutex_unlock(&cpu_workers_barrier_mutex);
 		
-		printf("threads %d will recover!\n", cpu_args->tid);
+		debugp("threads %d will recover!\n", cpu_args->tid);
 		double start = cpu_second();		
 		int blockId;
 		std::vector<MatrixNode *>& ptrs = grid->blocks;
 		while((blockId = dm->GetFreeBlock()) != -1) {
 			if(blockId == -2) continue;
-			printf("[Thread %d] blockId %d\n", cpu_args->tid, blockId);
+			debugp("[Thread %d] blockId %d\n", cpu_args->tid, blockId);
 			for(MatrixNode *N = ptrs[blockId]; N != ptrs[blockId+1]; N++) {
 				int u = N->row_index;
 				int v = N->col_index;
@@ -97,7 +97,7 @@ void *sgd_kernel_hogwild_cpu(void *args)
 		}
 		pthread_mutex_unlock(&control_wake_up_mutex);
 		if(epoch == target_epoch) {
-			printf("threads %d will stop!\n", cpu_args->tid);
+			debugp("threads %d will stop!\n", cpu_args->tid);
 			break;
 		}
 	}

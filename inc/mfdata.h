@@ -141,20 +141,14 @@ public:
 	size_t cols = 0;
 	int k;
 	int block_size;
-	int block_x = 0;
-	int block_y = 0;
-	int move = 0;
-	int remain_blocks = 0;
-	int complete_blocks = 0;
+	
 	struct Grid grid;
 	Data data;
 	Model model;
 	pthread_spinlock_t lock;
-//	std::mutex	mtx;
 	std::vector<int> counts;
 	std::vector<bool> busy_x;
 	std::vector<bool> busy_y;
-	std::vector<int> counts_epoch;
 	std::deque<Block> ready_queue;
 	std::deque<Block> using_queue;
 };

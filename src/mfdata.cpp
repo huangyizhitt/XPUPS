@@ -405,11 +405,11 @@ void WorkerDM::SetGrid(const Dim2& grid_dim)
 	grid.blockDim.x = (int)ceil((double)cols / nr_bins_x);
 	grid.blockDim.y = (int)ceil((double)rows / nr_bins_y);
 
+
+	//init the block scheduler
 	busy_x.resize(nr_bins_x, false);
 	busy_y.resize(nr_bins_y, false);
-//	counts_epoch.resize(block_size, 1);
-//	ready_queue.resize(block_size);
-//	using_queue.resize(block_size);
+
 	for(int y = 0; y < nr_bins_y; y++) {
 		for(int x = 0; x < nr_bins_x; x++) {
 			ready_queue.push_back(Block(x, y, y * nr_bins_x + x));
@@ -492,36 +492,8 @@ int WorkerDM::GetFreeBlock()
 	busy_x[block.x] = true;
 	busy_y[block.y] = true;
 	pthread_spin_unlock(&lock);
-	printf("blockId:%d\n", block.id);
 	return block.id;
 }
-
-
-/*int WorkerDM::GetFreeBlock(int epoch)
-{
-	std::lock_guard<std::mutex> lock(mtx);
-	if(remain_blocks == 0) return -1;
-	int blockid = GetBlockId(grid, block_y, block_x);
-	
-	while(busy_x[block_x] || busy_y[block_y] || counts_epoch[blockid] != epoch) {
-		block_x++;
-		block_y++;
-	
-		if(block_y >= grid.gridDim.y) {
-			move++; 
-			block_x = move;
-			block_y = 0;
-		} else if(block_x == grid.gridDim.x) {
-			block_x = 0;
-		}
-		blockid = GetBlockId(grid, block_y, block_x);
-	}
-
-	busy_x[block_x] = true;
-	busy_y[block_y] = true;
-	remain_blocks--;
-	return blockid;
-} */
 
 void WorkerDM::PrintHead(int rank, int head)
 {
