@@ -69,6 +69,27 @@ void MFWorker::PullDataFromServer()
 	dm.PrintHead(rank, 3);
 }
 
+
+//pull feature, <keys, {feature}>
+void MFWorker::PullFeature()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_FEATURE;
+	
+	keys.push_back(0);
+	keys.push_back(1);
+
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+
+	int size_p = m * k;
+	int size_q = n * k;
+	
+	memcpy(p, &vals[0], sizeof(float) * size_p);
+	memcpy(q, &vals[size_p], sizeof(float) * size_q);
+}
+
 //return value: 1 all epoch complete, 0 receive block and feature
 void MFWorker::PullBlockAndFeature()
 {
@@ -111,7 +132,7 @@ void MFWorker::PullBlockAndFeature()
 }
 
 //push format {keys0, feature_p} {keys1, feature_q} {lens0: m*k} {lens1: n*k}
-int MFWorker::PushFeature()
+void MFWorker::PushFeature()
 {
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
@@ -121,32 +142,19 @@ int MFWorker::PushFeature()
 	size_t size_p = m * k;
 	size_t size_q = n * k; 
 
-	vals.resize(work_ratio+size_p+size_q);
+	vals.resize(size_p+size_q);
 
 	keys.push_back(0);
 	keys.push_back(1);
-	keys.push_back(2);
 
-	lens.push_back(work_ratio);
 	lens.push_back(size_p);
 	lens.push_back(size_q);
 
-	for(int i = 0; i < work_ratio; i++) 
-	{
-		vals[i] = blocks[i];
-	}
 	
-	memcpy(&vals[work_ratio], p, sizeof(float) * size_p);
-	memcpy(&vals[work_ratio + size_p], q, sizeof(float) * size_q);
+	memcpy(&vals[0], p, sizeof(float) * size_p);
+	memcpy(&vals[size_p], q, sizeof(float) * size_q);
 
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
-	
-	if(vals[0] == STOP_WORKER) {
-		printf("Worker %d will stop!\n", rank);
-		return 1;
-	} else {
-		return 0;
-	}
 }
 
 void MFWorker::InitTestData()
@@ -165,9 +173,13 @@ void MFWorker::InitTestData()
 	
 	start = (int)vals[0];
 	size = (int)vals[1];
-	dm.rows = (int)vals[2];
-	dm.cols = (int)vals[3];
+	m = dm.rows = (int)vals[2];
+	n = dm.cols = (int)vals[3];
 	dm.nnz = size;
+	size_p = m * k;
+	size_q = n * k;
+	p = (float *)aligned_alloc(64, size_p * sizeof(float));
+	q = (float *)aligned_alloc(64, size_q * sizeof(float));
 	printf("[Worker %d] start: %d, size: %d, rows: %d, cols: %d\n", rank, start, size, dm.rows, dm.cols);
 }
 

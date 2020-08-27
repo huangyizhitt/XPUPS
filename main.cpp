@@ -47,10 +47,11 @@ int main(int argc, char **argv)
 		worker->CreateTasks();
 
 		for(int i = 0; i < epoch; i++) {
-			sleep(2);
+			worker->PullFeature();			//Pull feature
 			worker->StartUpTasks();			//start up tasks to compute 
-			//push feature
+			worker->PushFeature();			//push feature
 		}
+		
 		worker->JoinTasks();
 		ps::RegisterExitCallback([worker, xpu](){ delete worker; delete xpu;});
 	}

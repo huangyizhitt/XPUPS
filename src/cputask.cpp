@@ -13,6 +13,33 @@ std::atomic<int> epoch(0);
 
 
 namespace MF{
+#ifdef USE_AVX2
+
+
+#elif USE_AVX512
+
+
+#else
+static inline void sgd_update(float *p, float *q, int k, float err, float lrate, float lambda_p, float lambda_q)
+{
+	for(int i = 0; i < k; i++) {
+		float tmp_p = p[i];
+		float tmp_q = q[i];
+		p[i] = std::max(0.0f, tmp_p + lrate * (err * tmp_q - lambda_p * tmp_p));
+		q[i] = std::max(0.0f, tmp_q + lrate * (err * tmp_p - lambda_q * tmp_q));
+	}
+}
+
+static inline float inner_product(float *a, float *b, int k)
+{
+	float ret = 0;
+	for(int i = 0; i < k; i++) {
+		ret += a[i]*b[i];
+	}
+	return ret;
+}
+
+#endif
 
 void *sgd_kernel_hogwild_cpu(void *args)
 {
@@ -46,9 +73,9 @@ void *sgd_kernel_hogwild_cpu(void *args)
 				int base_p = u * k;
 				int base_q = v * k;
 				
-/*				float ruv = r - inner_product(p + base_p, q + base_q);
+				float ruv = r - inner_product(p + base_p, q + base_q, k);
 
-				sgd_update(p+base_p, q+base_q, ruv, lrate, lambda_p, lambda_q); */
+				sgd_update(p+base_p, q+base_q, k, ruv, lrate, lambda_p, lambda_q); 
 			}
 			dm->RecoverBlockFree(blockId);
 		}

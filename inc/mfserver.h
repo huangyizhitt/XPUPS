@@ -52,6 +52,14 @@ public:
 	static void ProcessPullData(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server);
+
+	static void ProcessPushFeature(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server);
+
+	static void ProcessPullFeature(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server)
 	
 	void PrintWorkerXPU();
 

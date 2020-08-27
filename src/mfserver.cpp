@@ -144,6 +144,54 @@ void MFServer::ProcessPullData(const ps::KVMeta& req_meta,
 	server->Response(req_meta, res);
 }
 
+
+void MFServer::ProcessPullFeature(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = size_p + size_q;
+
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.vals.resize(vals_size);
+	res.lens.resize(keys_size);
+
+	res.lens.lens[0] = size_p;
+	res.lens.lens[1] = size_q;
+
+	memcpy(&res.vals[0], &dm.model.p[0], size_p);
+	memcpy(&res.vals[size_p], &dm.model.q[0], size_q);
+
+	server->Response(req_meta, res);
+}
+
+void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = req_data.size();
+
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.lens.resize(keys_size);
+
+	for(int i = 0; i < size_p; i++) {
+		dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;
+	}
+
+	for(int i = size_p; i < vals_size; i++) {
+		dm.model.q[i] = (dm.model.q[i] + req_data.vals[i]) / 2;
+	}
+
+	server->Response(req_meta, res);
+}
+							  
 /*
 void MFServer::PrepareData1()
 {
@@ -334,13 +382,12 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 			break;
 
 		case PULL_FEATURE:
-			
-			PushBlockAndFeature(req_meta, req_data, server);
+			ProcessPullFeature(req_meta, req_data, server);
 			break;
 				
 			
 		case PUSH_FEATURE:
-			PullFeature(req_meta, req_data, server);
+			ProcessPushFeature(req_meta, req_data, server);
 			break;
 		
 		default:

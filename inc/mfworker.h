@@ -18,7 +18,8 @@ public:
 	~MFWorker() {delete kv_xpu;}
 	
 	void PrepareData();
-	int PushFeature();
+	void PullFeature();
+	void PushFeature();
 	void PushWorkerXPU();
 	void PullDataFromServer();
 	void PullDataInfoFromServer();
@@ -41,9 +42,9 @@ private:
 	int n;
 	int k = 128;
 	int work_ratio;
-	float lambda_p;
-	float lambda_q;
-	float lrate;
+	float lambda_p = 0.05;
+	float lambda_q = 0.05;
+	float lrate = 0.08;
 	float *p;
 	float *q;
 	size_t data_counter;
