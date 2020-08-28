@@ -4,8 +4,26 @@
 #include "ps/internal/postoffice.h"
 #include <cstdio>
 #include <mutex>
+#include <numeric> 
 
 namespace MF{
+
+#ifdef CAL_RMSE	
+static double calc_rmse(std::vector<MatrixNode>& R, Model& model)
+{
+	double loss = 0;
+	size_t nnz = R.size();
+#if defined USEOMP
+#pragma omp parallel for schedule(static) reduction(+:loss)
+#endif	
+	for(size_t i = 0; i < nnz; i++) {
+		MatrixNode &N = R[i];
+		float e = N.r - std::inner_product(model.p, model.p+model.k, model.q, ((float)0.0f));
+		loss += e*e;
+	}
+	return std::sqrt(loss / nnz);
+}
+#endif
 
 static bool data_init_stage(false);
 //static std::mutex mtx;
@@ -52,7 +70,7 @@ void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
 		default:
 			break;
 	}
-	
+	xpus++;
 	ps::KVPairs<float> res;
 	server->Response(req_meta, res);
 }
@@ -182,7 +200,7 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 	size_t size_p = dm.rows * dm.k;
 	size_t size_q = dm.cols * dm.k;
 	size_t vals_size = req_data.vals.size();
-
+	
 	ps::KVPairs<float> res;
 	res.keys = req_data.keys;
 	res.lens.resize(keys_size);
@@ -195,6 +213,14 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 		dm.model.q[i] = (dm.model.q[i] + req_data.vals[i]) / 2;
 	}
 
+#ifdef CAL_RMSE	
+	receive_times++;
+
+	if(receive_times == xpus) {
+		epoch++;
+		printf("Epoch %d loss %.4f", epoch, calc_rmse(dm.data.r_matrix, dm.model));
+	}
+#endif
 	server->Response(req_meta, res);
 }
 							  

@@ -71,15 +71,23 @@ public:
 	static void SetThreads(const int& t) {nr_threads = t;}
 
 private:
-	static size_t cpus;
-	static size_t gpus;
-	static size_t fpgas;
-	static size_t tpus;
+	static int cpus;					//counts cpu
+	static int gpus;					//counts gpu
+	static int fpgas;				//counts fpga
+	static int tpus;					//counts tpu
+	static int xpus;					//counts xpu
+	
 	static int max_workers;
 	static int scale;
 	static int nr_threads;
+
+#ifdef CAL_RMSE	
+	static int epoch;
+	static int receive_times;		//receive times from worker; 
+#endif
+
 	ps::KVServer<float>* server_xpu;
-	XPU *xpu;
+	XPU *xpu;								//xpu of server
 	static std::unordered_map<int, XPU_INFO> worker_xpu_info;			//<XPU_TYPE, workers, work_ratio>
 	static DataManager dm;
 };

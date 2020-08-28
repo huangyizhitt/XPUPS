@@ -13,9 +13,15 @@ size_t MF::MFServer::cpus(0);
 size_t MF::MFServer::gpus(0);
 size_t MF::MFServer::fpgas(0);
 size_t MF::MFServer::tpus(0);
+size_t MF::MFServer::xpus(0);
 int MF::MFServer::max_workers(0);
 int MF::MFServer::scale(0);
 int MF::MFServer::nr_threads(0);
+
+#ifdef CAL_RMSE
+int MF::MFServer::receive_times(0);
+int MF::MFServer::epoch(0);
+#endif
 
 
 int main(int argc, char **argv)
