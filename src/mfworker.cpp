@@ -90,6 +90,7 @@ void MFWorker::PullFeature()
 	
 	memcpy(p, &vals[0], sizeof(float) * size_p);
 	memcpy(q, &vals[size_p], sizeof(float) * size_q);
+//	print_feature_tail(p, q, size_p, size_q, 3, 0);
 }
 
 
@@ -119,14 +120,14 @@ void MFWorker::PushFeature()
 	
 	memcpy(&vals[0], p, sizeof(float) * size_p);
 	memcpy(&vals[size_p], q, sizeof(float) * size_q);
-	print_feature_tail(p, q, size_p, size_q, 3, 0);
+//	print_feature_tail(p, q, size_p, size_q, 3, 0);
 
 #ifdef CAL_RMSE
 	keys.push_back(2);
 	lens.push_back(1);
-	float l = vals[size_p+size_q] =  std::accumulate(loss.begin(), loss.end(), 0.0);
-	l = std::sqrt(l / size);
-	printf("[Worker %d]epoch: %d, loss: %f\n", rank, current_epoch, l);
+	vals[size_p+size_q] =  std::accumulate(loss.begin(), loss.end(), 0.0);
+//	l = std::sqrt(l / size);
+//	printf("[Worker %d]epoch: %d, loss: %f\n", rank, current_epoch, l);
 #endif
 
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));

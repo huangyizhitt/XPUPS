@@ -56,9 +56,9 @@ int main(int argc, char **argv)
 
 		double start, elapse;
 		start = cpu_second();
-		worker->PullFeature();
+//		worker->PullFeature();
 		while(true) {
-		//	worker->PullFeature();			//Pull feature
+			worker->PullFeature();			//Pull feature
 			worker->StartUpTasks();			//start up tasks to compute 
 			worker->PushFeature();			//push feature
 

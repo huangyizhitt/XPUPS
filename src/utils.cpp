@@ -33,7 +33,7 @@ void print_feature_head(const float *p, const float *q, int head, bool is_server
 	}
 }
 
-void print_feature_tail(const std::vector<float>& p, const std::vecotr<float>& q, size_t size_p, size_t size_q, int tail, bool is_server)
+void print_feature_tail(const float *p, const float *q, size_t size_p, size_t size_q, int tail, bool is_server)
 {
 	const char *name = (is_server ? "Server" : "Worker");
 	for(int i = 1; i <= tail; i++) {
