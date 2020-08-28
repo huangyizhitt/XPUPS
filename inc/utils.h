@@ -18,7 +18,7 @@ enum CMD {
 
 long long cpu_microsecond(void);
 double cpu_second(void);
-void print_feature_head(float *p, float *q, int head = 5, bool is_server = false);
+void print_feature_head(const float *p, const float *q, int head = 5, bool is_server = false);
 
 #endif
 

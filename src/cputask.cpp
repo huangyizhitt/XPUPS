@@ -122,7 +122,6 @@ void *sgd_kernel_hogwild_cpu(void *args)
 	pthread_t thread = pthread_self();
 
 	pthread_setaffinity_np(thread, sizeof(cpu_set_t), cpu_args->cpuset);
-
 	while(true) {
 		debugp("threads %d will block!\n", cpu_args->tid);
 		pthread_mutex_lock(&cpu_workers_barrier_mutex);
@@ -142,9 +141,9 @@ void *sgd_kernel_hogwild_cpu(void *args)
 
 				int base_p = u * k;
 				int base_q = v * k;
-				
+						
 				float ruv = r - inner_product(p + base_p, q + base_q, k);
-
+				
 				sgd_update(p+base_p, q+base_q, k, ruv, lrate, lambda_p, lambda_q); 
 			}
 			dm->RecoverBlockFree(blockId);

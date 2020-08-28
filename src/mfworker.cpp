@@ -113,7 +113,6 @@ void MFWorker::PushFeature()
 	
 	memcpy(&vals[0], p, sizeof(float) * size_p);
 	memcpy(&vals[size_p], q, sizeof(float) * size_q);
-
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 }
 

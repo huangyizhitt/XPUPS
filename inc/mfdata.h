@@ -139,7 +139,7 @@ public:
 	size_t nnz = 0;
 	size_t rows = 0;
 	size_t cols = 0;
-	int k;
+	int k = 128;
 	int block_size;
 	
 	struct Grid grid;

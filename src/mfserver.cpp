@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <mutex>
 #include <numeric> 
+#include <cmath>
 
 namespace MF{
 
@@ -13,12 +14,15 @@ static double calc_rmse(std::vector<MatrixNode>& R, Model& model)
 {
 	double loss = 0;
 	size_t nnz = R.size();
+	size_t k = model.k;
 #if defined USEOMP
 #pragma omp parallel for schedule(static) reduction(+:loss)
 #endif	
 	for(size_t i = 0; i < nnz; i++) {
 		MatrixNode &N = R[i];
-		float e = N.r - std::inner_product(model.p, model.p+model.k, model.q, ((float)0.0f));
+		float *p = &model.p[N.row_index * k];
+		float *q = &model.q[N.col_index * k];
+		float e = N.r - std::inner_product(p, p+k, q, ((float)0.0f));
 		loss += e*e;
 	}
 	return std::sqrt(loss / nnz);
@@ -218,7 +222,8 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 
 	if(receive_times == xpus) {
 		epoch++;
-		printf("Epoch %d loss %.4f", epoch, calc_rmse(dm.data.r_matrix, dm.model));
+		printf("Epoch %d loss %.4f\n", epoch, calc_rmse(dm.data.r_matrix, dm.model));
+		receive_times = 0;
 	}
 #endif
 	server->Response(req_meta, res);

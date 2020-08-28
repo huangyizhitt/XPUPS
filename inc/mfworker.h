@@ -45,9 +45,9 @@ private:
 	int n;
 	int k = 128;
 	int work_ratio;
-	float lambda_p = 0.05;
-	float lambda_q = 0.05;
-	float lrate = 0.08;
+	float lambda_p = 0.01;
+	float lambda_q = 0.01;
+	float lrate = 0.005;
 	float *p;
 	float *q;
 	size_t data_counter;

@@ -24,7 +24,7 @@ double cpu_second(void)
     return t;
 }
 
-void print_feature_head(float *p, float *q, int head, bool is_server)
+void print_feature_head(const float *p, const float *q, int head, bool is_server)
 {
 	const char *name = (is_server ? "Server" : "Worker");
 
