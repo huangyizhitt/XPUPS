@@ -118,7 +118,8 @@ void MFServer::ProcessInitData(const ps::KVMeta& req_meta,
 	res.vals.push_back((float)size);
 	res.vals.push_back((float)dm.rows);
 	res.vals.push_back((float)dm.cols);
-	res.lens[0] = 4;
+	res.vals.push_back(dm.scale);
+	res.lens[0] = 5;
 	server->Response(req_meta, res);
 }
 
@@ -191,11 +192,13 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 	res.lens.resize(keys_size);
 
 	for(int i = 0; i < size_p; i++) {
-		dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;
+//		dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;
+		dm.model.p[i] = req_data.vals[i];
 	}
 
 	for(int i = size_p; i < size_p + size_q; i++) {
-		dm.model.q[i] = (dm.model.q[i] + req_data.vals[i]) / 2;
+//		dm.model.q[i] = (dm.model.q[i] + req_data.vals[i]) / 2;
+		dm.model.q[i-size_p] = req_data.vals[i];
 	}
 
 #ifdef CAL_RMSE	
@@ -203,7 +206,7 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 	loss += req_data.vals.back();
 	if(receive_times == xpus) {
 		epoch++;
-		printf("Epoch %d loss %.4f\n", epoch, loss);
+		printf("Epoch %d loss %.4f\n", epoch, std::sqrt(loss / dm.nnz));
 		receive_times = 0;
 		loss = 0;
 	}

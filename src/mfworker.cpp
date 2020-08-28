@@ -3,6 +3,7 @@
 #include "cputask.h"
 #include <cstdlib>
 #include <numeric>
+#include <cmath>
 
 namespace MF {
 
@@ -122,7 +123,9 @@ void MFWorker::PushFeature()
 #ifdef CAL_RMSE
 	keys.push_back(2);
 	lens.push_back(1);
-	vals[size_p+size_q] =  std::accumulate(loss.begin(), loss.end(), 0.0);
+	float l = vals[size_p+size_q] =  std::accumulate(loss.begin(), loss.end(), 0.0);
+	l = std::sqrt(l / size);
+	printf("[Worker %d]epoch: %d, loss: %f\n", rank, current_epoch, l);
 #endif
 
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
@@ -138,7 +141,7 @@ void MFWorker::InitTestData()
 	keys.push_back(rank);
 	lens.push_back(0);
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-	if(lens[0] != 4) {
+	if(lens[0] != 5) {
 		printf("[Worker %d] InitTestData: receive data fail!\n");
 	}
 	
@@ -146,6 +149,10 @@ void MFWorker::InitTestData()
 	size = (int)vals[1];
 	m = dm.rows = (int)vals[2];
 	n = dm.cols = (int)vals[3];
+	scale = vals[4];
+
+	lambda_p = lambda_p / scale;
+	lambda_q = lambda_q / scale;
 	dm.nnz = size;
 	size_t size_p = m * k;
 	size_t size_q = n * k;

@@ -48,6 +48,7 @@ private:
 	int n;
 	int k = 128;
 	int work_ratio;
+	float scale;
 	float lambda_p = 0.01;
 	float lambda_q = 0.01;
 	float lrate = 0.005;
