@@ -161,7 +161,7 @@ void MFWorker::CreateTasks()
 		arg.tid = i;
 		arg.workers = core_num;
 		arg.target_epoch = target_epoch;
-		arg.current_epoch = current_epoch;
+		arg.current_epoch = &current_epoch;
 		arg.lambda_p = lambda_p;
 		arg.lambda_q = lambda_q;
 		arg.lrate = lrate;
