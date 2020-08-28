@@ -119,6 +119,7 @@ void MFWorker::PushFeature()
 	
 	memcpy(&vals[0], p, sizeof(float) * size_p);
 	memcpy(&vals[size_p], q, sizeof(float) * size_q);
+	print_feature_tail(p, q, size_p, size_q, 3, 0);
 
 #ifdef CAL_RMSE
 	keys.push_back(2);

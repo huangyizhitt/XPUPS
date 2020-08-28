@@ -201,6 +201,7 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 		dm.model.q[i-size_p] = req_data.vals[i];
 	}
 
+	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
 #ifdef CAL_RMSE	
 	receive_times++;
 	loss += req_data.vals.back();

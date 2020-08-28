@@ -19,6 +19,7 @@ enum CMD {
 long long cpu_microsecond(void);
 double cpu_second(void);
 void print_feature_head(const float *p, const float *q, int head = 5, bool is_server = false);
+void print_feature_tail(const std::vector<float>& p, const std::vecotr<float>& q, int tail = 3, bool is_server = false);
 
 #endif
 
