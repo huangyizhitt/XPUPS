@@ -11,7 +11,9 @@
 namespace MF {
 class MFWorker {
 public:
-	MFWorker(XPU * const xpu) : xpu(xpu), core_num(xpu->core), data_counter(0) {
+	MFWorker(XPU * const xpu, const int& target_epoch) : xpu(xpu), core_num(xpu->core), data_counter(0),
+		target_epoch(target_epoch), current_epoch(0)
+	{
 		rank = ps::MyRank();
 		kv_xpu = new ps::KVWorker<float>(0, 0);		
 	}
@@ -36,7 +38,8 @@ public:
 	void Test();
 
 public:
-	int epochs = 20;
+	int target_epoch;
+	int current_epoch;
 
 private:
 	int rank;

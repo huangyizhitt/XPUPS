@@ -160,7 +160,8 @@ void MFWorker::CreateTasks()
 		CPUArgs arg;
 		arg.tid = i;
 		arg.workers = core_num;
-		arg.target_epoch = epochs;
+		arg.target_epoch = target_epoch;
+		arg.current_epoch = current_epoch;
 		arg.lambda_p = lambda_p;
 		arg.lambda_q = lambda_q;
 		arg.lrate = lrate;
@@ -187,7 +188,7 @@ void MFWorker::StartUpTasks()
 {
 	pthread_mutex_lock(&cpu_workers_barrier_mutex);
 	cpu_workers_complete = 0;
-	epoch++;
+	current_epoch++;
 	pthread_cond_broadcast(&cpu_workers_barrier_con);
 	pthread_mutex_unlock(&cpu_workers_barrier_mutex);
 

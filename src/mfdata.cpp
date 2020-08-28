@@ -335,20 +335,6 @@ void DataManager::ClearBlockTable()
 	move = 0;
 }
 
-EpochStatus DataManager::EpochComplete()
-{
-	std::lock_guard<std::mutex> lock(mtx);
-	
-	if(complete_blocks < block_size) return UnComplete;
-	
-	if(complete_blocks == block_size && current_epoch < epoch) {
-		
-		return CompleteOnece;
-	}
-
-	if(current_epoch == epoch) return CompleteAll;	
-}
-
 void DataManager::SetBlockFree(int blockId)
 {
 	int y = blockId / grid.gridDim.x;

@@ -11,7 +11,6 @@ pthread_mutex_t cpu_workers_barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t control_wake_up_con = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t control_wake_up_mutex = PTHREAD_MUTEX_INITIALIZER;
 std::atomic<int> cpu_workers_complete(0);
-std::atomic<int> epoch(0);
 
 
 namespace MF{
@@ -113,6 +112,7 @@ void *sgd_kernel_hogwild_cpu(void *args)
 	Grid *grid = &dm->grid;
 	int k = dm->k;
 	int target_epoch = cpu_args->target_epoch;
+	int current_epoch = cpu_args->current_epoch;
 	float *p = cpu_args->p;
 	float *q = cpu_args->q;
 	float lrate = cpu_args->lrate;
@@ -156,7 +156,7 @@ void *sgd_kernel_hogwild_cpu(void *args)
 			pthread_cond_signal(&control_wake_up_con);
 		}
 		pthread_mutex_unlock(&control_wake_up_mutex);
-		if(epoch == target_epoch) {
+		if(current_epoch == target_epoch) {
 			debugp("threads %d will stop!\n", cpu_args->tid);
 			break;
 		}

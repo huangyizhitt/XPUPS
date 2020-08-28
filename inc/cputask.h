@@ -20,6 +20,7 @@ struct CPUArgs {
 	int tid;
 	int workers;
 	int target_epoch;
+	int current_epoch;
 	float lambda_p;
 	float lambda_q;
 	float lrate;

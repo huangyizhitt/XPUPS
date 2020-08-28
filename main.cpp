@@ -43,10 +43,9 @@ int main(int argc, char **argv)
   	}
 
 	if (ps::IsWorker()) {
-		int epoch = 20;
 		std::cout << "start worker" << std::endl;
 		xpu = new XPU("W-2155", CPU, 8, 20, 8, 1, false);
-		worker = new MF::MFWorker(xpu);
+		worker = new MF::MFWorker(xpu, 20);
 		worker->InitCPUAffinity();
 		worker->PushWorkerXPU();
 		worker->InitTestData();
@@ -56,10 +55,12 @@ int main(int argc, char **argv)
 
 		double start, elapse;
 		start = cpu_second();
-		for(int i = 0; i < epoch; i++) {
+		while(true) {
 			worker->PullFeature();			//Pull feature
 			worker->StartUpTasks();			//start up tasks to compute 
 			worker->PushFeature();			//push feature
+
+			if(worker->current_epoch == worker->target_epoch) break;
 		}
 		elapse = cpu_second() - start;
 		printf("20 epoch cost time: %.3f\n", elapse);
