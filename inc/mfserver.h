@@ -84,6 +84,7 @@ private:
 #ifdef CAL_RMSE	
 	static int epoch;
 	static int receive_times;		//receive times from worker; 
+	static float loss;
 #endif
 
 	ps::KVServer<float>* server_xpu;

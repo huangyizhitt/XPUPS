@@ -194,17 +194,18 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 		dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;
 	}
 
-	for(int i = size_p; i < vals_size; i++) {
+	for(int i = size_p; i < size_p + size_q; i++) {
 		dm.model.q[i] = (dm.model.q[i] + req_data.vals[i]) / 2;
 	}
 
 #ifdef CAL_RMSE	
 	receive_times++;
-
+	loss += req_data.vals.back();
 	if(receive_times == xpus) {
 		epoch++;
-		printf("Epoch %d loss %.4f\n", epoch, calc_rmse(dm.data.r_matrix, dm.model));
+		printf("Epoch %d loss %.4f\n", epoch, loss);
 		receive_times = 0;
+		loss = 0;
 	}
 #endif
 	server->Response(req_meta, res);

@@ -21,6 +21,7 @@ int MF::MFServer::nr_threads(0);
 #ifdef CAL_RMSE
 int MF::MFServer::receive_times(0);
 int MF::MFServer::epoch(0);
+float MF::MFServer::loss(0.0);
 #endif
 
 

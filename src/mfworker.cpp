@@ -2,6 +2,7 @@
 #include "utils.h"
 #include "cputask.h"
 #include <cstdlib>
+#include <numeric>
 
 namespace MF {
 
@@ -102,7 +103,11 @@ void MFWorker::PushFeature()
 	size_t size_p = m * k;
 	size_t size_q = n * k; 
 
+#ifdef CAL_RMSE
+	vals.resize(size_p+size_q+1);
+#else
 	vals.resize(size_p+size_q);
+#endif
 
 	keys.push_back(0);
 	keys.push_back(1);
@@ -113,6 +118,13 @@ void MFWorker::PushFeature()
 	
 	memcpy(&vals[0], p, sizeof(float) * size_p);
 	memcpy(&vals[size_p], q, sizeof(float) * size_q);
+
+#ifdef CAL_RMSE
+	keys.push_back(2);
+	lens.push_back(1);
+	vals[size_p+size_q] =  std::accumulate(loss.begin(), loss.end(), 0.0);
+#endif
+
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 }
 
@@ -156,6 +168,9 @@ void MFWorker::GridProblem()
 void MFWorker::CreateTasks()
 {
 	tids.resize(core_num);
+#ifdef CAL_RMSE	
+	loss.resize(core_num);
+#endif
 	for(int i = 0; i < core_num; i++) {
 		CPUArgs arg;
 		arg.tid = i;
@@ -169,6 +184,11 @@ void MFWorker::CreateTasks()
 		arg.q = q;
 		arg.dm = &dm;
 		arg.cpuset = &cpuset;
+
+#ifdef CAL_RMSE	
+		arg.loss = &loss[i];
+#endif
+
 		args.push_back(arg);
 	}
 
@@ -186,19 +206,23 @@ void MFWorker::JoinTasks()
 
 void MFWorker::StartUpTasks()
 {
+	//wake up worker threads;
 	pthread_mutex_lock(&cpu_workers_barrier_mutex);
 	cpu_workers_complete = 0;
 	current_epoch++;
 	pthread_cond_broadcast(&cpu_workers_barrier_con);
 	pthread_mutex_unlock(&cpu_workers_barrier_mutex);
 
+	//sleep control threads;
 	if(cpu_workers_complete == 0) {
 		debugp("control_thread will block!\n");
 		pthread_cond_wait(&control_wake_up_con,&control_wake_up_mutex);
 	}
 	debugp("control_thread wake up and do something...!\n");
 	pthread_mutex_unlock(&control_wake_up_mutex);
-	dm.ClearBlockFlags();
+
+	//wake up control threads by worker completed
+	dm.ClearBlockFlags();	
 }
 
 void MFWorker::Test()

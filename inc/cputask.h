@@ -28,6 +28,9 @@ struct CPUArgs {
 	float *q;
 	WorkerDM *dm;
 	cpu_set_t *cpuset;
+#ifdef CAL_RMSE
+	float *loss;
+#endif
 };
 
 void *sgd_kernel_hogwild_cpu(void *args);
