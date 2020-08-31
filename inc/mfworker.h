@@ -18,7 +18,12 @@ public:
 		kv_xpu = new ps::KVWorker<float>(0, 0);		
 	}
 
+	MFWorker() {}
+
 	~MFWorker() {delete kv_xpu; free(p); free(q);}
+
+	//Worker init by environment
+	void Init();
 	
 	void PrepareData();
 	void PullFeature();

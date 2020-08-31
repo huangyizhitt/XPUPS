@@ -9,6 +9,16 @@ namespace MF {
 
 static bool alloc_feature(false);
 
+//Worker init by environment
+void MFWorker::Init()
+{
+	const char* val = NULL;
+	XPU *xpu = new xpu();
+	xpu->Init();
+	xpu->is_server = false;
+	xpu->worker_ratio = 1;
+}
+
 void MFWorker::PushWorkerXPU()
 {
 	std::vector<ps::Key> keys;									//XPU Info {rank, (peak_performance, mem_band)} len 2
