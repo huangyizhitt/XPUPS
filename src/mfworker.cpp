@@ -15,11 +15,11 @@ static bool alloc_feature(false);
 void MFWorker::Init()
 {
 	const char* val = NULL;
-	XPU *xpu = new xpu();
+	XPU *xpu = new XPU;
 	xpu->Init();
 	xpu->is_server = false;
 	xpu->worker_ratio = 1;
-	val = dmlc::CHECK_NOTNULL(ps::Environment::Get()->find("EPOCH"));
+	val = CHECK_NOTNULL(ps::Environment::Get()->find("EPOCH"));
 	this->xpu = xpu; 
 	core_num = xpu->core;
 	data_counter = 0;

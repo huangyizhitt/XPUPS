@@ -5,7 +5,7 @@
 #include "xpu.h"
 
 using namespace ps;
-using namespace dmlc
+using namespace dmlc;
 
 void XPU::Init()
 {

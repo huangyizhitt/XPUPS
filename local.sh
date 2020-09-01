@@ -27,10 +27,16 @@ for ((i=0; i<${DMLC_NUM_SERVER}; ++i)); do
     ${bin} ${arg} &
 done
 
+export EPOCH='20'
+
 # start workers
 export DMLC_ROLE='worker'
 for ((i=0; i<${DMLC_NUM_WORKER}; ++i)); do
     export HEAPPROFILE=./W${i}
+    export XPU_NAME='W-2155'
+    export XPU_TYPE='CPU'
+    export XPU_MAX_CORE='20'
+    export XPU_THREADS='2'
     ${bin} ${arg} &
 done
 
