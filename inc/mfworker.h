@@ -20,7 +20,7 @@ public:
 
 	MFWorker() {}
 
-	~MFWorker() {delete kv_xpu; free(p); free(q);}
+	~MFWorker() {delete kv_xpu; free(p); free(q); delete xpu;}
 
 	//Worker init by environment
 	void Init();

@@ -46,7 +46,7 @@ int main(int argc, char **argv)
 	if (ps::IsWorker()) {
 		std::cout << "start worker" << std::endl;
 //		xpu = new XPU("W-2155", CPU, 8, 20, 8, 1, false);
-//		worker = new MF::MFWorker(xpu, 20);
+		worker = new MF::MFWorker();
 		worker->Init();
 		worker->InitCPUAffinity();
 		worker->PushWorkerXPU();
@@ -68,7 +68,7 @@ int main(int argc, char **argv)
 		elapse = cpu_second() - start;
 		printf("20 epoch cost time: %.3f\n", elapse);
 		worker->JoinTasks();
-		ps::RegisterExitCallback([worker, xpu](){ delete worker; delete xpu;});
+		ps::RegisterExitCallback([worker](){ delete worker;});
 	}
 
 	ps::Finalize(0, true);

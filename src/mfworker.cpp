@@ -1,5 +1,7 @@
 #include "mfworker.h"
 #include "utils.h"
+#include "ps/internal/env.h"
+#include "dmlc/logging.h"
 #include "cputask.h"
 #include <cstdlib>
 #include <numeric>
@@ -17,6 +19,14 @@ void MFWorker::Init()
 	xpu->Init();
 	xpu->is_server = false;
 	xpu->worker_ratio = 1;
+	val = dmlc::CHECK_NOTNULL(ps::Environment::Get()->find("EPOCH"));
+	this->xpu = xpu; 
+	core_num = xpu->core;
+	data_counter = 0;
+	target_epoch = atoi(val);
+	current_epoch = 0;
+	rank = ps::MyRank();
+	kv_xpu = new ps::KVWorker<float>(0, 0);	
 }
 
 void MFWorker::PushWorkerXPU()

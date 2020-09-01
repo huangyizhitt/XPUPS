@@ -1,9 +1,11 @@
 #include <string.h>
 #include <cstdlib>
 #include "ps/internal/env.h"
+#include "dmlc/logging.h"
 #include "xpu.h"
 
 using namespace ps;
+using namespace dmlc
 
 void XPU::Init()
 {
