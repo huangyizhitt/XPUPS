@@ -6,6 +6,7 @@
 #include <mutex>
 #include <numeric> 
 #include <cmath>
+#include <iostream>
 
 namespace MF{
 
@@ -94,6 +95,15 @@ void MFServer::PrepareData()
 		dm.SetGrid(gridDim);
 		dm.GridData(nr_threads);
 		dm.InitModel();
+
+#ifdef EXPLORE
+		size_t size_q = dm->cols * dm->k;
+		for(size_t i = 0; i < size_q; i++) {
+			out << dm.model.q[i] << ",";
+		}	
+		out << std::endl;
+#endif
+
 		data_init_stage = true;
 	}
 }
@@ -204,6 +214,9 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 		for(int i = size_p; i < size_p + size_q; i++) {
 //			dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
 			dm.model.q[i-size_p] = req_data.vals[i];
+#ifdef EXPLORE
+			out << dm.model.q[i-size_p] << ",";
+#endif
 		} 
 	} else {
 			for(int i = 0; i < size_p; i++) {
@@ -212,8 +225,17 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 
 			for(int i = size_p; i < size_p + size_q; i++) {
 				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
+				
+#ifdef EXPLORE
+				out << dm.model.q[i-size_p] << ",";
+#endif
 			}
 	}
+
+#ifdef EXPLORE
+	out << std::endl;
+#endif
+
 	
 	merge_feature++;
 //	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);

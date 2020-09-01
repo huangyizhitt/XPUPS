@@ -6,6 +6,12 @@
 #include "xpu.h"
 #include "mfdata.h"
 
+#ifdef EXPLORE
+#include <iostream>
+#include <fstream>
+#endif
+
+
 namespace MF{
 
 class MFServer {
@@ -85,6 +91,10 @@ private:
 	static int epoch;
 	static int receive_times;		//receive times from worker; 
 	static float loss;
+#endif
+
+#ifdef EXPLORE
+	static std::ofstream out;
 #endif
 
 	ps::KVServer<float>* server_xpu;
