@@ -89,8 +89,8 @@ static inline void sgd_update(float *p, float *q, int k, float err, float lrate,
 	for(int i = 0; i < k; i++) {
 		float tmp_p = p[i];
 		float tmp_q = q[i];
-		p[i] = std::max(0.0f, tmp_p + lrate * (err * tmp_q - lambda_p * tmp_p));
-		q[i] = std::max(0.0f, tmp_q + lrate * (err * tmp_p - lambda_q * tmp_q));
+		p[i] = tmp_p + lrate * (err * tmp_q - lambda_p * tmp_p);
+		q[i] = tmp_q + lrate * (err * tmp_p - lambda_q * tmp_q);
 	}
 }
 

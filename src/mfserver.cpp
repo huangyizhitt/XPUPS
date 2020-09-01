@@ -97,11 +97,12 @@ void MFServer::PrepareData()
 		dm.InitModel();
 
 #ifdef EXPLORE
-		size_t size_q = dm->cols * dm->k;
+		size_t size_q = dm.cols * dm.k;
 		for(size_t i = 0; i < size_q; i++) {
 			out << dm.model.q[i] << ",";
 		}	
 		out << std::endl;
+		printf("%.7f\n", dm.model.q[10]);
 #endif
 
 		data_init_stage = true;
@@ -234,6 +235,7 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 
 #ifdef EXPLORE
 	out << std::endl;
+	printf("%.7f\n", dm.model.q[10]);
 #endif
 
 	

@@ -19,7 +19,7 @@ int MF::MFServer::scale(0);
 int MF::MFServer::nr_threads(0);
 
 #ifdef EXPLORE
-static std::ofstream out("feature.csv", std::ios::out);
+std::ofstream  MF::MFServer::out("feature.csv", std::ios::out);
 #endif
 
 #ifdef CAL_RMSE

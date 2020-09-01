@@ -49,6 +49,10 @@ ifeq ($(check), 1)
 	CU_CFLAGS += -DCAL_RMSE
 endif
 
+ifeq ($(test), 1)
+	CFLAGS += -DEXPLORE
+endif
+
 mf: main.cpp $(OBJS) $(CU_OBJS)
 	$(CXX) $^ -o $@ $(CFLAGS) $(ARCH_FLAGS) $(PS_INC) $(PS_LIB)
 
