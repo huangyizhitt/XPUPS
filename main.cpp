@@ -24,7 +24,7 @@ std::ofstream  MF::MFServer::out("feature.csv", std::ios::out);
 
 
 int MF::MFServer::receive_times(0);
-int MF::MFServer::epoch(0);
+int MF::MFServer::current_epoch(1);
 
 #ifdef CAL_PORTION_RMSE
 float MF::MFServer::loss(0.0);

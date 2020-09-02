@@ -20,7 +20,7 @@ public:
 
 	MFWorker() {}
 
-	~MFWorker() {delete kv_xpu; free(p); free(q); delete xpu;}
+	~MFWorker() {delete kv_xpu; free(feature); delete xpu;}
 
 	//Worker init by environment
 	void Init();
@@ -59,6 +59,7 @@ private:
 	float lrate = 0.005;
 	float *p;
 	float *q;
+	float *feature;
 	size_t data_counter;
 	XPU *xpu;
 	cpu_set_t cpuset;

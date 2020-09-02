@@ -10,7 +10,7 @@
 
 namespace MF{
 
-static int merge_feature = 0;
+//static int merge_feature = 0;
 
 #ifdef CAL_RMSE	
 static double calc_rmse(std::vector<MatrixNode>& R, Model& model)
@@ -175,22 +175,98 @@ void MFServer::ProcessPullFeature(const ps::KVMeta& req_meta,
 	size_t size_q = dm.cols * dm.k;
 	size_t vals_size = size_p + size_q;
 	
-	merge_feature = 0;
-
 	ps::KVPairs<float> res;
 	res.keys = req_data.keys;
 	res.vals.resize(vals_size);
 	res.lens.resize(keys_size);
 
-	res.lens[0] = size_p;
-	res.lens[1] = size_q;
-
-	memcpy(&res.vals[0], &dm.model.p[0], size_p * sizeof(float));
-	memcpy(&res.vals[size_p], &dm.model.q[0], size_q * sizeof(float));
+	if(current_epoch != 1) {
+		res.lens[0] = size_q;
+		memcpy(&res.vals[0], &dm.model.q[0], size_q * sizeof(float));
+	} else {
+		res.lens[0] = size_p;
+		res.lens[1] = size_q;
+		memcpy(&res.vals[0], &dm.model.p[0], size_p * sizeof(float));
+		memcpy(&res.vals[size_p], &dm.model.q[0], size_q * sizeof(float));
+	}
+	
 //	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
 	server->Response(req_meta, res);
 }
 
+//Process PUSH_FEATURE CMD from workers, will get feature from workers
+//Data format{keys[0], p, keys[1], q}
+ /*void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
+								const ps::KVPairs<float>& req_data,
+								ps::KVServer<float>* server)
+  {
+	  size_t keys_size = req_data.keys.size();
+	  size_t size_p = dm.rows * dm.k;
+	  size_t size_q = dm.cols * dm.k;
+	  size_t vals_size = req_data.vals.size();
+	  
+	  ps::KVPairs<float> res;
+	  res.keys = req_data.keys;
+	  res.lens.resize(keys_size);
+  
+	  if(receive_times == 0) {
+		  for(int i = 0; i < size_p; i++) {
+			  dm.model.p[i] = req_data.vals[i];
+  //		  dm.model.p[i] = req_data.vals[i];
+		  }
+  
+		  for(int i = size_p; i < size_p + size_q; i++) {
+  //		  dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
+			  dm.model.q[i-size_p] = req_data.vals[i];
+#ifdef EXPLORE
+			  out << dm.model.q[i-size_p] << ",";
+#endif
+		  } 
+	  } else {
+			  for(int i = 0; i < size_p; i++) {
+				  dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;
+			  }
+  
+			  for(int i = size_p; i < size_p + size_q; i++) {
+				  dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
+				  
+#ifdef EXPLORE
+				  out << dm.model.q[i-size_p] << ",";
+#endif
+			  }
+	  }
+  
+#ifdef EXPLORE
+	  out << std::endl;
+	  printf("%.7f\n", dm.model.q[10]);
+#endif
+  
+	  
+  //  merge_feature++;
+  //  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
+	  receive_times++;
+  
+#ifdef CAL_PORTION_RMSE	
+	  loss += req_data.vals.back();
+#endif
+  
+	  if(receive_times == xpus) {
+		  current_epoch++;
+  
+#ifdef CAL_PORTION_RMSE
+		  printf("Epoch %d loss %.4f\n", epoch, std::sqrt(loss / dm.nnz));
+		  loss = 0;
+#endif
+  
+#ifdef CAL_RMSE
+		  printf("Epoch %d loss %.4f\n", epoch, calc_rmse(dm.data.r_matrix, dm.model)); 	  
+#endif
+		  receive_times = 0;
+	  }
+	  
+	  server->Response(req_meta, res);
+}*/
+													  
 //Process PUSH_FEATURE CMD from workers, will get feature from workers
 //Data format{keys[0], p, keys[1], q}
 void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
@@ -206,49 +282,36 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 	res.keys = req_data.keys;
 	res.lens.resize(keys_size);
 
-	if(merge_feature == 0) {
-		for(int i = 0; i < size_p; i++) {
-			dm.model.p[i] = req_data.vals[i];
-//			dm.model.p[i] = req_data.vals[i];
+	if(current_epoch != target_epoch) {
+		if(receive_times == 0) {
+			memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);	
+		} else {
+			for(int i = 0; i < size_q; i++) {
+				dm.model.q[i] = (dm.model.q[i] + req_data.vals[i]) / 2;
+			}
 		}
-
-		for(int i = size_p; i < size_p + size_q; i++) {
-//			dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
-			dm.model.q[i-size_p] = req_data.vals[i];
-#ifdef EXPLORE
-			out << dm.model.q[i-size_p] << ",";
-#endif
-		} 
 	} else {
+		if(receive_times == 0) {
+			memcpy(&dm.model.p[0], &req_data.vals[0], sizeof(float) * size_p);
+			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
+		} else {
 			for(int i = 0; i < size_p; i++) {
 				dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;
 			}
-
+  
 			for(int i = size_p; i < size_p + size_q; i++) {
 				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
-				
-#ifdef EXPLORE
-				out << dm.model.q[i-size_p] << ",";
-#endif
 			}
+		}
 	}
-
-#ifdef EXPLORE
-	out << std::endl;
-	printf("%.7f\n", dm.model.q[10]);
-#endif
-
-	
-	merge_feature++;
-//	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
-	receive_times++;
 
 #ifdef CAL_PORTION_RMSE	
 	loss += req_data.vals.back();
 #endif
 
+	receive_times++;
 	if(receive_times == xpus) {
-		epoch++;
+		current_epoch++;
 
 #ifdef CAL_PORTION_RMSE
 		printf("Epoch %d loss %.4f\n", epoch, std::sqrt(loss / dm.nnz));

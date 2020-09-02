@@ -24,7 +24,7 @@ void MFWorker::Init()
 	core_num = xpu->core;
 	data_counter = 0;
 	target_epoch = atoi(val);
-	current_epoch = 0;
+	current_epoch = 1;
 	rank = ps::MyRank();
 	kv_xpu = new ps::KVWorker<float>(0, 0);	
 }
@@ -99,17 +99,26 @@ void MFWorker::PullFeature()
 	std::vector<float> vals;
 	std::vector<int> lens;
 	CMD cmd = PULL_FEATURE;
-	
-	keys.push_back(0);
-	keys.push_back(1);
+
+	//only first epoch will pull feature p;
+	if(current_epoch == 1) {
+		keys.push_back(0);
+		keys.push_back(1);
+	} else {
+		keys.push_back(0);
+	}
 
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
 
 	int size_p = m * k;
 	int size_q = n * k;
-	
-	memcpy(p, &vals[0], sizeof(float) * size_p);
-	memcpy(q, &vals[size_p], sizeof(float) * size_q);
+
+	if(current_epoch == 1) {
+		memcpy(p, &vals[0], sizeof(float) * size_p);
+		memcpy(q, &vals[size_p], sizeof(float) * size_q);
+	} else {
+		memcpy(q, &vals[0], sizeof(float) * size_q);
+	}
 //	print_feature_tail(p, q, size_p, size_q, 3, 0);
 }
 
@@ -118,27 +127,45 @@ void MFWorker::PullFeature()
 void MFWorker::PushFeature()
 {
 	std::vector<ps::Key> keys;
-	std::vector<float> vals;
+	
 	std::vector<int> lens;
 	CMD cmd = PUSH_FEATURE;
 
 	size_t size_p = m * k;
 	size_t size_q = n * k; 
 
-#ifdef CAL_PORTION_RMSE
-	vals.resize(size_p+size_q+1);
-#else
-	vals.resize(size_p+size_q);
-#endif
-
-	keys.push_back(0);
-	keys.push_back(1);
-
-	lens.push_back(size_p);
-	lens.push_back(size_q);
-
+	//current_epoch < target_epoch, only push q	
+	if(current_epoch < target_epoch) {
+		keys.push_back(0);
+		lens.push_back(size_q);
 	
-	memcpy(&vals[0], p, sizeof(float) * size_p);
+#ifdef CAL_PORTION_RMSE
+		std::vector<float> vals(q, q+size_q+1);
+		keys.push_back(1);
+		lens.push_back(1);
+		vals[size_q] = std::accumulate(loss.begin(), loss.end(), 0.0);
+#else
+		std::vector<float> vals(q, q+size_q);
+#endif
+		
+	} else {
+		keys.push_back(0);
+		keys.push_back(1);
+		lens.push_back(size_p);
+		lens.push_back(size_q);
+		
+#ifdef CAL_PORTION_RMSE
+		std::vector<float> vals(p, p+size_p+size_q+1);
+		keys.push_back(2);
+		lens.push_back(1);
+		vals[size_p+size_q] =  std::accumulate(loss.begin(), loss.end(), 0.0);
+#else
+		std::vector<float> vals(p, p+size_p+size_q);
+#endif
+	}
+	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+		
+/*	memcpy(&vals[0], p, sizeof(float) * size_p);
 	memcpy(&vals[size_p], q, sizeof(float) * size_q);
 //	print_feature_tail(p, q, size_p, size_q, 3, 0);
 
@@ -148,9 +175,9 @@ void MFWorker::PushFeature()
 	vals[size_p+size_q] =  std::accumulate(loss.begin(), loss.end(), 0.0);
 //	l = std::sqrt(l / size);
 //	printf("[Worker %d]epoch: %d, loss: %f\n", rank, current_epoch, l);
-#endif
+#endif 
 
-	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));*/
 }
 
 void MFWorker::InitTestData()
@@ -178,8 +205,16 @@ void MFWorker::InitTestData()
 	dm.nnz = size;
 	size_t size_p = m * k;
 	size_t size_q = n * k;
-	p = (float *)aligned_alloc(64, size_p * sizeof(float));
-	q = (float *)aligned_alloc(64, size_q * sizeof(float));
+//	p = (float *)aligned_alloc(64, size_p * sizeof(float));
+//	q = (float *)aligned_alloc(64, size_q * sizeof(float));
+#ifdef CAL_PORTION_RMSE
+	feature = (float *)aligned_alloc(64, (size_p + size_q + 1) * sizeof(float));
+#else
+	feature = (float *)aligned_alloc(64, (size_p + size_q) * sizeof(float));
+#endif
+	p = feature;
+	q = feature + size_p;
+
 	debugp("[Worker %d] start: %ld, size: %ld, rows: %d, cols: %d\n", rank, start, size, dm.rows, dm.cols);
 }
 
@@ -238,7 +273,6 @@ void MFWorker::StartUpTasks()
 	//wake up worker threads;
 	pthread_mutex_lock(&cpu_workers_barrier_mutex);
 	cpu_workers_complete = 0;
-	current_epoch++;
 	pthread_cond_broadcast(&cpu_workers_barrier_con);
 	pthread_mutex_unlock(&cpu_workers_barrier_mutex);
 
@@ -247,6 +281,8 @@ void MFWorker::StartUpTasks()
 		debugp("control_thread will block!\n");
 		pthread_cond_wait(&control_wake_up_con,&control_wake_up_mutex);
 	}
+	//wake up, the worker complete a epoch
+	current_epoch++;
 	debugp("control_thread wake up and do something...!\n");
 	pthread_mutex_unlock(&control_wake_up_mutex);
 

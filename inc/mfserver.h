@@ -87,8 +87,8 @@ private:
 	static int scale;
 	static int nr_threads;
 
-
-	static int epoch;
+	static int target_epoch;			
+	static int current_epoch;
 	static int receive_times;		//receive times from worker;
 
 #ifdef CAL_PORTION_RMSE	
