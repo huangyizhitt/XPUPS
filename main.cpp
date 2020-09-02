@@ -22,9 +22,11 @@ int MF::MFServer::nr_threads(0);
 std::ofstream  MF::MFServer::out("feature.csv", std::ios::out);
 #endif
 
-#ifdef CAL_RMSE
+
 int MF::MFServer::receive_times(0);
 int MF::MFServer::epoch(0);
+
+#ifdef CAL_PORTION_RMSE
 float MF::MFServer::loss(0.0);
 #endif
 

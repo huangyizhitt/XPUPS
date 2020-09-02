@@ -119,7 +119,7 @@ void *sgd_kernel_hogwild_cpu(void *args)
 	float lambda_p = cpu_args->lambda_p;
 	float lambda_q = cpu_args->lambda_q;
 	
-#ifdef CAL_RMSE		
+#ifdef CAL_PORTION_RMSE		
 	float *loss = cpu_args->loss;
 #endif
 
@@ -135,7 +135,7 @@ void *sgd_kernel_hogwild_cpu(void *args)
 		debugp("threads %d will recover!\n", cpu_args->tid);
 		int blockId;
 		std::vector<MatrixNode *>& ptrs = grid->blocks;
-#ifdef CAL_RMSE	
+#ifdef CAL_PORTION_RMSE	
 		*loss = 0.0;
 #endif
 		while((blockId = dm->GetFreeBlock()) != -1) {
@@ -151,7 +151,7 @@ void *sgd_kernel_hogwild_cpu(void *args)
 						
 				float ruv = r - inner_product(p + base_p, q + base_q, k);
 				
-#ifdef CAL_RMSE	
+#ifdef CAL_PORTION_RMSE	
 				*loss += ruv * ruv;
 #endif
 

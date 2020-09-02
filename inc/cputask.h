@@ -28,7 +28,7 @@ struct CPUArgs {
 	float *q;
 	WorkerDM *dm;
 	cpu_set_t *cpuset;
-#ifdef CAL_RMSE
+#ifdef CAL_PORTION_RMSE
 	float *loss;
 #endif
 };

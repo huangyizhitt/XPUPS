@@ -69,7 +69,7 @@ private:
 	std::vector<int> blocks;					//current hand blocks id
 	std::vector<CPUArgs> args;
 	std::vector<pthread_t> tids;
-#ifdef CAL_RMSE
+#ifdef CAL_PORTION_RMSE
 	std::vector<float> loss;
 #endif
 };

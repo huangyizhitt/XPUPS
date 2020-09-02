@@ -47,6 +47,9 @@ endif
 ifeq ($(check), 1)
 	CFLAGS += -DCAL_RMSE
 	CU_CFLAGS += -DCAL_RMSE
+else ifeq ($(check), 2)
+	CFLAGS += -DCAL_PORTION_RMSE
+	CU_CFLAGS += -DCAL_PORTION_RMSE
 endif
 
 ifeq ($(test), 1)

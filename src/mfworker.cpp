@@ -125,7 +125,7 @@ void MFWorker::PushFeature()
 	size_t size_p = m * k;
 	size_t size_q = n * k; 
 
-#ifdef CAL_RMSE
+#ifdef CAL_PORTION_RMSE
 	vals.resize(size_p+size_q+1);
 #else
 	vals.resize(size_p+size_q);
@@ -142,7 +142,7 @@ void MFWorker::PushFeature()
 	memcpy(&vals[size_p], q, sizeof(float) * size_q);
 //	print_feature_tail(p, q, size_p, size_q, 3, 0);
 
-#ifdef CAL_RMSE
+#ifdef CAL_PORTION_RMSE
 	keys.push_back(2);
 	lens.push_back(1);
 	vals[size_p+size_q] =  std::accumulate(loss.begin(), loss.end(), 0.0);
@@ -197,7 +197,7 @@ void MFWorker::GridProblem()
 void MFWorker::CreateTasks()
 {
 	tids.resize(core_num);
-#ifdef CAL_RMSE	
+#ifdef CAL_PORTION_RMSE	
 	loss.resize(core_num);
 #endif
 	for(int i = 0; i < core_num; i++) {
@@ -214,7 +214,7 @@ void MFWorker::CreateTasks()
 		arg.dm = &dm;
 		arg.cpuset = &cpuset;
 
-#ifdef CAL_RMSE	
+#ifdef CAL_PORTION_RMSE	
 		arg.loss = &loss[i];
 #endif
 

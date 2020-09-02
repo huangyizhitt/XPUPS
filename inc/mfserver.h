@@ -87,9 +87,11 @@ private:
 	static int scale;
 	static int nr_threads;
 
-#ifdef CAL_RMSE	
+
 	static int epoch;
-	static int receive_times;		//receive times from worker; 
+	static int receive_times;		//receive times from worker;
+
+#ifdef CAL_PORTION_RMSE	
 	static float loss;
 #endif
 
