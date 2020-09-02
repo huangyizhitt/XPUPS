@@ -24,7 +24,7 @@ void MFWorker::Init()
 	core_num = xpu->core;
 	data_counter = 0;
 	target_epoch = atoi(val);
-	current_epoch = 1;
+	current_epoch = 0;
 	rank = ps::MyRank();
 	kv_xpu = new ps::KVWorker<float>(0, 0);	
 }
@@ -99,9 +99,10 @@ void MFWorker::PullFeature()
 	std::vector<float> vals;
 	std::vector<int> lens;
 	CMD cmd = PULL_FEATURE;
-
+	
+	current_epoch++;
 	//only first epoch will pull feature p;
-	if(current_epoch == 1) {
+	if(current_epoch == 0) {
 		keys.push_back(0);
 		keys.push_back(1);
 	} else {
@@ -113,7 +114,7 @@ void MFWorker::PullFeature()
 	int size_p = m * k;
 	int size_q = n * k;
 
-	if(current_epoch == 1) {
+	if(current_epoch == 0) {
 		memcpy(p, &vals[0], sizeof(float) * size_p);
 		memcpy(q, &vals[size_p], sizeof(float) * size_q);
 	} else {
@@ -147,7 +148,8 @@ void MFWorker::PushFeature()
 #else
 		std::vector<float> vals(q, q+size_q);
 #endif
-		
+		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+
 	} else {
 		keys.push_back(0);
 		keys.push_back(1);
@@ -162,8 +164,8 @@ void MFWorker::PushFeature()
 #else
 		std::vector<float> vals(p, p+size_p+size_q);
 #endif
+		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 	}
-	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 		
 /*	memcpy(&vals[0], p, sizeof(float) * size_p);
 	memcpy(&vals[size_p], q, sizeof(float) * size_q);
@@ -282,7 +284,7 @@ void MFWorker::StartUpTasks()
 		pthread_cond_wait(&control_wake_up_con,&control_wake_up_mutex);
 	}
 	//wake up, the worker complete a epoch
-	current_epoch++;
+
 	debugp("control_thread wake up and do something...!\n");
 	pthread_mutex_unlock(&control_wake_up_mutex);
 

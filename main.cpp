@@ -25,7 +25,7 @@ std::ofstream  MF::MFServer::out("feature.csv", std::ios::out);
 
 int MF::MFServer::receive_times(0);
 int MF::MFServer::current_epoch(1);
-
+int MF::MFServer::target_epoch(20);
 #ifdef CAL_PORTION_RMSE
 float MF::MFServer::loss(0.0);
 #endif
@@ -66,8 +66,11 @@ int main(int argc, char **argv)
 //		worker->PullFeature();
 		while(true) {
 			worker->PullFeature();			//Pull feature
-			worker->StartUpTasks();			//start up tasks to compute 
+//			printf("Worker %d Epoch %d pull success!\n", worker->GetWorkerID(), worker->current_epoch);
+			worker->StartUpTasks();			//start up tasks to compute
+//		       	printf("Worker %d Epoch %d compute success!\n", worker->GetWorkerID(), worker->current_epoch);	
 			worker->PushFeature();			//push feature
+//			printf("Worker %d Epoch %d push success!\n", worker->GetWorkerID(), worker->current_epoch);
 
 			if(worker->current_epoch == worker->target_epoch) break;
 		}

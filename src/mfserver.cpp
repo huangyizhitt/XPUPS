@@ -282,6 +282,7 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 	res.keys = req_data.keys;
 	res.lens.resize(keys_size);
 
+	//printf("current_epoch: %d\n", current_epoch);	
 	if(current_epoch != target_epoch) {
 		if(receive_times == 0) {
 			memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);	
@@ -305,26 +306,27 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 		}
 	}
 
+	server->Response(req_meta, res);
 #ifdef CAL_PORTION_RMSE	
 	loss += req_data.vals.back();
 #endif
 
 	receive_times++;
 	if(receive_times == xpus) {
-		current_epoch++;
+//		current_epoch++;
 
 #ifdef CAL_PORTION_RMSE
-		printf("Epoch %d loss %.4f\n", epoch, std::sqrt(loss / dm.nnz));
+		printf("Epoch %d loss %.4f\n", current_epoch, std::sqrt(loss / dm.nnz));
 		loss = 0;
 #endif
 
 #ifdef CAL_RMSE
-		printf("Epoch %d loss %.4f\n", epoch, calc_rmse(dm.data.r_matrix, dm.model));		
+		printf("Epoch %d loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
 #endif
+		current_epoch++;
 		receive_times = 0;
 	}
 	
-	server->Response(req_meta, res);
 }
 							  
 void MFServer::Test(const ps::KVMeta& req_meta,
