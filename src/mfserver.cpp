@@ -35,6 +35,25 @@ static double calc_rmse(std::vector<MatrixNode>& R, Model& model)
 static bool data_init_stage(false);
 //static std::mutex mtx;
 
+void MFServer::Init()
+{
+	const char* val = NULL;
+	XPU *xpu = new XPU;
+	xpu->Init();
+	xpu->is_server = true;
+	xpu->worker_ratio = 0;
+	this->xpu = xpu;
+	
+	val = CHECK_NOTNULL(ps::Environment::Get()->find("EPOCH"));
+	target_epoch = atoi(val);
+
+	server_xpu = new ps::KVServer<float>(0);
+	server_xpu->set_request_handle(ReceiveXPUHandle);
+
+	SetThreads(xpu->workers);
+	printf("Server XPU TYPE: %d, threads: %d\n", xpu->xpu_type, xpu->workers);
+}
+
 //Get Worker XPU Info
 void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,

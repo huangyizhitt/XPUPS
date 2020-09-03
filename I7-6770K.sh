@@ -24,9 +24,9 @@ ${bin} ${arg} &
 export DMLC_ROLE='server'
 for ((i=0; i<${DMLC_NUM_SERVER}; ++i)); do
     export HEAPPROFILE=./S${i}
-    export SERVER_XPU_NAME='W-2155'
+    export SERVER_XPU_NAME='I7-6770K'
     export SERVER_XPU_TYPE='CPU'
-    export SERVER_XPU_MAX_CORE='20'
+    export SERVER_XPU_MAX_CORE='8'
     export SERVER_XPU_THREADS='2'
     ${bin} ${arg} &
 done
@@ -37,9 +37,9 @@ export EPOCH='20'
 export DMLC_ROLE='worker'
 for ((i=0; i<${DMLC_NUM_WORKER}; ++i)); do
     export HEAPPROFILE=./W${i}
-    export WORKER_XPU_NAME='W-2155'
+    export WORKER_XPU_NAME='I7-6770K'
     export WORKER_XPU_TYPE='CPU'
-    export WORKER_XPU_MAX_CORE='20'
+    export WORKER_XPU_MAX_CORE='8'
     export WORKER_XPU_THREADS='2'
     ${bin} ${arg} &
 done

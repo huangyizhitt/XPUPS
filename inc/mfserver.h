@@ -21,7 +21,13 @@ public:
 		server_xpu->set_request_handle(ReceiveXPUHandle);
 	}
 
+	MFServer() {
+		
+	}
+
 	~MFServer() {delete server_xpu;}
+
+	void Init();
 
 	static void ReceiveXPUHandle(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,

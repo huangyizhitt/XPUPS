@@ -42,11 +42,12 @@ int main(int argc, char **argv)
     	std::cout << "start scheduler" << std::endl;
   	}
 	if (ps::IsServer()) {
-    		std::cout << "start server" << std::endl;
-		xpu = new XPU("W-2155", CPU, 20, 20, 20, 0, true);
-		server = new MF::MFServer(xpu);
-		server->SetThreads(xpu->workers);
-		ps::RegisterExitCallback([server, xpu](){ delete server; delete xpu;});
+    	std::cout << "start server" << std::endl;
+//		xpu = new XPU("W-2155", CPU, 20, 20, 20, 0, true);
+		server = new MF::MFServer();
+		server->Init();
+//		server->SetThreads(xpu->workers);
+		ps::RegisterExitCallback([server](){ delete server;});
   	}
 
 	if (ps::IsWorker()) {
