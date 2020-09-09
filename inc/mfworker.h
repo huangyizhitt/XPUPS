@@ -28,6 +28,7 @@ public:
 	void PrepareData();
 	void PullFeature();
 	void PushFeature();
+	void PullPushFeature();
 	void PushWorkerXPU();
 	void PullDataFromServer();
 	void PullDataInfoFromServer();
