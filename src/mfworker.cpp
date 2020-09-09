@@ -194,22 +194,15 @@ void MFWorker::PullPushFeature()
 
 	keys.push_back(0);
 	keys.push_back(1);
-	lens.push_back(size_p);
-	lens.push_back(size_q);
+//	lens.push_back(size_p);
+//	lens.push_back(size_q);
 
-#ifdef CAL_PORTION_RMSE
-		std::vector<float> vals(p, p+size_p+size_q+1);
-		keys.push_back(2);
-		lens.push_back(1);
-		vals[size_p+size_q] =  std::accumulate(loss.begin(), loss.end(), 0.0);
-#else
-		std::vector<float> vals(p, p+size_p+size_q);
-#endif	
+	std::vector<float> vals(p, p+size_p+size_q);
 
 	kv_xpu->Wait(kv_xpu->PushPull(keys, vals, &outs, &lens, cmd));
 
 	memcpy(p, &outs[0], sizeof(float) * (size_p+size_q));
-
+	print_feature_head(p, q, 3, 0);
 	current_epoch++;
 }
 

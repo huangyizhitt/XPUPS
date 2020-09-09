@@ -384,6 +384,7 @@ void MFServer::ProcessPullPushFeature(const ps::KVMeta& req_meta,
 	//		current_epoch++;
 		memcpy(&res.vals[0], &dm.model.p[0], size_p * sizeof(float));
 		memcpy(&res.vals[size_p], &dm.model.q[0], size_q * sizeof(float));
+		print_feature_head(&res.vals[0], &res.vals[size_p], 3, 1);
 		res.lens[0] = size_p;
 		res.lens[1] = size_q;
 		server->Response(req_meta, res);

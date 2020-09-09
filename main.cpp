@@ -66,14 +66,11 @@ int main(int argc, char **argv)
 		start = cpu_second();
 //		worker->PullFeature();
 		while(true) {
-			if(worker->current_epoch == 0)
-				worker->PullFeature();			//Pull feature
-			else 
-				worker->PullPushFeature();
+			worker->PullFeature();			//Pull feature
 //			printf("Worker %d Epoch %d pull success!\n", worker->GetWorkerID(), worker->current_epoch);
 			worker->StartUpTasks();			//start up tasks to compute
 //		       	printf("Worker %d Epoch %d compute success!\n", worker->GetWorkerID(), worker->current_epoch);	
-//			worker->PushFeature();			//push feature
+			worker->PushFeature();			//push feature
 //			printf("Worker %d Epoch %d push success!\n", worker->GetWorkerID(), worker->current_epoch);
 
 			if(worker->current_epoch == worker->target_epoch) break;
