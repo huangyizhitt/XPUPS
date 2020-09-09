@@ -186,26 +186,17 @@ void MFWorker::PullPushFeature()
 {
 	std::vector<ps::Key> keys;
 	std::vector<int> lens;
+	std::vector<float> outs;
 	CMD cmd = PULL_PUSH_FEATURE;
 
 	size_t size_p = m * k;
 	size_t size_q = n * k; 
-	
+
 	keys.push_back(0);
 	keys.push_back(1);
 	lens.push_back(size_p);
 	lens.push_back(size_q);
 
-	//Pull
-	if(current_epoch == 0) {	
-		std::vector<float> vals;
-		kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-		memcpy(p, &vals[0], sizeof(float) * size_p);
-		memcpy(q, &vals[size_p], sizeof(float) * size_q);
-	}
-	
-	//Push feature and pull new feature
-	if(current_epoch > 0) {	
 #ifdef CAL_PORTION_RMSE
 		std::vector<float> vals(p, p+size_p+size_q+1);
 		keys.push_back(2);
@@ -213,9 +204,11 @@ void MFWorker::PullPushFeature()
 		vals[size_p+size_q] =  std::accumulate(loss.begin(), loss.end(), 0.0);
 #else
 		std::vector<float> vals(p, p+size_p+size_q);
-#endif
-		kv_xpu->Wait(kv_xpu->PushPull(keys, vals, &vals, lens, cmd));
-	}
+#endif	
+
+	kv_xpu->Wait(kv_xpu->PushPull(keys, vals, &outs, &lens, cmd));
+
+	memcpy(p, &outs[0], sizeof(float) * (size_p+size_q));
 
 	current_epoch++;
 }

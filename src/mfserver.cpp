@@ -361,54 +361,42 @@ void MFServer::ProcessPullPushFeature(const ps::KVMeta& req_meta,
 	res.keys = req_data.keys;
 	res.vals.resize(vals_size);
 	res.lens.resize(keys_size);
-
-	if(current_epoch == 1) {			//pull
-		res.lens[0] = size_p;
-		res.lens[1] = size_q;
-		memcpy(&res.vals[0], &dm.model.p[0], size_p * sizeof(float));
-		memcpy(&res.vals[size_p], &dm.model.q[0], size_q * sizeof(float));
-
-		server->Response(req_meta, res);
-		return;
 		
-	} else {							//push-pull
-		
-		if(receive_times == 0) {
-			memcpy(&dm.model.p[0], &req_data.vals[0], sizeof(float) * size_p);
-			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
-		} else {
-			for(int i = 0; i < size_p; i++) {
-				dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;	
-			}
-  
-			for(int i = size_p; i < size_p + size_q; i++) {
-				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;				
-			}
+	if(receive_times == 0) {
+		memcpy(&dm.model.p[0], &req_data.vals[0], sizeof(float) * size_p);
+		memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
+	} else {
+		for(int i = 0; i < size_p; i++) {
+			dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;	
 		}
 
+		for(int i = size_p; i < size_p + size_q; i++) {
+			dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;				
+		}
+	}
+
 #ifdef CAL_PORTION_RMSE	
-		loss += req_data.vals.back();
+	loss += req_data.vals.back();
 #endif
 	
-		receive_times++;
-		if(receive_times == xpus) {
+	receive_times++;
+	if(receive_times == xpus) {
 	//		current_epoch++;
-			memcpy(&res.vals[0], &dm.model.p[0], size_p * sizeof(float));
-			memcpy(&res.vals[size_p], &dm.model.q[0], size_q * sizeof(float));
-			res.lens[0] = size_p;
-			res.lens[1] = size_q;
-			server->Response(req_meta, res);
+		memcpy(&res.vals[0], &dm.model.p[0], size_p * sizeof(float));
+		memcpy(&res.vals[size_p], &dm.model.q[0], size_q * sizeof(float));
+		res.lens[0] = size_p;
+		res.lens[1] = size_q;
+		server->Response(req_meta, res);
 #ifdef CAL_PORTION_RMSE
-			printf("Epoch %d loss %.4f\n", current_epoch, std::sqrt(loss / dm.nnz));
-			loss = 0;
+		printf("Epoch %d loss %.4f\n", current_epoch, std::sqrt(loss / dm.nnz));
+		loss = 0;
 #endif
 	
 #ifdef CAL_RMSE
-			printf("Epoch %d loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
+		printf("Epoch %d loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
 #endif
-			current_epoch++;
-			receive_times = 0;
-		}		
+		current_epoch++;
+		receive_times = 0;	
 	}
 }
 
