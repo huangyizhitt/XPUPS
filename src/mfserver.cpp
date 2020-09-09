@@ -300,7 +300,7 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 	ps::KVPairs<float> res;
 	res.keys = req_data.keys;
 	res.lens.resize(keys_size);
-
+	
 	//printf("current_epoch: %d\n", current_epoch);	
 	if(current_epoch != target_epoch) {
 		if(receive_times == 0) {
@@ -311,13 +311,23 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 			}
 		}
 	} else {
+		int rank = req_data.keys[0];
+		int start = 0;
+		int size = 0;
+
+		dm.SplitData(start, size, worker_xpu_info[rank].work_ratio);
+		int start_p = dm.data.r_matrix[start].row_index;
+		size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * k;
+		printf("start_p: %d, size_p: %d\n", start_p, size_p);
+		memcpy(&dm.model.p[start_p], &req_data.vals[start_p], sizeof(float) * size_p);
+		
 		if(receive_times == 0) {
-			memcpy(&dm.model.p[0], &req_data.vals[0], sizeof(float) * size_p);
+//			memcpy(&dm.model.p[0], &req_data.vals[0], sizeof(float) * size_p);
 			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
 		} else {
-			for(int i = 0; i < size_p; i++) {
+/*			for(int i = 0; i < size_p; i++) {
 				dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;
-			}
+			} */
   
 			for(int i = size_p; i < size_p + size_q; i++) {
 				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;

@@ -137,12 +137,12 @@ void MFWorker::PushFeature()
 
 	//current_epoch < target_epoch, only push q	
 	if(current_epoch < target_epoch) {
-		keys.push_back(0);
+		keys.push_back(rank);
 		lens.push_back(size_q);
 	
 #ifdef CAL_PORTION_RMSE
 		std::vector<float> vals(q, q+size_q+1);
-		keys.push_back(1);
+		keys.push_back(rank+1);
 		lens.push_back(1);
 		vals[size_q] = std::accumulate(loss.begin(), loss.end(), 0.0);
 #else
@@ -151,14 +151,14 @@ void MFWorker::PushFeature()
 		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 
 	} else {
-		keys.push_back(0);
-		keys.push_back(1);
+		keys.push_back(rank);
+		keys.push_back(rank+1);
 		lens.push_back(size_p);
 		lens.push_back(size_q);
 		
 #ifdef CAL_PORTION_RMSE
 		std::vector<float> vals(p, p+size_p+size_q+1);
-		keys.push_back(2);
+		keys.push_back(rank+2);
 		lens.push_back(1);
 		vals[size_p+size_q] =  std::accumulate(loss.begin(), loss.end(), 0.0);
 #else
