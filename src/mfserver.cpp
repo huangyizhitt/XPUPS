@@ -357,13 +357,18 @@ void MFServer::ProcessPullPushFeature(const ps::KVMeta& req_meta,
 	size_t size_q = dm.cols * dm.k;
 	size_t vals_size = size_p + size_q;
 
-	if(current_epoch == 1) {			//pull
-		req_data.lens[0] = size_p;
-		req_data.lens[1] = size_q;
-		memcpy(&req_data.vals[0], &dm.model.p[0], size_p * sizeof(float));
-		memcpy(&req_data.vals[size_p], &dm.model.q[0], size_q * sizeof(float));
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.vals.resize(vals_size);
+	res.lens.resize(keys_size);
 
-		server->Response(req_meta, req_data);
+	if(current_epoch == 1) {			//pull
+		res.lens[0] = size_p;
+		res.lens[1] = size_q;
+		memcpy(&res.vals[0], &dm.model.p[0], size_p * sizeof(float));
+		memcpy(&res.vals[size_p], &dm.model.q[0], size_q * sizeof(float));
+
+		server->Response(req_meta, res);
 		return;
 		
 	} else {							//push-pull
@@ -388,10 +393,11 @@ void MFServer::ProcessPullPushFeature(const ps::KVMeta& req_meta,
 		receive_times++;
 		if(receive_times == xpus) {
 	//		current_epoch++;
-			memcpy(&req_data.vals[0], &dm.model.p[0], size_p * sizeof(float));
-			memcpy(&req_data.vals[size_p], &dm.model.q[0], size_q * sizeof(float));
-		
-			server->Response(req_meta, req_data);
+			memcpy(&res.vals[0], &dm.model.p[0], size_p * sizeof(float));
+			memcpy(&res.vals[size_p], &dm.model.q[0], size_q * sizeof(float));
+			res.lens[0] = size_p;
+			res.lens[1] = size_q;
+			server->Response(req_meta, res);
 #ifdef CAL_PORTION_RMSE
 			printf("Epoch %d loss %.4f\n", current_epoch, std::sqrt(loss / dm.nnz));
 			loss = 0;
