@@ -38,6 +38,8 @@ struct XPU_INFO {
 	XPU_TYPE type;
 	int workers;
 	int work_ratio;						//work load ratio
+	int start;
+	size_t size;
 };
 
 #endif

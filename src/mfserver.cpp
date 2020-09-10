@@ -145,7 +145,8 @@ void MFServer::ProcessInitData(const ps::KVMeta& req_meta,
 	int size = 0;
 
 	dm.SplitData(start, size, worker_xpu_info[rank].work_ratio);
-
+	worker_xpu_info[rank].start = start;
+	worker_xpu_info[rank].size = size;
 	res.vals.push_back((float)start);
 	res.vals.push_back((float)size);
 	res.vals.push_back((float)dm.rows);
@@ -312,13 +313,13 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 		}
 	} else {
 		int rank = req_data.keys[0];
-		int start = 0;
-		int size = 0;
+		int start = worker_xpu_info[rank].start;
+		int size = worker_xpu_info[rank].size;
 
-		dm.SplitData(start, size, worker_xpu_info[rank].work_ratio);
-		int start_p = dm.data.r_matrix[start].row_index;
-		size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * k;
-		printf("start_p: %d, size_p: %d\n", start_p, size_p);
+//		int start_p =  dm.data.r_matrix[start].row_index * dm.k;				//p start in this worker	
+		int start_p = dm.data.r_matrix[start].row_index * dm.k;
+		size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
+		printf("start: %d, start_p: %d, size_p: %d\n", start, start_p, size_p);
 		memcpy(&dm.model.p[start_p], &req_data.vals[start_p], sizeof(float) * size_p);
 		
 		if(receive_times == 0) {
@@ -350,7 +351,10 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 #endif
 
 #ifdef CAL_RMSE
-		printf("Epoch %d loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
+		if(current_epoch < target_epoch)
+			printf("Epoch %d\n", current_epoch);
+		else
+			printf("Epoch %d global loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
 #endif
 		current_epoch++;
 		receive_times = 0;
