@@ -317,10 +317,10 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 		int size = worker_xpu_info[rank].size;
 
 //		int start_p =  dm.data.r_matrix[start].row_index * dm.k;				//p start in this worker	
-		int start_p = dm.data.r_matrix[start].row_index * dm.k;
-		size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
-		printf("start: %d, start_p: %d, size_p: %d\n", start, start_p, size_p);
-		memcpy(&dm.model.p[start_p], &req_data.vals[start_p], sizeof(float) * size_p);
+		int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
+		int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
+		printf("start: %d, start_p: %d, size_p: %d\n", start, worker_start_p, worker_size_p);
+		memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
 		
 		if(receive_times == 0) {
 //			memcpy(&dm.model.p[0], &req_data.vals[0], sizeof(float) * size_p);
