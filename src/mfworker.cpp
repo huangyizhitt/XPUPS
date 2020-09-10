@@ -44,22 +44,6 @@ void MFWorker::PushWorkerXPU()
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 	
 }
-/*
-void MFWorker::PullDataInfoFromServer()
-{
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-
-	keys.push_back(rank);
-	lens.push_back(2);
-	CMD cmd = PULL_DATA_INFO;
-
-	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-	start = (size_t)vals[0];
-	size = (size_t)vals[1];
-	debugp("start: %ld, size: %ld\n", start, size);
-}*/
 
 void MFWorker::PullDataFromServer()
 {
@@ -167,20 +151,59 @@ void MFWorker::PushFeature()
 		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 	}
 		
-/*	memcpy(&vals[0], p, sizeof(float) * size_p);
-	memcpy(&vals[size_p], q, sizeof(float) * size_q);
+}
+
+//pull feature, <keys, {feature}>
+void MFWorker::PullAllFeature()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_ALL_FEATURE;
+	
+	keys.push_back(0);
+	keys.push_back(1);
+
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+
+	int size_p = m * k;
+	int size_q = n * k;
+	
+	memcpy(p, &vals[0], sizeof(float) * size_p);
+	memcpy(q, &vals[size_p], sizeof(float) * size_q);
 //	print_feature_tail(p, q, size_p, size_q, 3, 0);
+}
+
+
+//push format {keys0, feature_p} {keys1, feature_q} {lens0: m*k} {lens1: n*k}
+void MFWorker::PushAllFeature()
+{
+	std::vector<ps::Key> keys;
+	
+	std::vector<int> lens;
+	CMD cmd = PUSH_ALL_FEATURE;
+
+	size_t size_p = m * k;
+	size_t size_q = n * k; 
+
+	keys.push_back(0);
+	keys.push_back(1);
+
+	lens.push_back(size_p);
+	lens.push_back(size_q);
 
 #ifdef CAL_PORTION_RMSE
+	std::vector<float> vals(p, p+size_p+size_q+1);
 	keys.push_back(2);
 	lens.push_back(1);
 	vals[size_p+size_q] =  std::accumulate(loss.begin(), loss.end(), 0.0);
-//	l = std::sqrt(l / size);
-//	printf("[Worker %d]epoch: %d, loss: %f\n", rank, current_epoch, l);
-#endif 
+#else
+	std::vector<float> vals(p, p+size_p+size_q);
+#endif
 
-	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));*/
+	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 }
+
 
 void MFWorker::PullPushFeature()
 {
@@ -232,8 +255,7 @@ void MFWorker::InitTestData()
 	dm.nnz = size;
 	size_t size_p = m * k;
 	size_t size_q = n * k;
-//	p = (float *)aligned_alloc(64, size_p * sizeof(float));
-//	q = (float *)aligned_alloc(64, size_q * sizeof(float));
+
 #ifdef CAL_PORTION_RMSE
 	feature = (float *)aligned_alloc(64, (size_p + size_q + 1) * sizeof(float));
 #else

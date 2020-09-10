@@ -72,7 +72,7 @@ int main(int argc, char **argv)
 //		       	printf("Worker %d Epoch %d compute success!\n", worker->GetWorkerID(), worker->current_epoch);	
 			worker->PushFeature();			//push feature
 //			printf("Worker %d Epoch %d push success!\n", worker->GetWorkerID(), worker->current_epoch);
-
+			ps::Postoffice::Barrier(0, kWorkerGroup);
 			if(worker->current_epoch == worker->target_epoch) break;
 		}
 		elapse = cpu_second() - start;

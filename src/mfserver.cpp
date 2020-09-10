@@ -289,6 +289,7 @@ void MFServer::ProcessPullFeature(const ps::KVMeta& req_meta,
 													  
 //Process PUSH_FEATURE CMD from workers, will get feature from workers
 //Data format{keys[0], p, keys[1], q}
+//only in the last epoch need get feature p
 void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
                               ps::KVServer<float>* server)
@@ -316,20 +317,15 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 		int start = worker_xpu_info[rank].start;
 		int size = worker_xpu_info[rank].size;
 
-//		int start_p =  dm.data.r_matrix[start].row_index * dm.k;				//p start in this worker	
+		//Get feature p in the last epoch	
 		int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
 		int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
 		printf("start: %d, start_p: %d, size_p: %d\n", start, worker_start_p, worker_size_p);
 		memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
 		
 		if(receive_times == 0) {
-//			memcpy(&dm.model.p[0], &req_data.vals[0], sizeof(float) * size_p);
 			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
 		} else {
-/*			for(int i = 0; i < size_p; i++) {
-				dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;
-			} */
-  
 			for(int i = size_p; i < size_p + size_q; i++) {
 				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
 			}
@@ -415,6 +411,87 @@ void MFServer::ProcessPullPushFeature(const ps::KVMeta& req_meta,
 	}
 }
 
+//Process PULL_FEATURE cmd from workers, will send feature to workers
+//Data format{keys[0], p, keys[1], q}
+void MFServer::ProcessPullAllFeature(const ps::KVMeta& req_meta,
+							  const ps::KVPairs<float>& req_data,
+							  ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = size_p + size_q;
+
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.vals.resize(vals_size);
+	res.lens.resize(keys_size);
+
+	res.lens[0] = size_p;
+	res.lens[1] = size_q;
+
+	memcpy(&res.vals[0], &dm.model.p[0], size_p * sizeof(float));
+	memcpy(&res.vals[size_p], &dm.model.q[0], size_q * sizeof(float));
+//	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
+	server->Response(req_meta, res);
+}
+
+//Process PUSH_FEATURE CMD from workers, will get feature from workers
+//Data format{keys[0], p, keys[1], q}
+void MFServer::ProcessPushAllFeature(const ps::KVMeta& req_meta,
+							  const ps::KVPairs<float>& req_data,
+							  ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = req_data.vals.size();
+	
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.lens.resize(keys_size);
+
+	if(receive_times == 0) {
+		for(int i = 0; i < size_p; i++) {
+			dm.model.p[i] = req_data.vals[i];
+
+		}
+
+		for(int i = size_p; i < size_p + size_q; i++) {
+			dm.model.q[i-size_p] = req_data.vals[i];
+		} 
+	} else {
+			for(int i = 0; i < size_p; i++) {
+				dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;
+			}
+
+			for(int i = size_p; i < size_p + size_q; i++) {
+				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
+			}
+	}
+
+	server->Response(req_meta, res);
+#ifdef CAL_PORTION_RMSE	
+	loss += req_data.vals.back();
+#endif
+	
+	receive_times++;
+	if(receive_times == xpus) {
+	
+#ifdef CAL_PORTION_RMSE
+		printf("Epoch %d loss %.4f\n", current_epoch, std::sqrt(loss / dm.nnz));
+		loss = 0;
+#endif
+	
+#ifdef CAL_RMSE
+		printf("Epoch %d global loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
+#endif
+		current_epoch++;
+		receive_times = 0;
+	}
+}
+
+
 							  
 void MFServer::Test(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
@@ -469,6 +546,14 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 
 		case PULL_PUSH_FEATURE:
 			ProcessPullPushFeature(req_meta, req_data, server);
+			break;
+
+		case PULL_ALL_FEATURE:
+			ProcessPullAllFeature(req_meta, req_data, server);
+			break;
+
+		case PUSH_ALL_FEATURE:
+			ProcessPushAllFeature(req_meta, req_data, server);
 			break;
 		
 		default:
