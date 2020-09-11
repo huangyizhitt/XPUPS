@@ -64,15 +64,19 @@ int main(int argc, char **argv)
 
 		double start, elapse;
 		start = cpu_second();
-//		worker->PullFeature();
 		while(true) {
-			worker->PullFeature();			//Pull feature
-//			printf("Worker %d Epoch %d pull success!\n", worker->GetWorkerID(), worker->current_epoch);
-			worker->StartUpTasks();			//start up tasks to compute
-//		       	printf("Worker %d Epoch %d compute success!\n", worker->GetWorkerID(), worker->current_epoch);	
-			worker->PushFeature();			//push feature
-//			printf("Worker %d Epoch %d push success!\n", worker->GetWorkerID(), worker->current_epoch);
-			ps::Postoffice::Barrier(0, kWorkerGroup);
+#ifdef SEND_ALL_FEATURE
+			worker->PullAllFeature();
+			worker->StartUpTasks();
+			worker->PushAllFeature();
+#elif SEND_Q_FEATURE
+			worker->PullFeature();
+			worker->StartUpTasks();
+			worker->PushFeature();
+#elif SEND_COMPRESS_Q_FEATURE
+
+#endif
+			ps::Postoffice::Get()->Barrier(0, ps::kWorkerGroup);
 			if(worker->current_epoch == worker->target_epoch) break;
 		}
 		elapse = cpu_second() - start;

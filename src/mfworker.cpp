@@ -160,7 +160,8 @@ void MFWorker::PullAllFeature()
 	std::vector<float> vals;
 	std::vector<int> lens;
 	CMD cmd = PULL_ALL_FEATURE;
-	
+
+	current_epoch++;	
 	keys.push_back(0);
 	keys.push_back(1);
 

@@ -56,6 +56,16 @@ ifeq ($(test), 1)
 	CFLAGS += -DEXPLORE
 endif
 
+ifeq ($(comm_op), 0)
+	CFLAGS += -DSEND_ALL_FEATURE
+else ifeq ($(comm_op), 1)
+	CFLAGS += -DSEND_Q_FEATURE
+else ifeq ($(comm_op), 2)
+	CFLAGS += -DSEND_COMPRESS_Q_FEATURE
+endif
+
+
+
 mf: main.cpp $(OBJS) $(CU_OBJS)
 	$(CXX) $^ -o $@ $(CFLAGS) $(ARCH_FLAGS) $(PS_INC) $(PS_LIB)
 
