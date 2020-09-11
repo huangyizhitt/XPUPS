@@ -404,7 +404,10 @@ void MFServer::ProcessPullPushFeature(const ps::KVMeta& req_meta,
 #endif
 	
 #ifdef CAL_RMSE
-		printf("Epoch %d loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
+		if(current_epoch < target_epoch)
+			printf("Epoch %d\n", current_epoch);
+		else
+			printf("Epoch %d loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
 #endif
 		current_epoch++;
 		receive_times = 0;	
@@ -484,7 +487,11 @@ void MFServer::ProcessPushAllFeature(const ps::KVMeta& req_meta,
 #endif
 	
 #ifdef CAL_RMSE
-		printf("Epoch %d global loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
+		if(current_epoch < target_epoch) {
+			printf("Epoch %d\n", current_epoch);
+		} else {
+			printf("Epoch %d global loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
+		}
 #endif
 		current_epoch++;
 		receive_times = 0;

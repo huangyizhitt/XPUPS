@@ -56,6 +56,7 @@ ifeq ($(test), 1)
 	CFLAGS += -DEXPLORE
 endif
 
+comm_op=0
 ifeq ($(comm_op), 0)
 	CFLAGS += -DSEND_ALL_FEATURE
 else ifeq ($(comm_op), 1)
