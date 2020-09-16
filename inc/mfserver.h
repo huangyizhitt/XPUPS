@@ -2,6 +2,7 @@
 #define _MFSERVER_H_
 
 #include <unordered_map>
+#include <cstdint>
 #include "ps/ps.h"
 #include "xpu.h"
 #include "mfdata.h"
@@ -83,7 +84,15 @@ public:
 
 	static void ProcessPushAllFeature(const ps::KVMeta& req_meta,
                               const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server);						  
+                              ps::KVServer<float>* server);		
+
+	static void ProcessPullCompressFeature(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server);
+
+	static void ProcessPushCompressFeature(const ps::KVMeta& req_meta,
+							const ps::KVPairs<float>& req_data,
+							ps::KVServer<float>* server);
 	
 	void PrintWorkerXPU();
 

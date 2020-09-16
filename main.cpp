@@ -74,7 +74,9 @@ int main(int argc, char **argv)
 			worker->StartUpTasks();
 			worker->PushFeature();
 #elif SEND_COMPRESS_Q_FEATURE
-
+			worker->PullCompressFeature();
+			worker->StartUpTasks();
+			worker->PushCompressFeature();
 #endif
 			ps::Postoffice::Get()->Barrier(0, ps::kWorkerGroup);
 			if(worker->current_epoch == worker->target_epoch) break;

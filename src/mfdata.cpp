@@ -292,6 +292,11 @@ void DataManager::InitModel()
 	init1(model.p, rows, counts_p);
 	init1(model.q, cols, counts_q);
 
+#ifdef SEND_COMPRESS_Q_FEATURE
+	halfp = (uint16_t *)malloc(sizeof(uint16_t) * (rows + cols) * k);
+	halfq = halfp + (rows * k);
+#endif
+
 	printf("init model success!\n");
 }
 

@@ -214,78 +214,45 @@ void MFServer::ProcessPullFeature(const ps::KVMeta& req_meta,
 	server->Response(req_meta, res);
 }
 
-//Process PUSH_FEATURE CMD from workers, will get feature from workers
-//Data format{keys[0], p, keys[1], q}
- /*void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
-								const ps::KVPairs<float>& req_data,
-								ps::KVServer<float>* server)
-  {
-	  size_t keys_size = req_data.keys.size();
-	  size_t size_p = dm.rows * dm.k;
-	  size_t size_q = dm.cols * dm.k;
-	  size_t vals_size = req_data.vals.size();
-	  
-	  ps::KVPairs<float> res;
-	  res.keys = req_data.keys;
-	  res.lens.resize(keys_size);
-  
-	  if(receive_times == 0) {
-		  for(int i = 0; i < size_p; i++) {
-			  dm.model.p[i] = req_data.vals[i];
-  //		  dm.model.p[i] = req_data.vals[i];
-		  }
-  
-		  for(int i = size_p; i < size_p + size_q; i++) {
-  //		  dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
-			  dm.model.q[i-size_p] = req_data.vals[i];
-#ifdef EXPLORE
-			  out << dm.model.q[i-size_p] << ",";
-#endif
-		  } 
-	  } else {
-			  for(int i = 0; i < size_p; i++) {
-				  dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;
-			  }
-  
-			  for(int i = size_p; i < size_p + size_q; i++) {
-				  dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
-				  
-#ifdef EXPLORE
-				  out << dm.model.q[i-size_p] << ",";
-#endif
-			  }
-	  }
-  
-#ifdef EXPLORE
-	  out << std::endl;
-	  printf("%.7f\n", dm.model.q[10]);
-#endif
-  
-	  
-  //  merge_feature++;
-  //  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
-	  receive_times++;
-  
-#ifdef CAL_PORTION_RMSE	
-	  loss += req_data.vals.back();
-#endif
-  
-	  if(receive_times == xpus) {
-		  current_epoch++;
-  
-#ifdef CAL_PORTION_RMSE
-		  printf("Epoch %d loss %.4f\n", epoch, std::sqrt(loss / dm.nnz));
-		  loss = 0;
-#endif
-  
-#ifdef CAL_RMSE
-		  printf("Epoch %d loss %.4f\n", epoch, calc_rmse(dm.data.r_matrix, dm.model)); 	  
-#endif
-		  receive_times = 0;
-	  }
-	  
-	  server->Response(req_meta, res);
-}*/
+void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
+                              const ps::KVPairs<float>& req_data,
+                              ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = size_p + size_q;
+	
+	
+	res.keys = req_data.keys;
+	res.vals.resize(vals_size);
+	res.lens.resize(keys_size);
+
+	if(current_epoch != 1) {
+		//encode
+		singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0);
+
+		//prepare transmission data
+		res.lens[0] = size_q/2;						//compress
+		float *_q = (float *)dm.halfq;
+		ps::KVPairs<float> res(_q, _q+size_q/2);
+		server->Response(req_meta, res);
+	} else {
+		//encode
+		singles2halfp(dm.halfp, &dm.model.p[0], size_p, FE_TONEAREST, 0);
+		singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0);
+
+		//prepare transmission data
+		res.lens[0] = size_p/2;
+		res.lens[1] = size_q/2;
+		float *_p = (float *)dm.halfp;
+		ps::KVPairs<float> res(_p, _p+(size_p+size_q)/2);
+		server->Response(req_meta, res);
+	}
+	
+//	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
+	
+}
 													  
 //Process PUSH_FEATURE CMD from workers, will get feature from workers
 //Data format{keys[0], p, keys[1], q}
@@ -357,6 +324,87 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 	}
 	
 }
+
+void MFServer::ProcessPushCompressFeature(const ps::KVMeta& req_meta,
+							const ps::KVPairs<float>& req_data,
+							ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = req_data.vals.size();
+	float *h_p;
+	float *h_q;
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.lens.resize(keys_size);
+  
+  	//printf("current_epoch: %d\n", current_epoch); 
+  	if(current_epoch != target_epoch) {
+		h_q = (uint16_t)&req_data.vals[0];
+	  	if(receive_times == 0) {
+//			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
+			halfp2singles(&dm.model.q[0], h_q, size_q);
+	  	} else {
+		  	for(int i = 0; i < size_q; i++) {
+				float tmp;
+				halfp2singles(&tmp, h_q+i, 1);
+			  	dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
+			}
+	  	}
+  	} else {
+	  	int rank = req_data.keys[0];
+	  	int start = worker_xpu_info[rank].start;
+	  	int size = worker_xpu_info[rank].size;
+
+	  	//Get feature p in the last epoch   
+	  	int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
+	  	int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
+	  	printf("start: %d, start_p: %d, size_p: %d\n", start, worker_start_p, worker_size_p);
+//	  	memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
+		h_p = (uint16_t *)&req_data.vals[0];
+		h_q = h_p + size_p;
+		halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p);
+
+	  	if(receive_times == 0) {
+//		  	memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
+			halfp2singles(&dm.model.q[0], h_q, size_q);
+	  	} else {
+		  	for(int i = 0; i < size_q; i++) {
+//			  	dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
+				float tmp;
+				halfp2singles(&tmp, h_q+i, 1);
+				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
+		  	}
+	  	}
+  	}
+
+  	server->Response(req_meta, res);
+#ifdef CAL_PORTION_RMSE	
+  	loss += req_data.vals.back();
+#endif
+
+  	receive_times++;
+  	if(receive_times == xpus) {
+//	  current_epoch++;
+
+#ifdef CAL_PORTION_RMSE
+	  	printf("Epoch %d loss %.4f\n", current_epoch, std::sqrt(loss / dm.nnz));
+	  	loss = 0;
+#endif
+
+#ifdef CAL_RMSE
+	  	if(current_epoch < target_epoch)
+		  	printf("Epoch %d\n", current_epoch);
+	  	else
+		  	printf("Epoch %d global loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		  
+#endif
+	  	current_epoch++;
+	  	receive_times = 0;
+  	}
+  
+}
+
 
 void MFServer::ProcessPullPushFeature(const ps::KVMeta& req_meta,
 							const ps::KVPairs<float>& req_data,

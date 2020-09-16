@@ -28,6 +28,8 @@ public:
 	void PrepareData();
 	void PullFeature();
 	void PushFeature();
+	void PullCompressFeature();
+	void PushCompressFeature();
 	void PullAllFeature();
 	void PushAllFeature();
 	void PullPushFeature();
@@ -63,6 +65,10 @@ private:
 	float *p;
 	float *q;
 	float *feature;
+#ifdef SEND_COMPRESS_Q_FEATURE
+	uint16_t *halfp;
+	uint16_t *halfq;
+#endif
 	size_t data_counter;
 	XPU *xpu;
 	cpu_set_t cpuset;

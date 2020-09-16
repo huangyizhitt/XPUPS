@@ -54,7 +54,13 @@ public:
 		
 	}
 	
-//	~Datamanager() {}
+	~Datamanager() 
+	{
+#ifdef SEND_COMPRESS_Q_FEATURE
+		free(halfp);
+		free(halfq);
+#endif
+	}
 	
 	void Init(int nr_threads);
 	void DeInit();
@@ -104,6 +110,10 @@ public:
 	float means;
 	float stddev;
 	float scale;
+#ifdef SEND_COMPRESS_Q_FEATURE
+	uint16_t *halfp;
+	uint16_t *halfq;
+#endif
 	struct Grid grid;
 	Data data;
 	Model model;
