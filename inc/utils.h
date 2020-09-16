@@ -10,6 +10,11 @@
 #include <cstdio>
 #include <cstddef>
 
+#define  INT16_TYPE          short
+#define UINT16_TYPE unsigned short
+#define  INT32_TYPE          int
+#define UINT32_TYPE unsigned int
+
 #define HALFP_PINF ((UINT16_TYPE) 0x7C00u)  // +inf
 #define HALFP_MINF ((UINT16_TYPE) 0xFC00u)  // -inf
 #define HALFP_PNAN ((UINT16_TYPE) 0x7E00u)  // +nan (only is_quite bit set, no payload)

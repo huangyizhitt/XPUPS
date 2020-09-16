@@ -1,8 +1,9 @@
-#include "utils.h"
 #include <sys/time.h>
 #include <cstdio>
 #include <fenv.h>
 #include <omp.h>
+
+#include "utils.h"
 
 long long cpu_microsecond(void)
 {
@@ -41,13 +42,6 @@ void print_feature_tail(const float *p, const float *q, size_t size_p, size_t si
 		printf("[%s] p[%d] %.2f, q[%d] %.2f\n", name, i, p[size_p-i], i, q[size_q-i]);
 	}
 }
-
-// Macros ---------------------------------------------------------------------
-
-#define  INT16_TYPE          short
-#define UINT16_TYPE unsigned short
-#define  INT32_TYPE          int
-#define UINT32_TYPE unsigned int
 
 int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet)
 {

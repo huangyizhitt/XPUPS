@@ -139,7 +139,7 @@ void MFWorker::PullCompressFeature()
 		h_q = (uint16_t *)&vals[0];
 		halfp2singles(q, h_q, size_q);
 	}
-//	print_feature_tail(p, q, size_p, size_q, 3, 0);
+	print_feature_tail(p, q, size_p, size_q, 3, 0);
 }
 
 

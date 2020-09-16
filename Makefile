@@ -48,7 +48,7 @@ ifeq ($(check), 1)
 	CFLAGS += -DCAL_RMSE
 	CU_CFLAGS += -DCAL_RMSE
 else ifeq ($(check), 2)
-	CFLAGS += -DCAL_PORTION_RMSE
+	CFLAGS += -DCAL_PORTION_RMSE 
 	CU_CFLAGS += -DCAL_PORTION_RMSE
 endif
 
@@ -62,7 +62,7 @@ ifeq ($(comm_op), 0)
 else ifeq ($(comm_op), 1)
 	CFLAGS += -DSEND_Q_FEATURE
 else ifeq ($(comm_op), 2)
-	CFLAGS += -DSEND_COMPRESS_Q_FEATURE
+	CFLAGS += -DSEND_COMPRESS_Q_FEATURE -fpermissive
 endif
 
 

@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <cstdio>
+#include <cstdlib>
 #include <mutex>
 #include <deque>
 
@@ -54,7 +55,7 @@ public:
 		
 	}
 	
-	~Datamanager() 
+	~DataManager() 
 	{
 #ifdef SEND_COMPRESS_Q_FEATURE
 		free(halfp);

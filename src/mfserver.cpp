@@ -221,9 +221,9 @@ void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 	size_t keys_size = req_data.keys.size();
 	size_t size_p = dm.rows * dm.k;
 	size_t size_q = dm.cols * dm.k;
-	size_t vals_size = size_p + size_q;
+	size_t vals_size = (size_p + size_q)/2;
 	
-	
+	ps::KVPairs<float> res;	
 	res.keys = req_data.keys;
 	res.vals.resize(vals_size);
 	res.lens.resize(keys_size);
@@ -235,7 +235,8 @@ void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 		//prepare transmission data
 		res.lens[0] = size_q/2;						//compress
 		float *_q = (float *)dm.halfq;
-		ps::KVPairs<float> res(_q, _q+size_q/2);
+//		ps::KVPairs<float> res(_q, _q+size_q/2);
+		memcpy(&res.vals[0], _q, size_q/2);
 		server->Response(req_meta, res);
 	} else {
 		//encode
@@ -246,11 +247,12 @@ void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 		res.lens[0] = size_p/2;
 		res.lens[1] = size_q/2;
 		float *_p = (float *)dm.halfp;
-		ps::KVPairs<float> res(_p, _p+(size_p+size_q)/2);
+//		ps::KVPairs<float> res(_p, _p+(size_p+size_q)/2);
+		memcpy(&res.vals[0], _p, vals_size);
 		server->Response(req_meta, res);
 	}
 	
-//	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
+	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
 	
 }
 													  
@@ -333,8 +335,8 @@ void MFServer::ProcessPushCompressFeature(const ps::KVMeta& req_meta,
 	size_t size_p = dm.rows * dm.k;
 	size_t size_q = dm.cols * dm.k;
 	size_t vals_size = req_data.vals.size();
-	float *h_p;
-	float *h_q;
+	uint16_t *h_p;
+	uint16_t *h_q;
 	ps::KVPairs<float> res;
 	res.keys = req_data.keys;
 	res.lens.resize(keys_size);
@@ -610,7 +612,15 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 		case PUSH_ALL_FEATURE:
 			ProcessPushAllFeature(req_meta, req_data, server);
 			break;
-		
+	
+		case PULL_HALF_FEATURE:
+			ProcessPullCompressFeature(req_meta, req_data, server);
+			break;
+
+		case PUSH_HALF_FEATURE:
+			ProcessPushCompressFeature(req_meta, req_data, server);
+			break;
+
 		default:
 			break;
 	}
