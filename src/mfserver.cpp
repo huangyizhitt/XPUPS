@@ -225,7 +225,7 @@ void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 	
 	ps::KVPairs<float> res;	
 	res.keys = req_data.keys;
-	res.vals.resize(vals_size);
+
 	res.lens.resize(keys_size);
 
 	if(current_epoch != 1) {
@@ -248,12 +248,18 @@ void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 		res.lens[1] = size_q/2;
 		float *_p = (float *)dm.halfp;
 //		ps::KVPairs<float> res(_p, _p+(size_p+size_q)/2);
-		memcpy(&res.vals[0], _p, vals_size);
+		res.vals.CopyFrom(_p, (size_p+size_q)/2);
+		uint16_t *a = (uint16_t *)&res.vals[0];
+		printf("a: %p, _p: %p, halfp: %p\n", a, _p, dm.halfp);
+        	float test1, test2;
+       		halfp2singles(&test1, &a[size_p-1], 1);
+		halfp2singles(&test2, &dm.halfp[size_p-1], 1);
+	        printf("halfp: %d, a %d, test1: %.2f, test2: %.2f, p[0]: %.2f\n", dm.halfp[size_p-1], a[size_p-1], test1, test2, dm.model.p[size_p-1]);
+
 		server->Response(req_meta, res);
 	}
 	
 	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
-	
 }
 													  
 //Process PUSH_FEATURE CMD from workers, will get feature from workers

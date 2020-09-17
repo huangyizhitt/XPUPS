@@ -59,7 +59,6 @@ public:
 	{
 #ifdef SEND_COMPRESS_Q_FEATURE
 		free(halfp);
-		free(halfq);
 #endif
 	}
 	
