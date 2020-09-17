@@ -139,7 +139,7 @@ void MFWorker::PullCompressFeature()
 		h_q = (uint16_t *)&vals[0];
 		halfp2singles(q, h_q, size_q);
 	}
-	print_feature_tail(p, q, size_p, size_q, 3, 0);
+//	print_feature_tail(p, q, size_p, size_q, 3, 0);
 }
 
 
@@ -203,7 +203,6 @@ void MFWorker::PushCompressFeature()
 	float *_p = (float *)halfp;			
 	float *_q = (float *)halfq;
 
-	//current_epoch < target_epoch, only push q	
 	if(current_epoch < target_epoch) {
 		keys.push_back(rank);
 		lens.push_back(size_q/2);				//compress half point

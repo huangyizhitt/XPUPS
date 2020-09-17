@@ -235,8 +235,8 @@ void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 		//prepare transmission data
 		res.lens[0] = size_q/2;						//compress
 		float *_q = (float *)dm.halfq;
-//		ps::KVPairs<float> res(_q, _q+size_q/2);
-		memcpy(&res.vals[0], _q, size_q/2);
+		res.vals.CopyFrom(_q, res.lens[0]);
+		
 		server->Response(req_meta, res);
 	} else {
 		//encode
@@ -247,19 +247,12 @@ void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 		res.lens[0] = size_p/2;
 		res.lens[1] = size_q/2;
 		float *_p = (float *)dm.halfp;
-//		ps::KVPairs<float> res(_p, _p+(size_p+size_q)/2);
 		res.vals.CopyFrom(_p, (size_p+size_q)/2);
-		uint16_t *a = (uint16_t *)&res.vals[0];
-		printf("a: %p, _p: %p, halfp: %p\n", a, _p, dm.halfp);
-        	float test1, test2;
-       		halfp2singles(&test1, &a[size_p-1], 1);
-		halfp2singles(&test2, &dm.halfp[size_p-1], 1);
-	        printf("halfp: %d, a %d, test1: %.2f, test2: %.2f, p[0]: %.2f\n", dm.halfp[size_p-1], a[size_p-1], test1, test2, dm.model.p[size_p-1]);
 
 		server->Response(req_meta, res);
 	}
 	
-	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
+//	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
 }
 													  
 //Process PUSH_FEATURE CMD from workers, will get feature from workers
@@ -295,7 +288,6 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 		//Get feature p in the last epoch	
 		int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
 		int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
-		printf("start: %d, start_p: %d, size_p: %d\n", start, worker_start_p, worker_size_p);
 		memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
 		
 		if(receive_times == 0) {
@@ -349,7 +341,7 @@ void MFServer::ProcessPushCompressFeature(const ps::KVMeta& req_meta,
   
   	//printf("current_epoch: %d\n", current_epoch); 
   	if(current_epoch != target_epoch) {
-		h_q = (uint16_t)&req_data.vals[0];
+		h_q = (uint16_t *)&req_data.vals[0];
 	  	if(receive_times == 0) {
 //			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
 			halfp2singles(&dm.model.q[0], h_q, size_q);
@@ -368,7 +360,7 @@ void MFServer::ProcessPushCompressFeature(const ps::KVMeta& req_meta,
 	  	//Get feature p in the last epoch   
 	  	int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
 	  	int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
-	  	printf("start: %d, start_p: %d, size_p: %d\n", start, worker_start_p, worker_size_p);
+//	  	printf("start: %d, start_p: %d, size_p: %d\n", start, worker_start_p, worker_size_p);
 //	  	memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
 		h_p = (uint16_t *)&req_data.vals[0];
 		h_q = h_p + size_p;
@@ -624,6 +616,7 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 			break;
 
 		case PUSH_HALF_FEATURE:
+	//		printf("entry push half feature\n");
 			ProcessPushCompressFeature(req_meta, req_data, server);
 			break;
 
