@@ -213,47 +213,6 @@ void MFServer::ProcessPullFeature(const ps::KVMeta& req_meta,
 //	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
 	server->Response(req_meta, res);
 }
-
-void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server)
-{
-	size_t keys_size = req_data.keys.size();
-	size_t size_p = dm.rows * dm.k;
-	size_t size_q = dm.cols * dm.k;
-	size_t vals_size = (size_p + size_q)/2;
-	
-	ps::KVPairs<float> res;	
-	res.keys = req_data.keys;
-
-	res.lens.resize(keys_size);
-
-	if(current_epoch != 1) {
-		//encode
-		singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0);
-
-		//prepare transmission data
-		res.lens[0] = size_q/2;						//compress
-		float *_q = (float *)dm.halfq;
-		res.vals.CopyFrom(_q, res.lens[0]);
-		
-		server->Response(req_meta, res);
-	} else {
-		//encode
-		singles2halfp(dm.halfp, &dm.model.p[0], size_p, FE_TONEAREST, 0);
-		singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0);
-
-		//prepare transmission data
-		res.lens[0] = size_p/2;
-		res.lens[1] = size_q/2;
-		float *_p = (float *)dm.halfp;
-		res.vals.CopyFrom(_p, (size_p+size_q)/2);
-
-		server->Response(req_meta, res);
-	}
-	
-//	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
-}
 													  
 //Process PUSH_FEATURE CMD from workers, will get feature from workers
 //Data format{keys[0], p, keys[1], q}
@@ -325,6 +284,50 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 	
 }
 
+
+#ifdef SEND_COMPRESS_Q_FEATURE
+void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
+							const ps::KVPairs<float>& req_data,
+							ps::KVServer<float>* server)
+{
+  	size_t keys_size = req_data.keys.size();
+  	size_t size_p = dm.rows * dm.k;
+  	size_t size_q = dm.cols * dm.k;
+  	size_t vals_size = (size_p + size_q)/2;
+  
+  	ps::KVPairs<float> res; 
+  	res.keys = req_data.keys;
+
+  	res.lens.resize(keys_size);
+
+  	if(current_epoch != 1) {
+		  //encode
+		  singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, nr_threads);
+
+		  //prepare transmission data
+		  res.lens[0] = size_q/2;					  //compress
+		  float *_q = (float *)dm.halfq;
+		  res.vals.CopyFrom(_q, res.lens[0]);
+		  
+		  server->Response(req_meta, res);
+	 } else {
+		  //encode
+		  singles2halfp(dm.halfp, &dm.model.p[0], size_p, FE_TONEAREST, 0, nr_threads);
+		  singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, nr_threads);
+
+		  //prepare transmission data
+		  res.lens[0] = size_p/2;
+		  res.lens[1] = size_q/2;
+		  float *_p = (float *)dm.halfp;
+		  res.vals.CopyFrom(_p, (size_p+size_q)/2);
+
+		  server->Response(req_meta, res);
+	 }
+  
+//  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
+}
+
+
 void MFServer::ProcessPushCompressFeature(const ps::KVMeta& req_meta,
 							const ps::KVPairs<float>& req_data,
 							ps::KVServer<float>* server)
@@ -344,11 +347,11 @@ void MFServer::ProcessPushCompressFeature(const ps::KVMeta& req_meta,
 		h_q = (uint16_t *)&req_data.vals[0];
 	  	if(receive_times == 0) {
 //			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
-			halfp2singles(&dm.model.q[0], h_q, size_q);
+			halfp2singles(&dm.model.q[0], h_q, size_q, nr_threads);
 	  	} else {
 		  	for(int i = 0; i < size_q; i++) {
 				float tmp;
-				halfp2singles(&tmp, h_q+i, 1);
+				halfp2singles(&tmp, h_q+i, 1, nr_threads);
 			  	dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
 			}
 	  	}
@@ -364,16 +367,16 @@ void MFServer::ProcessPushCompressFeature(const ps::KVMeta& req_meta,
 //	  	memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
 		h_p = (uint16_t *)&req_data.vals[0];
 		h_q = h_p + size_p;
-		halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p);
+		halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, nr_threads);
 
 	  	if(receive_times == 0) {
 //		  	memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
-			halfp2singles(&dm.model.q[0], h_q, size_q);
+			halfp2singles(&dm.model.q[0], h_q, size_q, nr_threads);
 	  	} else {
 		  	for(int i = 0; i < size_q; i++) {
 //			  	dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
 				float tmp;
-				halfp2singles(&tmp, h_q+i, 1);
+				halfp2singles(&tmp, h_q+i, 1, nr_threads);
 				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
 		  	}
 	  	}
@@ -404,7 +407,7 @@ void MFServer::ProcessPushCompressFeature(const ps::KVMeta& req_meta,
   	}
   
 }
-
+#endif
 
 void MFServer::ProcessPullPushFeature(const ps::KVMeta& req_meta,
 							const ps::KVPairs<float>& req_data,

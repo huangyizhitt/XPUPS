@@ -43,7 +43,7 @@ void print_feature_tail(const float *p, const float *q, size_t size_p, size_t si
 	}
 }
 
-int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet)
+int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
 {
     UINT16_TYPE *hp = (UINT16_TYPE *) target; // Type pun output as an unsigned 16-bit int
     const UINT32_TYPE *xp = (const UINT32_TYPE *) source; // Type pun input as an unsigned 32-bit int
@@ -90,7 +90,7 @@ int singles2halfp(void *target, const void *source, ptrdiff_t numel, int roundin
     hq = is_quiet ? (UINT16_TYPE) 0x0200u: (UINT16_TYPE) 0x0000u;  // Force NaN results to be quiet?
 
     // Loop through the elements
-#pragma omp parallel for private(x,xs,xe,xm,xt,zm,zt,z1,hs,he,hm,hr,hes,N)
+#pragma omp parallel for num_threads(nr_threads) schedule(static) private(x,xs,xe,xm,xt,zm,zt,z1,hs,he,hm,hr,hes,N)
     for( i=0; i<numel; i++ ) {
         x = xp[i];
         if( (x & 0x7FFFFFFFu) == 0 ) {  // Signed zero
@@ -176,7 +176,7 @@ int singles2halfp(void *target, const void *source, ptrdiff_t numel, int roundin
     return 0;
 }
 
-int halfp2singles(void *target, void *source, ptrdiff_t numel)
+int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
 {
     UINT16_TYPE *hp = (UINT16_TYPE *) source; // Type pun input as an unsigned 16-bit int
     UINT32_TYPE *xp = (UINT32_TYPE *) target; // Type pun output as an unsigned 32-bit int
@@ -210,7 +210,7 @@ int halfp2singles(void *target, void *source, ptrdiff_t numel)
     if( source == NULL || target == NULL ) // Nothing to convert (e.g., imag part of pure real)
         return 0;
     
-#pragma omp parallel for private(xs,xe,xm,h,hs,he,hm,xes,e)
+#pragma omp parallel for num_threads(nr_threads) schedule(static) private(xs,xe,xm,h,hs,he,hm,xes,e)
     for( i=0; i<numel; i++ ) {
         h = hp[i];
         if( (h & 0x7FFFu) == 0 ) {  // Signed zero

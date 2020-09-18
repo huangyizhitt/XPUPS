@@ -108,42 +108,6 @@ void MFWorker::PullFeature()
 //	print_feature_tail(p, q, size_p, size_q, 3, 0);
 }
 
-void MFWorker::PullCompressFeature()
-{
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = PULL_HALF_FEATURE;
-
-	uint16_t *h_p, *h_q;
-	
-	current_epoch++;
-	//only first epoch will pull feature p;
-	if(current_epoch == 1) {
-		keys.push_back(0);
-		keys.push_back(1);
-	} else {
-		keys.push_back(0);
-	}
-
-	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-
-	int size_p = m * k;
-	int size_q = n * k;
-
-	if(current_epoch == 1) {
-		//decode
-		h_p = (uint16_t *)&vals[0];
-		halfp2singles(p, h_p, size_p+size_q);
-	} else {
-		h_q = (uint16_t *)&vals[0];
-		halfp2singles(q, h_q, size_q);
-	}
-//	print_feature_tail(p, q, size_p, size_q, 3, 0);
-}
-
-
-
 //push format {keys0, feature_p} {keys1, feature_q} {lens0: m*k} {lens1: n*k}
 void MFWorker::PushFeature()
 {
@@ -189,6 +153,41 @@ void MFWorker::PushFeature()
 		
 }
 
+#ifdef SEND_COMPRESS_Q_FEATURE
+void MFWorker::PullCompressFeature()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_HALF_FEATURE;
+
+	uint16_t *h_p, *h_q;
+	
+	current_epoch++;
+	//only first epoch will pull feature p;
+	if(current_epoch == 1) {
+		keys.push_back(0);
+		keys.push_back(1);
+	} else {
+		keys.push_back(0);
+	}
+
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+
+	int size_p = m * k;
+	int size_q = n * k;
+
+	if(current_epoch == 1) {
+		//decode
+		h_p = (uint16_t *)&vals[0];
+		halfp2singles(p, h_p, size_p+size_q, core_num);
+	} else {
+		h_q = (uint16_t *)&vals[0];
+		halfp2singles(q, h_q, size_q, core_num);
+	}
+//	print_feature_tail(p, q, size_p, size_q, 3, 0);
+}
+
 void MFWorker::PushCompressFeature()
 {
 	std::vector<ps::Key> keys;
@@ -208,7 +207,7 @@ void MFWorker::PushCompressFeature()
 		lens.push_back(size_q/2);				//compress half point
 
 		//encode
-		singles2halfp(halfq, q, size_q, FE_TONEAREST, 0);
+		singles2halfp(halfq, q, size_q, FE_TONEAREST, 0, core_num);
 	
 #ifdef CAL_PORTION_RMSE
 		std::vector<float> vals(_q, _q+size_q/2+1);
@@ -227,7 +226,7 @@ void MFWorker::PushCompressFeature()
 		lens.push_back(size_q/2);
 
 		//encode
-		singles2halfp(halfp, p, size_p+size_q, FE_TONEAREST, 0);
+		singles2halfp(halfp, p, size_p+size_q, FE_TONEAREST, 0, core_num);
 #ifdef CAL_PORTION_RMSE
 		std::vector<float> vals(_p, _p+size_p/2+size_q/2+1);
 		keys.push_back(rank+2);
@@ -239,7 +238,7 @@ void MFWorker::PushCompressFeature()
 		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 	}	
 }
-
+#endif
 
 //pull feature, <keys, {feature}>
 void MFWorker::PullAllFeature()
