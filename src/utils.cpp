@@ -55,7 +55,6 @@ int singles2halfp(void *target, const void *source, ptrdiff_t numel, int roundin
     static int checkieee = 1;  // Flag to check for IEEE754, Endian, and word size
     double one = 1.0; // Used for checking IEEE754 floating point format
     UINT32_TYPE *ip; // Used for checking IEEE754 floating point format
-
     if( checkieee ) { // 1st call, so check for IEEE754, Endian, and word size
         ip = (UINT32_TYPE *) &one;
         if( *ip ) { // If Big Endian, then no adjustment
@@ -90,7 +89,11 @@ int singles2halfp(void *target, const void *source, ptrdiff_t numel, int roundin
     hq = is_quiet ? (UINT16_TYPE) 0x0200u: (UINT16_TYPE) 0x0000u;  // Force NaN results to be quiet?
 
     // Loop through the elements
-#pragma omp parallel for num_threads(nr_threads) schedule(static) private(x,xs,xe,xm,xt,zm,zt,z1,hs,he,hm,hr,hes,N)
+/*
+#if defined USEOMP
+#pragma omp parallel for num_threads(nr_threads) schedule(dynamic) private(x,xs,xe,xm,xt,zm,zt,z1,hs,he,hm,hr,hes,N)
+#endif
+*/
     for( i=0; i<numel; i++ ) {
         x = xp[i];
         if( (x & 0x7FFFFFFFu) == 0 ) {  // Signed zero
@@ -189,7 +192,6 @@ int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
     static int checkieee = 1;  // Flag to check for IEEE754, Endian, and word size
     double one = 1.0; // Used for checking IEEE754 floating point format
     UINT32_TYPE *ip; // Used for checking IEEE754 floating point format
-    
     if( checkieee ) { // 1st call, so check for IEEE754, Endian, and word size
         ip = (UINT32_TYPE *) &one;
         if( *ip ) { // If Big Endian, then no adjustment
@@ -209,8 +211,12 @@ int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
     
     if( source == NULL || target == NULL ) // Nothing to convert (e.g., imag part of pure real)
         return 0;
-    
-#pragma omp parallel for num_threads(nr_threads) schedule(static) private(xs,xe,xm,h,hs,he,hm,xes,e)
+
+/*
+#if defined USEOMP    
+#pragma omp parallel for num_threads(nr_threads) schedule(dynamic) private(xs,xe,xm,h,hs,he,hm,xes,e)
+#endif
+*/
     for( i=0; i<numel; i++ ) {
         h = hp[i];
         if( (h & 0x7FFFu) == 0 ) {  // Signed zero

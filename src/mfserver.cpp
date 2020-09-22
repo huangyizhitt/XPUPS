@@ -613,7 +613,7 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 		case PUSH_ALL_FEATURE:
 			ProcessPushAllFeature(req_meta, req_data, server);
 			break;
-	
+#ifdef SEND_COMPRESS_Q_FEATURE	
 		case PULL_HALF_FEATURE:
 			ProcessPullCompressFeature(req_meta, req_data, server);
 			break;
@@ -622,6 +622,7 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 	//		printf("entry push half feature\n");
 			ProcessPushCompressFeature(req_meta, req_data, server);
 			break;
+#endif
 
 		default:
 			break;
