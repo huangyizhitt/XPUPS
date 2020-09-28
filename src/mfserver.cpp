@@ -582,7 +582,6 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 	
 	switch(cmd) {
 		case PUSH_INFO:
-			printf("[%s] Will process worker info!\n", __FUNCTION__);
 			GetWorkerInfo(req_meta, req_data, server);
 			break;
 

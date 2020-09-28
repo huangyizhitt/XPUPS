@@ -78,7 +78,7 @@ int main(int argc, char **argv)
 			worker->StartUpTasks();
 			worker->PushCompressFeature();
 #endif
-			ps::Postoffice::Get()->Barrier(0, ps::kWorkerGroup);
+//			ps::Postoffice::Get()->Barrier(0, ps::kWorkerGroup);
 			if(worker->current_epoch == worker->target_epoch) break;
 		}
 		elapse = cpu_second() - start;

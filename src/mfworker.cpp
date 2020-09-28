@@ -40,10 +40,7 @@ void MFWorker::PushWorkerXPU()
 	vals.push_back(xpu->workers);
 	vals.push_back(xpu->worker_ratio);
 	lens.push_back(3);
-	printf("Will PushWorkerXPU!\n");
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
-	printf("PushWorkerXPU wait complete!\n");
-	
 }
 
 void MFWorker::PullDataFromServer()
