@@ -63,26 +63,62 @@ int main(int argc, char **argv)
 		worker->CreateTasks();
 
 		double start, elapse;
-		start = cpu_second();
+//		start = cpu_second();
 		while(true) {
 #ifdef SEND_ALL_FEATURE
+			printf("Begin epoch\n");
+			start = cpu_second();
 			worker->PullAllFeature();
+			elapse = cpu_second() - start;
+                        printf("Pull cost time: %.3f\n", elapse);
+
+			start = cpu_second();
 			worker->StartUpTasks();
+			elapse = cpu_second() - start;
+                        printf("Compute cost time: %.3f\n", elapse);
+
+			start = cpu_second();
 			worker->PushAllFeature();
+//                        elapse = cpu_second() - start;
+//                        printf("Push cost time: %.3f\n", elapse);
 #elif SEND_Q_FEATURE
+			start = cpu_second();
 			worker->PullFeature();
+			elapse = cpu_second() - start;
+                        printf("Pull cost time: %.3f\n", elapse);
+
+			start = cpu_second();
 			worker->StartUpTasks();
+			elapse = cpu_second() - start;
+                        printf("Compute cost time: %.3f\n", elapse);
+
+			start = cpu_second();
 			worker->PushFeature();
+//			elapse = cpu_second() - start;
+//                        printf("Push cost time: %.3f\n", elapse);
 #elif SEND_COMPRESS_Q_FEATURE
+			start = cpu_second();
 			worker->PullCompressFeature();
+			elapse = cpu_second() - start;
+			printf("Pull cost time: %.3f\n", elapse);
+
+			start = cpu_second();
 			worker->StartUpTasks();
+			elapse = cpu_second() - start;
+			printf("Compute cost time: %.3f\n", elapse);
+
+			start = cpu_second();
 			worker->PushCompressFeature();
+//			elapse = cpu_second() - start;
+//			printf("Push cost time: %.3f\n", elapse);
 #endif
-//			ps::Postoffice::Get()->Barrier(0, ps::kWorkerGroup);
+			ps::Postoffice::Get()->Barrier(0, ps::kWorkerGroup);
+			elapse = cpu_second() - start;
+                        printf("Push cost time: %.3f\n", elapse);
 			if(worker->current_epoch == worker->target_epoch) break;
 		}
-		elapse = cpu_second() - start;
-		printf("20 epoch cost time: %.3f\n", elapse);
+//		elapse = cpu_second() - start;
+//		printf("20 epoch cost time: %.3f\n", elapse);
 		worker->JoinTasks();
 		ps::RegisterExitCallback([worker](){ delete worker;});
 	}
