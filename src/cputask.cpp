@@ -54,13 +54,24 @@ static inline void sgd_update(float *p, float *q, int k, float err, float lrate,
 	}
 }
 #elif USE_AVX512
+
+#if __GNUC__ < 7
+static float _mm512_reduce_add_ps(__m512 a) 
+{
+	__m512 tmp = _mm512_add_ps(a,_mm512_shuffle_f32x4(a,a,_MM_SHUFFLE(0,0,3,2)));
+    	__m128 r = _mm512_castps512_ps128(_mm512_add_ps(tmp,_mm512_shuffle_f32x4(tmp,tmp,_MM_SHUFFLE(0,0,0,1))));
+    	r = _mm_hadd_ps(r,r);
+    	return _mm_cvtss_f32(_mm_hadd_ps(r,r));
+}
+#endif
+
 static inline float inner_product(float *p, float *q, int k)
 {
 	__m512 r_vec = _mm512_setzero_ps();
 	for(int i = 0; i < k; i+=16) {
 		r_vec = _mm512_fmadd_ps(_mm512_load_ps(p+i), _mm512_load_ps(q+i), r_vec);
 	}
-	return _mm512_reduce_add_ps(r_vec);	
+	return _mm512_reduce_add_ps(r_vec);
 }
 
 static inline void sgd_update(float *p, float *q, int k, float err, float lrate, float lambda_p, float lambda_q)

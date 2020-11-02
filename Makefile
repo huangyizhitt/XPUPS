@@ -3,7 +3,7 @@ CXX = g++
 RM = rm -rf
 CU_FLAGS = -gencode arch=compute_70,code=compute_70 -Xcompiler -fopenmp
 CU_CFLAGS = -std=c++11 -g -O3 -lrt -lpthread
-CFLAGS = -std=c++11 -g -O3 -lrt -lpthread -DUSEOMP -fopenmp 
+CFLAGS = -std=c++11 -g -O3 -lrt -lpthread -DUSEOMP -fopenmp -lnuma 
 ARCH_FLAGS = -march=native
 AVX2_FLAGS = -mavx2 -DUSE_AVX2
 AVX512F_FLAGS = -mavx512f -DUSE_AVX512

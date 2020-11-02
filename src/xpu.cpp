@@ -1,6 +1,7 @@
 #include <string.h>
 #include <cstdlib>
 #include <string>
+#include <numa.h>
 #include "ps/internal/env.h"
 #include "dmlc/logging.h"
 #include "xpu.h"
@@ -44,6 +45,27 @@ void XPU::Init()
 	max_core = std::atoi(val);
 	val = CHECK_NOTNULL(Environment::Get()->find(threads.c_str()));
 	core = workers = std::atoi(val);	
+	val = Environment::Get()->find("NUMA_NODE");
+	if(val != NULL) {
+		numa_node = std::atoi(val);
+		NumaBindNode();
+	}
+}
+
+void XPU::NumaBindNode()
+{
+	if(numa_available() < 0) {
+		printf("System can not support numa arch!\n");
+		return;
+	}	
+
+	numa_set_localalloc();
+        int max_node = numa_max_node();
+        if(numa_node <= max_node && numa_run_on_node(numa_node) == 0) {
+                printf("Bind task to node %d success!\n", numa_node);
+        } else {
+                printf("Bind task to node %d fail!\n", numa_node);
+        }
 }
 
 

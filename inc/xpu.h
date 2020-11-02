@@ -22,9 +22,11 @@ struct XPU {
 	//Init by env
 	//if call XPU() create XPU object, must call this function
 	void Init();
+	void NumaBindNode();
 		
 	char xpu_name[64];
 	XPU_TYPE xpu_type;
+	int numa_node;
 	int core;
 	int max_core;
 	int workers;
