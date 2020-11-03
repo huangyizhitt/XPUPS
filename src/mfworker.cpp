@@ -6,6 +6,8 @@
 #include <cstdlib>
 #include <numeric>
 #include <cmath>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 
 namespace MF {
 
@@ -491,13 +493,13 @@ void MFWorker::InitCPUAffinity()
 
 int MFWorker::PrepareShmbuf()
 {
-	int key = ftok("/tmp", rank);
+	int key = ftok("/home", rank);
 	if(key == -1) {
     	perror("ftok fail!\n");
     	return -1;
 	}
-
-	int shmid = shmget(key, sizeof(float)*(m * k + m * k), IPC_CREAT | 0777);
+	size_t size = sizeof(float)*(m * k + n * k);
+	int shmid = shmget(key, size, IPC_CREAT | 0777);
 	if(shmid == -1) {
 		perror("shmget fail!\n");
 		return -1;

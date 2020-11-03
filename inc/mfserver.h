@@ -132,7 +132,7 @@ private:
 	ps::KVServer<float>* server_xpu;
 	XPU *xpu;								//xpu of server
 	static std::unordered_map<int, XPU_INFO> worker_xpu_info;			//<XPU_TYPE, workers, work_ratio>
-	static std::unordered_map<int, unsigned char *> shm_buf;			
+	static std::unordered_map<int, std::pair<int, unsigned char *> > shm_buf;			
 	static DataManager dm;
 };
 

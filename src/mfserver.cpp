@@ -7,6 +7,8 @@
 #include <numeric> 
 #include <cmath>
 #include <iostream>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 
 namespace MF{
 
@@ -332,6 +334,7 @@ void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 							const ps::KVPairs<float>& req_data,
 							ps::KVServer<float>* server)
 {
+	size_t keys_size = req_data.keys.size();
 	size_t size_p = dm.rows * dm.k;
 	size_t size_q = dm.cols * dm.k;
 	size_t vals_size = (size_p + size_q)/2;
@@ -340,7 +343,8 @@ void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 	res.keys = req_data.keys;
 	int rank = req_data.keys[0];
 	res.lens.resize(keys_size);
-
+	res.vals.resize(1);
+	
 	if(current_epoch != 1) {
 		  //encode
 		  singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, nr_threads);
@@ -348,8 +352,10 @@ void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 		  //prepare transmission data
 		  res.vals[0] = size_q * sizeof(float) / 2;					  //compress
 		  res.lens[0] = 1;
-		  float *_q = (float *)dm.halfq;
-		  memcpy(shm_buf[rank], _q, res.vals[0]);
+		  unsigned char *_q = (unsigned char *)dm.halfq;
+		  unsigned char *_buf = shm_buf[rank].second;
+		  
+		  memcpy(_buf, _q, res.vals[0]);
 		 	
 		  server->Response(req_meta, res);
 	 } else {
@@ -360,9 +366,10 @@ void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 		  //prepare transmission data
 		  res.vals[0] = (size_p+size_q) * sizeof(float) / 2;
 		  res.lens[0] = 1;
-		  float *_p = (float *)dm.halfp;
-		  memcpy(shm_buf[rank], _p, res.vals[0]);
-
+		  unsigned char *_p = (unsigned char *)dm.halfp;
+		  unsigned char *_buf = shm_buf[rank].second;
+		  memcpy(_buf, _p, res.vals[0]);
+		  
 		  server->Response(req_meta, res);
 	 }
   
@@ -676,13 +683,13 @@ int MFServer::CreateShmbuf()
 {
 	for(const auto& n : worker_xpu_info) {
 		int worker_rank = n.first;
-		int key = ftok("/tmp", worker_rank);
+		int key = ftok("/home", worker_rank);
 		if(key == -1) {
         	perror("ftok fail!\n");
         	return -1;
 		}
-
-		int shmid = shmget(key, sizeof(float)*(dm.rows * dm.k + dm.cols * dm.k), IPC_CREAT | 0777);
+		size_t size = (size_t)sizeof(float)*(dm.rows * dm.k + dm.cols * dm.k);
+		int shmid = shmget(key, size, IPC_CREAT | 0777);
 		if(shmid == -1) {
 			perror("shmget fail!\n");
 			return -1;
@@ -695,7 +702,7 @@ int MFServer::CreateShmbuf()
 			return -1;
 		}
 
-		shm_buf[shmid] = buf;
+		shm_buf[worker_rank] = std::make_pair(shmid, buf);
 	}
 	return 0;
 }
@@ -703,8 +710,8 @@ int MFServer::CreateShmbuf()
 void MFServer::DestroyShmbuf()
 {
 	for(const auto& n : shm_buf) {
-		shmdt(n.second);
-		shmctl(n.first, IPC_RMID, NULL);
+		shmdt(n.second.second);
+		shmctl(n.second.first, IPC_RMID, NULL);
 	}
 }
 
