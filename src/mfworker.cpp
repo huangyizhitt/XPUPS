@@ -152,7 +152,7 @@ void MFWorker::PushFeature()
 }
 
 #ifdef SEND_COMPRESS_Q_FEATURE
-void MFWorker::PullCompressFeature()
+/*void MFWorker::PullCompressFeature()
 {
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
@@ -184,7 +184,38 @@ void MFWorker::PullCompressFeature()
 		halfp2singles(q, h_q, size_q, core_num);
 	}
 //	print_feature_tail(p, q, size_p, size_q, 3, 0);
+}*/
+
+void MFWorker::PullCompressFeature()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_HALF_FEATURE;
+
+	uint16_t *h_p, *h_q;
+	
+	current_epoch++;
+	//only first epoch will pull feature p;
+	keys.push_back(rank);
+
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+
+	int size_p = m * k;
+	int size_q = n * k;
+
+	if(current_epoch == 1) {
+		//decode
+		memcpy(h_p, shm_buf, (size_t)vals[0]);
+		halfp2singles(p, h_p, size_p+size_q, core_num);
+	} else {
+		memcpy(h_q, shm_buf, (size_t)vals[0]);
+		halfp2singles(q, h_q, size_q, core_num);
+	}
+//	print_feature_tail(p, q, size_p, size_q, 3, 0);
 }
+
+
 
 void MFWorker::PushCompressFeature()
 {
@@ -354,6 +385,7 @@ void MFWorker::InitTestData()
 	halfq = halfp + size_p;
 #endif
 
+	PrepareShmbuf();
 	debugp("[Worker %d] start: %ld, size: %ld, rows: %d, cols: %d\n", rank, start, size, dm.rows, dm.cols);
 }
 
@@ -456,5 +488,29 @@ void MFWorker::InitCPUAffinity()
 	for (int i = start; i < start + size; i++)
         CPU_SET(i, &cpuset);
 }
+
+int MFWorker::PrepareShmbuf()
+{
+	int key = ftok("/tmp", rank);
+	if(key == -1) {
+    	perror("ftok fail!\n");
+    	return -1;
+	}
+
+	int shmid = shmget(key, sizeof(float)*(m * k + m * k), IPC_CREAT | 0777);
+	if(shmid == -1) {
+		perror("shmget fail!\n");
+		return -1;
+	}
+
+	shm_buf = (unsigned char *)shmat(shmid, NULL, 0);
+	if(!shm_buf) {
+		perror("shmat fail!\n");
+		return -1;
+	}
+	shm_buf = 0;
+	return 0;
+}
+
 
 }

@@ -8,6 +8,7 @@
 #include "utils.h"
 
 std::unordered_map<int, XPU_INFO> MF::MFServer::worker_xpu_info;
+std::unordered_map<int, unsigned char *> MF::MFServer::shm_buf;
 MF::DataManager MF::MFServer::dm("netflix_train.bin", 128, 3);
 int MF::MFServer::cpus(0);
 int MF::MFServer::gpus(0);

@@ -46,6 +46,7 @@ public:
 	void InitCPUAffinity();
 	void SetCPUAffinity();
 	void Test();
+	int PrepareShmbuf();
 
 public:
 	int target_epoch;
@@ -65,6 +66,7 @@ private:
 	float *p;
 	float *q;
 	float *feature;
+	unsigned char *shm_buf;
 #ifdef SEND_COMPRESS_Q_FEATURE
 	uint16_t *halfp;
 	uint16_t *halfq;

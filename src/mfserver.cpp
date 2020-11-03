@@ -139,6 +139,7 @@ void MFServer::ProcessInitData(const ps::KVMeta& req_meta,
 	res.lens.resize(n);
 	
 	PrepareData();
+	CreateShmbuf();
 	
 	int rank = req_data.keys[0];
 	int start = 0;
@@ -286,7 +287,7 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 
 
 #ifdef SEND_COMPRESS_Q_FEATURE
-void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
+/*void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 							const ps::KVPairs<float>& req_data,
 							ps::KVServer<float>* server)
 {
@@ -325,6 +326,47 @@ void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 	 }
   
 //  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
+}*/
+
+void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
+							const ps::KVPairs<float>& req_data,
+							ps::KVServer<float>* server)
+{
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = (size_p + size_q)/2;
+  
+	ps::KVPairs<float> res; 
+	res.keys = req_data.keys;
+	int rank = req_data.keys[0];
+	res.lens.resize(keys_size);
+
+	if(current_epoch != 1) {
+		  //encode
+		  singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, nr_threads);
+
+		  //prepare transmission data
+		  res.vals[0] = size_q * sizeof(float) / 2;					  //compress
+		  res.lens[0] = 1;
+		  float *_q = (float *)dm.halfq;
+		  memcpy(shm_buf[rank], _q, res.vals[0]);
+		 	
+		  server->Response(req_meta, res);
+	 } else {
+		  //encode
+		  singles2halfp(dm.halfp, &dm.model.p[0], size_p, FE_TONEAREST, 0, nr_threads);
+		  singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, nr_threads);
+
+		  //prepare transmission data
+		  res.vals[0] = (size_p+size_q) * sizeof(float) / 2;
+		  res.lens[0] = 1;
+		  float *_p = (float *)dm.halfp;
+		  memcpy(shm_buf[rank], _p, res.vals[0]);
+
+		  server->Response(req_meta, res);
+	 }
+  
+//	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
 }
 
 
@@ -628,6 +670,42 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 			break;
 	}
    
+}
+
+int MFServer::CreateShmbuf()
+{
+	for(const auto& n : worker_xpu_info) {
+		int worker_rank = n.first;
+		int key = ftok("/tmp", worker_rank);
+		if(key == -1) {
+        	perror("ftok fail!\n");
+        	return -1;
+		}
+
+		int shmid = shmget(key, sizeof(float)*(dm.rows * dm.k + dm.cols * dm.k), IPC_CREAT | 0777);
+		if(shmid == -1) {
+			perror("shmget fail!\n");
+			return -1;
+		}
+
+		unsigned char *buf = 
+			(unsigned char *)shmat(shmid, NULL, 0);
+		if(!buf) {
+			perror("shmat fail!\n");
+			return -1;
+		}
+
+		shm_buf[shmid] = buf;
+	}
+	return 0;
+}
+
+void MFServer::DestroyShmbuf()
+{
+	for(const auto& n : shm_buf) {
+		shmdt(n.second);
+		shmctl(n.first, IPC_RMID, NULL);
+	}
 }
 
 
