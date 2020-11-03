@@ -11,7 +11,7 @@ extern pthread_mutex_t cpu_workers_barrier_mutex;
 extern pthread_cond_t cpu_workers_barrier_con;
 extern pthread_mutex_t control_wake_up_mutex;
 extern pthread_cond_t control_wake_up_con;
-extern std::atomic<int> cpu_workers_complete;
+extern int cpu_workers_complete;
 extern std::atomic<int> epoch;
 
 namespace MF{

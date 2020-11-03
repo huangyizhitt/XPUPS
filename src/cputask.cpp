@@ -10,7 +10,7 @@ pthread_cond_t cpu_workers_barrier_con = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t cpu_workers_barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t control_wake_up_con = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t control_wake_up_mutex = PTHREAD_MUTEX_INITIALIZER;
-std::atomic<int> cpu_workers_complete(0);
+int cpu_workers_complete(0);
 
 
 namespace MF{
@@ -136,7 +136,7 @@ void *sgd_kernel_hogwild_cpu(void *args)
 
 	pthread_t thread = pthread_self();
 
-	pthread_setaffinity_np(thread, sizeof(cpu_set_t), cpu_args->cpuset);
+//	pthread_setaffinity_np(thread, sizeof(cpu_set_t), cpu_args->cpuset);
 	while(true) {
 		debugp("threads %d will block!\n", cpu_args->tid);
 		pthread_mutex_lock(&cpu_workers_barrier_mutex);

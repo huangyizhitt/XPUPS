@@ -62,8 +62,8 @@ int main(int argc, char **argv)
 		worker->GridProblem();
 		worker->CreateTasks();
 
-		double start, elapse;
-		start = cpu_second();
+		double start, elapse = 0;
+//		start = cpu_second();
 		while(true) {
 #ifdef SEND_ALL_FEATURE
 //			printf("Begin epoch\n");
@@ -97,19 +97,19 @@ int main(int argc, char **argv)
 //			elapse = cpu_second() - start;
 //                        printf("Push cost time: %.3f\n", elapse);
 #elif SEND_COMPRESS_Q_FEATURE
-//			start = cpu_second();
+			start = cpu_second();
 			worker->PullCompressFeature();
-//			elapse = cpu_second() - start;
+			elapse += cpu_second() - start;
 //			printf("Pull cost time: %.3f\n", elapse);
 
 //			start = cpu_second();
 			worker->StartUpTasks();
-//			elapse = cpu_second() - start;
+//			elapse += cpu_second() - start;
 //			printf("Compute cost time: %.3f\n", elapse);
 
-//			start = cpu_second();
+			start = cpu_second();
 			worker->PushCompressFeature();
-//			elapse = cpu_second() - start;
+			elapse += cpu_second() - start;
 //			printf("Push cost time: %.3f\n", elapse);
 #endif
 			ps::Postoffice::Get()->Barrier(0, ps::kWorkerGroup);
@@ -117,8 +117,10 @@ int main(int argc, char **argv)
   //                      printf("Push cost time: %.3f\n", elapse);
 			if(worker->current_epoch == worker->target_epoch) break;
 		}
-		elapse = cpu_second() - start;
-		printf("20 epoch cost time: %.3f\n", elapse);
+//		elapse = cpu_second() - start;
+//		printf("20 epoch cost time: %.3f\n", elapse);
+//		printf("20 epoch compute cost time: %.3f\n", elapse);
+		printf("20 epoch communication cost time %.3f\n", elapse);
 		worker->JoinTasks();
 		ps::RegisterExitCallback([worker](){ delete worker;});
 	}
