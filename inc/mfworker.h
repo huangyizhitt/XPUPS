@@ -22,6 +22,7 @@ public:
 
 	~MFWorker() {delete kv_xpu; free(feature); delete xpu;}
 
+	inline void SetWorkload(const int& workload) {xpu->worker_ratio = workload;}
 	//Worker init by environment
 	void Init();
 	
@@ -60,7 +61,6 @@ private:
 	int m;
 	int n;
 	int k = 128;
-	int work_ratio;
 	float scale;
 	float lambda_p = 0.01;
 	float lambda_q = 0.01;

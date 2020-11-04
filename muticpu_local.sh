@@ -27,7 +27,7 @@ for ((i=0; i<${DMLC_NUM_SERVER}; ++i)); do
     export HEAPPROFILE=./S${i}
     export SERVER_XPU_NAME='W-2155'
     export SERVER_XPU_TYPE='CPU'
-    export SERVER_XPU_MAX_CORE='40'
+    export SERVER_XPU_MAX_CORE='20'
     export SERVER_XPU_THREADS='20'
     export NUMA_NODE=0
     ${bin} ${arg} &

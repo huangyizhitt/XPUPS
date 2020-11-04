@@ -401,9 +401,16 @@ void WorkerDM::SetGrid(const Dim2& grid_dim)
 	busy_x.resize(nr_bins_x, false);
 	busy_y.resize(nr_bins_y, false);
 
-	for(int y = 0; y < nr_bins_y; y++) {
+/*	for(int y = 0; y < nr_bins_y; y++) {
 		for(int x = 0; x < nr_bins_x; x++) {
 			ready_queue.push_back(Block(x, y, y * nr_bins_x + x));
+		}
+	}*/
+
+	for(int x = 0; x < nr_bins_x; x++) {
+		for(int i = 0; i < nr_bins_y; i++) {
+			int _x = (x+i)%nr_bins_x;
+			ready_queue.push_back(Block(_x, i, i * nr_bins_x + _x ));
 		}
 	}
 
@@ -501,7 +508,7 @@ void WorkerDM::ClearBlockFlags()
 void WorkerDM::RecoverBlockFree(int blockId)
 {
 //	std::lock_guard<std::mutex> lock(mtx);
-	pthread_spin_lock(&lock);
+	pthread_spin_lock(&lock); 
 	busy_x[blockId % grid.gridDim.x] = false;
 	busy_y[blockId / grid.gridDim.x] = false;
 	pthread_spin_unlock(&lock);

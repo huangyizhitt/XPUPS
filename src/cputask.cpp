@@ -68,9 +68,17 @@ static float _mm512_reduce_add_ps(__m512 a)
 static inline float inner_product(float *p, float *q, int k)
 {
 	__m512 r_vec = _mm512_setzero_ps();
-	for(int i = 0; i < k; i+=16) {
+/*	for(int i = 0; i < k; i+=16) {
 		r_vec = _mm512_fmadd_ps(_mm512_load_ps(p+i), _mm512_load_ps(q+i), r_vec);
-	}
+	}*/
+	r_vec = _mm512_fmadd_ps(_mm512_load_ps(p), _mm512_load_ps(q), r_vec);
+	r_vec = _mm512_fmadd_ps(_mm512_load_ps(p+16), _mm512_load_ps(q+16), r_vec);
+	r_vec = _mm512_fmadd_ps(_mm512_load_ps(p+32), _mm512_load_ps(q+32), r_vec);
+	r_vec = _mm512_fmadd_ps(_mm512_load_ps(p+48), _mm512_load_ps(q+48), r_vec);
+	r_vec = _mm512_fmadd_ps(_mm512_load_ps(p+64), _mm512_load_ps(q+64), r_vec);
+	r_vec = _mm512_fmadd_ps(_mm512_load_ps(p+80), _mm512_load_ps(q+80), r_vec);
+	r_vec = _mm512_fmadd_ps(_mm512_load_ps(p+96), _mm512_load_ps(q+96), r_vec);
+	r_vec = _mm512_fmadd_ps(_mm512_load_ps(p+112), _mm512_load_ps(q+112), r_vec);
 	return _mm512_reduce_add_ps(r_vec);
 }
 
@@ -134,8 +142,6 @@ void *sgd_kernel_hogwild_cpu(void *args)
 	float *loss = cpu_args->loss;
 #endif
 
-	pthread_t thread = pthread_self();
-
 //	pthread_setaffinity_np(thread, sizeof(cpu_set_t), cpu_args->cpuset);
 	while(true) {
 		debugp("threads %d will block!\n", cpu_args->tid);
@@ -146,6 +152,7 @@ void *sgd_kernel_hogwild_cpu(void *args)
 		debugp("threads %d will recover!\n", cpu_args->tid);
 		int blockId;
 		std::vector<MatrixNode *>& ptrs = grid->blocks;
+//		double start, elapse = 0;
 #ifdef CAL_PORTION_RMSE	
 		*loss = 0.0;
 #endif
@@ -159,18 +166,19 @@ void *sgd_kernel_hogwild_cpu(void *args)
 
 				int base_p = u * k;
 				int base_q = v * k;
-						
+//				start = cpu_second();		
 				float ruv = r - inner_product(p + base_p, q + base_q, k);
-				
+//				elapse += cpu_second() - start;
 #ifdef CAL_PORTION_RMSE	
 				*loss += ruv * ruv;
 #endif
-
+//				start = cpu_second();
 				sgd_update(p+base_p, q+base_q, k, ruv, lrate, lambda_p, lambda_q); 
+//				elapse += cpu_second() - start;
 			}
 			dm->RecoverBlockFree(blockId);
 		}
-
+//		if(cpu_args->tid == 0) printf("inner_product cost: %.3f\n", elapse);
 		pthread_mutex_lock(&control_wake_up_mutex);
 		cpu_workers_complete++;
 		if(cpu_workers_complete == cpu_args->workers) {
