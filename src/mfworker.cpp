@@ -215,21 +215,21 @@ void MFWorker::PullCompressFeatureUseShm()
 		h_p = (uint16_t *)shm_buf;
 //		memcpy(halfp, shm_buf, vals[0]);
 		
-		start = cpu_second();	
+//		start = cpu_second();	
 		halfp2singles(p, h_p, size_p+size_q, core_num);
 	//	halfp2singles(p, halfp, size_p+size_q, core_num);
-		elapse = cpu_second() - start;
-		printf("PullCompressFeature halfp2singles cost: %.3f\n", elapse);
+//		elapse = cpu_second() - start;
+//		printf("PullCompressFeature halfp2singles cost: %.3f\n", elapse);
 //		halfp2singles(p, h_p, size_p+size_q, core_num);
 	} else {
 		h_q = (uint16_t *)shm_buf;
 //		memcpy(halfq, shm_buf, vals[0]);
 		
-		start = cpu_second();	
+//		start = cpu_second();	
 		halfp2singles(q, h_q, size_q, core_num);
 	//	halfp2singles(q, halfq, size_q, core_num);
-		elapse = cpu_second() - start;
-		printf("PullCompressFeature halfp2singles cost: %.3f\n", elapse);
+//		elapse = cpu_second() - start;
+//		printf("PullCompressFeature halfp2singles cost: %.3f\n", elapse);
 	}
 //	print_feature_tail(p, q, size_p, size_q, 3, 0);
 }

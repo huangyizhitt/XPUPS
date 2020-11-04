@@ -62,19 +62,20 @@ int singles2halfp(void *target, const void *source, ptrdiff_t numel, int roundin
 	size_t fullAlignedSize = numel&~(32-1);
     size_t partialAlignedSize = numel&~(8-1);
 
-
-//#if defined USEOMP
-//#pragma omp parallel for num_threads(nr_threads) schedule(static)
-//#endif
-    size_t i = 0;
-    for (; i < fullAlignedSize; i += 32)
+	int sum = 0;
+#if defined USEOMP
+#pragma omp parallel for num_threads(nr_threads) schedule(static) reduction(+:sum)
+#endif
+    for (size_t i = 0; i < fullAlignedSize; i += 32)
     {
         singles2halfp(dst + i + 0, src + i + 0);
         singles2halfp(dst + i + 8, src + i + 8);
         singles2halfp(dst + i + 16, src + i + 16);
         singles2halfp(dst + i + 24, src + i + 24);
+	sum += 32;
     }
-    for (; i < partialAlignedSize; i += 8)
+
+    for (size_t i = sum; i < partialAlignedSize; i += 8)
         singles2halfp(dst + i, src + i);
     if(partialAlignedSize != numel)
         singles2halfp(dst + numel - 8, src + numel - 8);
@@ -95,18 +96,20 @@ int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
     size_t fullAlignedSize = numel&~(32-1);
     size_t partialAlignedSize = numel&~(8-1);
 
-//#if defined USEOMP
-//#pragma omp parallel for num_threads(nr_threads) schedule(static)
-//#endif
-    size_t i = 0;
-    for (; i < fullAlignedSize; i += 32)
+    int sum = 0;
+#if defined USEOMP
+#pragma omp parallel for num_threads(nr_threads) schedule(static) reduction(+:sum)
+#endif
+    for (size_t i = 0; i < fullAlignedSize; i += 32)
     {
         halfp2singles(dst + i + 0, src + i + 0);
         halfp2singles(dst + i + 8, src + i + 8);
         halfp2singles(dst + i + 16, src + i + 16);
         halfp2singles(dst + i + 24, src + i + 24);
+	sum += 32;
     }
-    for (; i < partialAlignedSize; i += 8)
+
+    for (size_t i = sum; i < partialAlignedSize; i += 8)
         halfp2singles(dst + i, src + i);
     if (partialAlignedSize != numel)
         halfp2singles(dst + numel - 8, src + numel - 8);
