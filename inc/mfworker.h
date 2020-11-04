@@ -47,6 +47,8 @@ public:
 	void SetCPUAffinity();
 	void Test();
 	int PrepareShmbuf();
+	void PullCompressFeatureUseShm();
+	void PushCompressFeatureUseShm();
 
 public:
 	int target_epoch;

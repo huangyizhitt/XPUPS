@@ -99,7 +99,7 @@ int main(int argc, char **argv)
 //                        printf("Push cost time: %.3f\n", elapse);
 #elif SEND_COMPRESS_Q_FEATURE
 //			start = cpu_second();
-			worker->PullCompressFeature();
+			worker->PullCompressFeatureUseShm();
 //			elapse += cpu_second() - start;
 //			printf("Pull cost time: %.3f\n", elapse);
 
@@ -109,7 +109,7 @@ int main(int argc, char **argv)
 //			printf("Compute cost time: %.3f\n", elapse);
 
 //			start = cpu_second();
-			worker->PushCompressFeature();
+			worker->PushCompressFeatureUseShm();
 //			elapse += cpu_second() - start;
 //			printf("Push cost time: %.3f\n", elapse);
 #endif

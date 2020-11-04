@@ -94,6 +94,14 @@ public:
 							const ps::KVPairs<float>& req_data,
 							ps::KVServer<float>* server);
 
+	static void ProcessPullCompressFeatureUseShm(const ps::KVMeta& req_meta,
+							const ps::KVPairs<float>& req_data,
+							ps::KVServer<float>* server);
+
+	static void ProcessPushCompressFeatureUseShm(const ps::KVMeta& req_meta,
+							const ps::KVPairs<float>& req_data,
+							ps::KVServer<float>* server);
+
 	static int CreateShmbuf();
 	static void DestroyShmbuf();
 	

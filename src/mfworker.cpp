@@ -154,7 +154,7 @@ void MFWorker::PushFeature()
 }
 
 #ifdef SEND_COMPRESS_Q_FEATURE
-/*void MFWorker::PullCompressFeature()
+void MFWorker::PullCompressFeature()
 {
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
@@ -187,14 +187,14 @@ void MFWorker::PushFeature()
 		halfp2singles(q, h_q, size_q, core_num);
 	}
 //	print_feature_tail(p, q, size_p, size_q, 3, 0);
-}*/
+}
 
-void MFWorker::PullCompressFeature()
+void MFWorker::PullCompressFeatureUseShm()
 {
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
 	std::vector<int> lens;
-	CMD cmd = PULL_HALF_FEATURE;
+	CMD cmd = PULL_HALF_FEATURE_SHM;
 
 	uint16_t *h_p, *h_q;
 	double start, elapse;
@@ -286,6 +286,53 @@ void MFWorker::PushCompressFeature()
 		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 	}	
 }
+
+void MFWorker::PushCompressFeatureUseShm()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PUSH_HALF_FEATURE_SHM;
+
+	size_t size_p = m * k;
+	size_t size_q = n * k; 
+
+
+	if(current_epoch < target_epoch) {
+		size_t size = size_q/2;
+		keys.push_back(rank);
+		vals.push_back(size);
+		lens.push_back(1);				//compress half point
+
+		//encode
+		singles2halfp(halfq, q, size_q, FE_TONEAREST, 0, core_num);
+	
+#ifdef CAL_PORTION_RMSE
+		keys.push_back(rank+1);
+		lens.push_back(1);
+		vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));	
+#endif
+		memcpy(shm_buf, halfq, size * sizeof(uint16_t));
+		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+
+	} else {
+		size_t size = (size_p+size_q)/2;
+		keys.push_back(rank);
+		vals.push_back(size);
+		lens.push_back(1);
+
+		//encode
+		singles2halfp(halfp, p, size_p+size_q, FE_TONEAREST, 0, core_num);
+#ifdef CAL_PORTION_RMSE
+		keys.push_back(rank+1);
+		lens.push_back(1);
+		vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
+#endif
+		memcpy(shm_buf, halfp, size*sizeof(uint16_t));
+		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+	}	
+}
+
 #endif
 
 //pull feature, <keys, {feature}>
