@@ -2,7 +2,7 @@
 #include <cstdio>
 #include <fenv.h>
 #include <omp.h>
-
+#include <immintrin.h>
 #include "utils.h"
 
 long long cpu_microsecond(void)
@@ -43,6 +43,98 @@ void print_feature_tail(const float *p, const float *q, size_t size_p, size_t si
 	}
 }
 
+#if defined(USE_AVX2) || defined(USE_AVX512)
+//AVX SIMD cite https://clang.llvm.org/doxygen/f16cintrin_8h.html#ad1cae0481f65ec5c509425d5b4ccc5c1
+static inline void singles2halfp(uint16_t *target, const float *source, const int imm)
+{
+	_mm_storeu_si128((__m128i*)target, _mm256_cvtps_ph(_mm256_loadu_ps(source), imm));
+}
+
+int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
+{
+	const float *src = (const float *)source;
+	uint16_t *dst = (uint16_t *)target;
+	if(dst == NULL || src == NULL || numel < 8) {
+		return 0;
+	}
+
+	size_t fullAlignedSize = numel&~(32-1);
+    size_t partialAlignedSize = numel&~(8-1);
+
+	int imm;
+	switch(rounding_mode) {
+		case FE_TONEAREST:
+			imm = 0;						//000b
+			break;
+
+		case FE_DOWNWARD:
+			imm = 1;						//001b
+			break;
+		
+		case FE_UPWARD:
+			imm = 2;						//010b
+			break;
+
+		case FE_TOWARDZERO:
+			imm = 3;						//011
+			break;
+
+		default:
+			imm = 4;
+			break;
+	}
+
+	size_t i = 0;
+#if defined USEOMP
+#pragma omp parallel for num_threads(nr_threads) schedule(static)
+#endif
+    for (; i < fullAlignedSize; i += 32)
+    {
+        singles2halfp(dst + i + 0, src + i + 0, imm);
+        singles2halfp(dst + i + 8, src + i + 8, imm);
+        singles2halfp(dst + i + 16, src + i + 16, imm);
+        singles2halfp(dst + i + 24, src + i + 24, imm);
+    }
+    for (; i < partialAlignedSize; i += 8)
+        singles2halfp(dst + i, src + i, imm);
+    if(partialAlignedSize != numel)
+        singles2halfp(dst + numel - 8, src + numel - 8, imm);
+}
+
+inline void halfp2singles(float * dst, const uint16_t * src)
+{
+    _mm256_storeu_ps(dst, _mm256_cvtph_ps(_mm_loadu_si128((__m128i*)src)));
+}
+
+int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
+{
+    float *dst = (float *)target;
+	const uint16_t *src = (const uint16_t *)source;
+
+	if(!dst || !src || numel < 8) return 0;
+
+    size_t fullAlignedSize = numel&~(32-1);
+    size_t partialAlignedSize = numel&~(8-1);
+
+    size_t i = 0;
+#if defined USEOMP
+#pragma omp parallel for num_threads(nr_threads) schedule(static)
+#endif
+    for (; i < fullAlignedSize; i += 32)
+    {
+        singles2halfp(dst + i + 0, src + i + 0);
+        singles2halfp(dst + i + 8, src + i + 8);
+        singles2halfp(dst + i + 16, src + i + 16);
+        singles2halfp(dst + i + 24, src + i + 24);
+    }
+    for (; i < partialAlignedSize; i += 8)
+        singles2halfp(dst + i, src + i);
+    if (partialAlignedSize != numel)
+        singles2halfp(dst + numel - 8, src + numel - 8);
+}
+
+#else
+//MATLAB Software
 int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
 {
     UINT16_TYPE *hp = (UINT16_TYPE *) target; // Type pun output as an unsigned 16-bit int
@@ -249,4 +341,4 @@ int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
     }
     return 0;
 }
-
+#endif
