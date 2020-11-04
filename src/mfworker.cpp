@@ -162,7 +162,7 @@ void MFWorker::PushFeature()
 	CMD cmd = PULL_HALF_FEATURE;
 
 	uint16_t *h_p, *h_q;
-	
+	double start, elapse;	
 	current_epoch++;
 	//only first epoch will pull feature p;
 	if(current_epoch == 1) {
@@ -171,9 +171,10 @@ void MFWorker::PushFeature()
 	} else {
 		keys.push_back(0);
 	}
-
+	start = cpu_second();
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-
+	elapse = cpu_second() - start;
+	printf("PullCompressFeature cost: %.3f\n", elapse);
 	int size_p = m * k;
 	int size_q = n * k;
 
@@ -196,23 +197,39 @@ void MFWorker::PullCompressFeature()
 	CMD cmd = PULL_HALF_FEATURE;
 
 	uint16_t *h_p, *h_q;
-	
+	double start, elapse;
+
+	start = cpu_second();	
 	current_epoch++;
 	//only first epoch will pull feature p;
 	keys.push_back(rank);
-
+//	start = cpu_second();
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+//	elapse = cpu_second() - start;
+//	printf("PullCompressFeature cost time: %.3f\n", elapse);
 
 	int size_p = m * k;
 	int size_q = n * k;
-
 	if(current_epoch == 1) {
 		//decode
-		memcpy(h_p, shm_buf, (size_t)vals[0]);
+		h_p = (uint16_t *)shm_buf;
+//		memcpy(halfp, shm_buf, vals[0]);
+		
+		start = cpu_second();	
 		halfp2singles(p, h_p, size_p+size_q, core_num);
+	//	halfp2singles(p, halfp, size_p+size_q, core_num);
+		elapse = cpu_second() - start;
+		printf("PullCompressFeature halfp2singles cost: %.3f\n", elapse);
+//		halfp2singles(p, h_p, size_p+size_q, core_num);
 	} else {
-		memcpy(h_q, shm_buf, (size_t)vals[0]);
+		h_q = (uint16_t *)shm_buf;
+//		memcpy(halfq, shm_buf, vals[0]);
+		
+		start = cpu_second();	
 		halfp2singles(q, h_q, size_q, core_num);
+	//	halfp2singles(q, halfq, size_q, core_num);
+		elapse = cpu_second() - start;
+		printf("PullCompressFeature halfp2singles cost: %.3f\n", elapse);
 	}
 //	print_feature_tail(p, q, size_p, size_q, 3, 0);
 }
@@ -510,7 +527,6 @@ int MFWorker::PrepareShmbuf()
 		perror("shmat fail!\n");
 		return -1;
 	}
-	shm_buf = 0;
 	return 0;
 }
 

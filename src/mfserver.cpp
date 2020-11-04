@@ -350,12 +350,11 @@ void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 		  singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, nr_threads);
 
 		  //prepare transmission data
-		  res.vals[0] = size_q * sizeof(float) / 2;					  //compress
+		  res.vals[0] = size_q * sizeof(uint16_t);					  //compress
 		  res.lens[0] = 1;
-		  unsigned char *_q = (unsigned char *)dm.halfq;
-		  unsigned char *_buf = shm_buf[rank].second;
+		  uint16_t *_buf = (uint16_t *)shm_buf[rank].second;
 		  
-		  memcpy(_buf, _q, res.vals[0]);
+		  memcpy(_buf, dm.halfq, res.vals[0]);
 		 	
 		  server->Response(req_meta, res);
 	 } else {
@@ -364,12 +363,10 @@ void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
 		  singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, nr_threads);
 
 		  //prepare transmission data
-		  res.vals[0] = (size_p+size_q) * sizeof(float) / 2;
+		  res.vals[0] = (size_p+size_q) * sizeof(uint16_t);
 		  res.lens[0] = 1;
-		  unsigned char *_p = (unsigned char *)dm.halfp;
-		  unsigned char *_buf = shm_buf[rank].second;
-		  memcpy(_buf, _p, res.vals[0]);
-		  
+		  uint16_t *_buf = (uint16_t *)shm_buf[rank].second;
+		  memcpy(_buf, dm.halfp, res.vals[0]);
 		  server->Response(req_meta, res);
 	 }
   
@@ -701,7 +698,6 @@ int MFServer::CreateShmbuf()
 			perror("shmat fail!\n");
 			return -1;
 		}
-
 		shm_buf[worker_rank] = std::make_pair(shmid, buf);
 	}
 	return 0;
