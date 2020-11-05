@@ -56,7 +56,7 @@ int singles2halfp(void *target, const void *source, ptrdiff_t numel, int roundin
 	const float *src = (const float *)source;
 	uint16_t *dst = (uint16_t *)target;
 	if(dst == NULL || src == NULL || numel < 8) {
-		return 0;
+		return -1;
 	}
 
 	size_t fullAlignedSize = numel&~(32-1);
@@ -79,6 +79,7 @@ int singles2halfp(void *target, const void *source, ptrdiff_t numel, int roundin
         singles2halfp(dst + i, src + i);
     if(partialAlignedSize != numel)
         singles2halfp(dst + numel - 8, src + numel - 8);
+	return 0;
 }
 
 inline void halfp2singles(float * dst, const uint16_t * src)
@@ -91,7 +92,7 @@ int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
     float *dst = (float *)target;
 	const uint16_t *src = (const uint16_t *)source;
 
-	if(!dst || !src || numel < 8) return 0;
+	if(!dst || !src || numel < 8) return -1;
 
     size_t fullAlignedSize = numel&~(32-1);
     size_t partialAlignedSize = numel&~(8-1);
@@ -113,7 +114,48 @@ int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
         halfp2singles(dst + i, src + i);
     if (partialAlignedSize != numel)
         halfp2singles(dst + numel - 8, src + numel - 8);
+
+	return 0;
 }
+
+//src->mid
+//dst=(dst+mid) * scale
+inline void half2singles_madd(float *dst, const uint16_t *src, float scale)
+{
+	__mm256 scale_vec = _mm256_set1_ps(scale);
+	_mm256_fmadd_ps(_mm256_cvtph_ps(_mm_loadu_si128((__m128i*)src)), scale_vec, dst); 
+}
+
+int halfp2singles_madd(void *target, void *source, ptrdiff_t numel, int nr_threads, float scale)
+{
+	float *dst = (float *)target;
+	const uint16_t *src = (const uint16_t *)source;
+
+	if(!dst || !src || numel < 8) return -1;
+
+    size_t fullAlignedSize = numel&~(32-1);
+    size_t partialAlignedSize = numel&~(8-1);
+
+    int sum = 0;
+#if defined USEOMP
+#pragma omp parallel for num_threads(nr_threads) schedule(static) reduction(+:sum)
+#endif
+    for (size_t i = 0; i < fullAlignedSize; i += 32)
+    {
+        half2singles_madd(dst + i + 0, src + i + 0, scale);
+        half2singles_madd(dst + i + 8, src + i + 8, scale);
+        half2singles_madd(dst + i + 16, src + i + 16, scale);
+        half2singles_madd(dst + i + 24, src + i + 24, scale);
+		sum += 32;
+    }
+
+    for (size_t i = sum; i < partialAlignedSize; i += 8)
+        half2singles_madd(dst + i, src + i, scale);
+    if (partialAlignedSize != numel)
+        half2singles_madd(dst + numel - 8, src + numel - 8, scale);
+	return 0;
+}
+
 
 #else
 //MATLAB Software

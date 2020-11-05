@@ -395,11 +395,15 @@ void MFServer::ProcessPushCompressFeature(const ps::KVMeta& req_meta,
 //			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
 			halfp2singles(&dm.model.q[0], h_q, size_q, nr_threads);
 	  	} else {
+#if defined(USE_AVX2) || defined(USE_AVX512)
+			halfp2singles_madd(dm.model.q, h_q, size_q, nr_threads, 0.5);
+#else
 		  	for(int i = 0; i < size_q; i++) {
 				float tmp;
 				halfp2singles(&tmp, h_q+i, 1, nr_threads);
 			  	dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
 			}
+#endif
 	  	}
   	} else {
 	  	int rank = req_data.keys[0];
@@ -419,12 +423,16 @@ void MFServer::ProcessPushCompressFeature(const ps::KVMeta& req_meta,
 //		  	memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
 			halfp2singles(&dm.model.q[0], h_q, size_q, nr_threads);
 	  	} else {
+#if defined(USE_AVX2) || defined(USE_AVX512)
+			halfp2singles_madd(dm.model.q, h_q, size_q, nr_threads, 0.5);
+#else
 		  	for(int i = 0; i < size_q; i++) {
 //			  	dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
 				float tmp;
 				halfp2singles(&tmp, h_q+i, 1, nr_threads);
 				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
 		  	}
+#endif
 	  	}
   	}
 
@@ -476,11 +484,15 @@ void MFServer::ProcessPushCompressFeatureUseShm(const ps::KVMeta& req_meta,
 //			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
 			halfp2singles(&dm.model.q[0], h_q, size_q, nr_threads);
 		} else {
+#if defined(USE_AVX2) || defined(USE_AVX512)
+			halfp2singles_madd(dm.model.q, h_q, size_q, nr_threads, 0.5);
+#else
 			for(int i = 0; i < size_q; i++) {
 				float tmp;
 				halfp2singles(&tmp, h_q+i, 1, nr_threads);
 				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
 			}
+#endif
 		}
 	} else {
 		int start = worker_xpu_info[rank].start;
@@ -499,12 +511,16 @@ void MFServer::ProcessPushCompressFeatureUseShm(const ps::KVMeta& req_meta,
 //			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
 			halfp2singles(&dm.model.q[0], h_q, size_q, nr_threads);
 		} else {
+#if defined(USE_AVX2) || defined(USE_AVX512)
+			halfp2singles_madd(dm.model.q, h_q, size_q, nr_threads, 0.5);
+#else
 			for(int i = 0; i < size_q; i++) {
 //				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
 				float tmp;
 				halfp2singles(&tmp, h_q+i, 1, nr_threads);
 				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
 			}
+#endif
 		}
 	}
 
