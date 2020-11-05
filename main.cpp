@@ -18,6 +18,7 @@ int MF::MFServer::xpus(0);
 int MF::MFServer::max_workers(0);
 int MF::MFServer::scale(0);
 int MF::MFServer::nr_threads(0);
+int MF::MFServer::data_nr_threads(0);
 
 #ifdef EXPLORE
 std::ofstream  MF::MFServer::out("feature.csv", std::ios::out);
