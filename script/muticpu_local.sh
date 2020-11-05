@@ -40,7 +40,7 @@ for ((i=0; i<${DMLC_NUM_WORKER}; ++i)); do
     export WORKER_XPU_NAME='W-2155'
     export WORKER_XPU_TYPE='CPU'
     export WORKER_XPU_MAX_CORE='40'
-    export WORKER_XPU_THREADS='20'
+    export WORKER_XPU_THREADS='18'
     export NUMA_NODE=${i}
     ${bin} ${arg} &
 done

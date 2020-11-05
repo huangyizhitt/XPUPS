@@ -56,8 +56,8 @@ int main(int argc, char **argv)
 //		xpu = new XPU("W-2155", CPU, 8, 20, 8, 1, false);
 		worker = new MF::MFWorker();
 		worker->Init();
-		if(worker->GetWorkerID() == 0) worker->SetWorkload(10);
-		if(worker->GetWorkerID() == 1) worker->SetWorkload(11);
+		if(worker->NumaNode() == 0) worker->SetWorkload(1);
+		if(worker->NumaNode() == 1) worker->SetWorkload(1);
 		worker->InitCPUAffinity();
 		worker->PushWorkerXPU();
 		worker->InitTestData();

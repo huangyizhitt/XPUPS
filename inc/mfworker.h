@@ -23,6 +23,7 @@ public:
 	~MFWorker() {delete kv_xpu; free(feature); delete xpu;}
 
 	inline void SetWorkload(const int& workload) {xpu->worker_ratio = workload;}
+	inline int NumaNode() const {return xpu->numa_node;}
 	//Worker init by environment
 	void Init();
 	
