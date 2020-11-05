@@ -53,7 +53,7 @@ void MFServer::Init()
 	server_xpu->set_request_handle(ReceiveXPUHandle);
 	SetDataThreads(xpu->max_core);
 	SetThreads(xpu->workers);
-	printf("Server XPU TYPE: %d, threads: %d\n", xpu->xpu_type, xpu->workers);
+	printf("Server XPU TYPE: %d, data threads: %d, work threads: %d\n", xpu->xpu_type, xpu->max_core, xpu->workers);
 }
 
 //Get Worker XPU Info

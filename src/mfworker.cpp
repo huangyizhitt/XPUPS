@@ -171,10 +171,10 @@ void MFWorker::PullCompressFeature()
 	} else {
 		keys.push_back(0);
 	}
-	start = cpu_second();
+//	start = cpu_second();
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-	elapse = cpu_second() - start;
-	printf("PullCompressFeature cost: %.3f\n", elapse);
+//	elapse = cpu_second() - start;
+//	printf("PullCompressFeature cost: %.3f\n", elapse);
 	int size_p = m * k;
 	int size_q = n * k;
 

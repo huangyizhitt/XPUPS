@@ -42,7 +42,7 @@ void XPU::Init()
 	}
 
 	val = CHECK_NOTNULL(Environment::Get()->find(max_core.c_str()));
-	max_core = std::atoi(val);
+	this->max_core = std::atoi(val);
 	val = CHECK_NOTNULL(Environment::Get()->find(threads.c_str()));
 	core = workers = std::atoi(val);	
 	val = Environment::Get()->find("NUMA_NODE");

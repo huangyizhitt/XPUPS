@@ -18,6 +18,7 @@ int MF::MFServer::xpus(0);
 int MF::MFServer::max_workers(0);
 int MF::MFServer::scale(0);
 int MF::MFServer::nr_threads(0);
+int MF::MFServer::data_nr_threads(0);
 
 #ifdef EXPLORE
 std::ofstream  MF::MFServer::out("feature.csv", std::ios::out);
@@ -101,7 +102,8 @@ int main(int argc, char **argv)
 //                        printf("Push cost time: %.3f\n", elapse);
 #elif SEND_COMPRESS_Q_FEATURE
 //			start = cpu_second();
-			worker->PullCompressFeatureUseShm();
+			worker->PullCompressFeature();
+//			worker->PullCompressFeatureUseShm();
 //			elapse += cpu_second() - start;
 //			printf("Pull cost time: %.3f\n", elapse);
 
@@ -111,7 +113,8 @@ int main(int argc, char **argv)
 //			printf("Compute cost time: %.3f\n", elapse);
 
 //			start = cpu_second();
-			worker->PushCompressFeatureUseShm();
+			worker->PushCompressFeature();
+//			worker->PushCompressFeatureUseShm();
 //			elapse += cpu_second() - start;
 //			printf("Push cost time: %.3f\n", elapse);
 #endif
