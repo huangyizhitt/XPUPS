@@ -124,7 +124,7 @@ inline void half2singles_madd(float *dst, const uint16_t *src, float scale)
 {
 	__m256 scale_vec = _mm256_set1_ps(scale);
 	__m256 src_vec = _mm256_cvtph_ps(_mm_loadu_si128((__m128i*)src));
-	_mm256_storeu_ps(dst, _mm256_fmadd_ps(src_vec, scale_vec, _mm256_loadu_ps(dst))); 
+	_mm256_storeu_ps(dst, _mm256_mul_ps(scale_vec,_mm256_add_ps(src_vec, _mm256_loadu_ps(dst)))); 
 }
 
 int halfp2singles_madd(void *target, void *source, ptrdiff_t numel, int nr_threads, float scale)

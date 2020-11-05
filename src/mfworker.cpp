@@ -299,36 +299,35 @@ void MFWorker::PushCompressFeatureUseShm()
 
 
 	if(current_epoch < target_epoch) {
-		size_t size = size_q/2;
 		keys.push_back(rank);
 		vals.push_back(size);
 		lens.push_back(1);				//compress half point
 
 		//encode
-		singles2halfp(halfq, q, size_q, FE_TONEAREST, 0, core_num);
+		uint16_t *h_q = (uint16_t *)shm_buf;
+		singles2halfp(h_q, q, size_q, FE_TONEAREST, 0, core_num);
 	
 #ifdef CAL_PORTION_RMSE
 		keys.push_back(rank+1);
 		lens.push_back(1);
 		vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));	
 #endif
-		memcpy(shm_buf, halfq, size * sizeof(uint16_t));
+//		memcpy(shm_buf, halfq, size * sizeof(uint16_t));
 		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 
 	} else {
-		size_t size = (size_p+size_q)/2;
 		keys.push_back(rank);
 		vals.push_back(size);
 		lens.push_back(1);
-
 		//encode
-		singles2halfp(halfp, p, size_p+size_q, FE_TONEAREST, 0, core_num);
+		uint16_t *h_p = (uint16_t *)shm_buf;
+		singles2halfp(h_p, p, size_p+size_q, FE_TONEAREST, 0, core_num);
 #ifdef CAL_PORTION_RMSE
 		keys.push_back(rank+1);
 		lens.push_back(1);
 		vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
 #endif
-		memcpy(shm_buf, halfp, size*sizeof(uint16_t));
+//		memcpy(shm_buf, halfp, size*sizeof(uint16_t));
 		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 	}	
 }

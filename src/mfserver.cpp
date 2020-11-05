@@ -361,7 +361,6 @@ void MFServer::ProcessPullCompressFeatureUseShm(const ps::KVMeta& req_meta,
 		  //encode
 		  singles2halfp(dm.halfp, &dm.model.p[0], size_p, FE_TONEAREST, 0, nr_threads);
 		  singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, nr_threads);
-
 		  //prepare transmission data
 		  res.vals[0] = (size_p+size_q) * sizeof(uint16_t);
 		  res.lens[0] = 1;
@@ -506,7 +505,6 @@ void MFServer::ProcessPushCompressFeatureUseShm(const ps::KVMeta& req_meta,
 		h_p = (uint16_t *)shm_buf[rank].second;
 		h_q = h_p + size_p;
 		halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, nr_threads);
-
 		if(receive_times == 0) {
 //			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
 			halfp2singles(&dm.model.q[0], h_q, size_q, nr_threads);
