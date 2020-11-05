@@ -53,5 +53,10 @@ void print_feature_tail(const float *p, const float *q, size_t size_p, size_t si
 int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads);
 int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads);
 
+#if defined(USE_AVX2) || defined(USE_AVX512)
+inline void half2singles_madd(float *dst, const uint16_t *src, float scale);
+int halfp2singles_madd(void *target, void *source, ptrdiff_t numel, int nr_threads, float scale);
+#endif
+
 #endif
 
