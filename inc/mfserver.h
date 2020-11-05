@@ -113,8 +113,10 @@ public:
                           const ps::KVPairs<float>& req_data,
                           ps::KVServer<float>* server);
 	static void SetThreads(const int& t) {nr_threads = t;}
+	void SetDataThreads(const int& t) {data_nr_threads = t;}
 
 private:
+	int data_nr_threads;				//process data threads
 	static int cpus;					//counts cpu
 	static int gpus;					//counts gpu
 	static int fpgas;				//counts fpga

@@ -51,7 +51,7 @@ void MFServer::Init()
 
 	server_xpu = new ps::KVServer<float>(0);
 	server_xpu->set_request_handle(ReceiveXPUHandle);
-
+	SetDataThreads(xpu->max_core);
 	SetThreads(xpu->workers);
 	printf("Server XPU TYPE: %d, threads: %d\n", xpu->xpu_type, xpu->workers);
 }
@@ -107,14 +107,14 @@ void MFServer::PrepareData()
 {
 	if(!data_init_stage) {
 
-		dm.Init(nr_threads);
+		dm.Init(data_nr_threads);
 
 		Dim2 gridDim;
 		
 		gridDim.x = 1;
 		gridDim.y = scale;
 		dm.SetGrid(gridDim);
-		dm.GridData(nr_threads);
+		dm.GridData(data_nr_threads);
 		dm.InitModel();
 
 #ifdef EXPLORE
