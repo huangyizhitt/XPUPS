@@ -153,6 +153,76 @@ void MFWorker::PushFeature()
 		
 }
 
+//pull feature, <keys, {feature}>
+void MFWorker::PullFeatureUseShm()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_FEATURE;
+	
+	current_epoch++;
+	//only first epoch will pull feature p;
+	keys.push_back(rank);
+
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+
+	int size_p = m * k;
+	int size_q = n * k;
+
+	if(current_epoch == 1) {
+//		memcpy(p, &vals[0], sizeof(float) * size_p);
+//		memcpy(q, &vals[size_p], sizeof(float) * size_q);
+		memcpy(p, shm_buf, sizeof(float) * (size_p + size_q));
+	} else {
+		memcpy(q, shm_buf, sizeof(float) * size_q);
+	}
+//	print_feature_tail(p, q, size_p, size_q, 3, 0);
+}
+
+//push format {keys0, feature_p} {keys1, feature_q} {lens0: m*k} {lens1: n*k}
+void MFWorker::PushFeatureUseShm()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PUSH_FEATURE;
+
+	size_t size_p = m * k;
+	size_t size_q = n * k; 
+
+	//current_epoch < target_epoch, only push q	
+	if(current_epoch < target_epoch) {
+		keys.push_back(rank);
+		vals.push_back(size_q);
+		lens.push_back(1);
+
+		memcpy(shm_buf, q, (size_p)*sizeof(float));
+#ifdef CAL_PORTION_RMSE
+		keys.push_back(rank+1);
+		lens.push_back(1);
+		vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
+#endif
+		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+
+	} else {
+		keys.push_back(rank);
+		vals.push_back(size_q+size_p);
+		lens.push_back(1);
+		
+		memcpy(shm_buf, p, (size_p+size_q)*sizeof(float));
+#ifdef CAL_PORTION_RMSE
+		keys.push_back(rank+1);
+		lens.push_back(1);
+		vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
+#endif
+
+		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+	}
+		
+}
+
+
 #ifdef SEND_COMPRESS_Q_FEATURE
 void MFWorker::PullCompressFeature()
 {
@@ -197,9 +267,9 @@ void MFWorker::PullCompressFeatureUseShm()
 	CMD cmd = PULL_HALF_FEATURE_SHM;
 
 	uint16_t *h_p, *h_q;
-	double start, elapse;
+//	double start, elapse;
 
-	start = cpu_second();	
+//	start = cpu_second();	
 	current_epoch++;
 	//only first epoch will pull feature p;
 	keys.push_back(rank);

@@ -51,6 +51,8 @@ public:
 	int PrepareShmbuf();
 	void PullCompressFeatureUseShm();
 	void PushCompressFeatureUseShm();
+	void PullFeatureUseShm();
+	void PushFeatureUseShm();
 
 public:
 	int target_epoch;
