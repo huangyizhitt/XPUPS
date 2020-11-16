@@ -159,7 +159,7 @@ void MFWorker::PullFeatureUseShm()
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
 	std::vector<int> lens;
-	CMD cmd = PULL_FEATURE;
+	CMD cmd = PULL_FEATURE_SHM;
 	
 	current_epoch++;
 	//only first epoch will pull feature p;
@@ -186,7 +186,7 @@ void MFWorker::PushFeatureUseShm()
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
 	std::vector<int> lens;
-	CMD cmd = PUSH_FEATURE;
+	CMD cmd = PUSH_FEATURE_SHM;
 
 	size_t size_p = m * k;
 	size_t size_q = n * k; 
@@ -197,7 +197,7 @@ void MFWorker::PushFeatureUseShm()
 		vals.push_back(size_q);
 		lens.push_back(1);
 
-		memcpy(shm_buf, q, (size_p)*sizeof(float));
+		memcpy(shm_buf, q, (size_q)*sizeof(float));
 #ifdef CAL_PORTION_RMSE
 		keys.push_back(rank+1);
 		lens.push_back(1);

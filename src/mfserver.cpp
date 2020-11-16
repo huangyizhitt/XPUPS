@@ -289,7 +289,7 @@ void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
 
 //Process PULL_FEATURE cmd from workers, will send feature to workers
 //Data format{keys[0], p, keys[1], q}
-void MFServer::ProcessPullFeatureUseShme(const ps::KVMeta& req_meta,
+void MFServer::ProcessPullFeatureUseShm(const ps::KVMeta& req_meta,
 							const ps::KVPairs<float>& req_data,
 							ps::KVServer<float>* server)
 {
@@ -316,7 +316,6 @@ void MFServer::ProcessPullFeatureUseShme(const ps::KVMeta& req_meta,
 		memcpy(buf, &dm.model.p[0], size_p * sizeof(float));
 		memcpy(buf, &dm.model.q[0], size_q * sizeof(float));
   	}
-  
 //  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
   	server->Response(req_meta, res);
 }
@@ -324,7 +323,7 @@ void MFServer::ProcessPullFeatureUseShme(const ps::KVMeta& req_meta,
 //Process PUSH_FEATURE CMD from workers, will get feature from workers
 //Data format{keys[0], p, keys[1], q}
 //only in the last epoch need get feature p
-void MFServer::ProcessPushFeatureUseShme(const ps::KVMeta& req_meta,
+void MFServer::ProcessPushFeatureUseShm(const ps::KVMeta& req_meta,
 							const ps::KVPairs<float>& req_data,
 							ps::KVServer<float>* server)
 {
@@ -846,6 +845,14 @@ void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
 			
 		case PUSH_FEATURE:
 			ProcessPushFeature(req_meta, req_data, server);
+			break;
+
+		case PULL_FEATURE_SHM:
+			ProcessPullFeatureUseShm(req_meta, req_data, server);
+			break;
+
+		case PUSH_FEATURE_SHM:
+			ProcessPushFeatureUseShm(req_meta, req_data, server);
 			break;
 
 		case PULL_PUSH_FEATURE:

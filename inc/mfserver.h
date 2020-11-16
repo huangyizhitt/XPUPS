@@ -78,13 +78,13 @@ public:
 							const ps::KVPairs<float>& req_data,
 							ps::KVServer<float>* server);
 
-	static void ProcessPullFeatureUseShme(const ps::KVMeta& req_meta,
+	static void ProcessPullFeatureUseShm(const ps::KVMeta& req_meta,
 							const ps::KVPairs<float>& req_data,
 							ps::KVServer<float>* server);
 
-	static void ProcessPushFeatureUseShme(const ps::KVMeta& req_meta,
+	static void ProcessPushFeatureUseShm(const ps::KVMeta& req_meta,
 							const ps::KVPairs<float>& req_data,
-							ps::KVServer<float>* server)
+							ps::KVServer<float>* server);
 
 	static void ProcessPullAllFeature(const ps::KVMeta& req_meta,
 							  const ps::KVPairs<float>& req_data,
