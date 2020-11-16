@@ -311,13 +311,14 @@ void MFServer::ProcessPullFeatureUseShm(const ps::KVMeta& req_meta,
   	if(current_epoch != 1) {
 		res.vals[0] = size = size_q * sizeof(float);
 	  	memcpy(buf, &dm.model.q[0], res.vals[0]);
+//		 printf("[Process Pull] dm.model.q[0]: %.3f, dm.model.q[1]: %.3f, dm.model.q[2]: %.3f\n", dm.model.q[0], dm.model.q[1], dm.model.q[2]); 
   	} else {
 		res.vals[0] = size = (size_q+size_p) * sizeof(float);
 		memcpy(buf, &dm.model.p[0], size_p * sizeof(float));
-		memcpy(buf, &dm.model.q[0], size_q * sizeof(float));
+		memcpy(buf+size_p, &dm.model.q[0], size_q * sizeof(float));
   	}
 //  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
-  	server->Response(req_meta, res);
+	server->Response(req_meta, res);
 }
 													
 //Process PUSH_FEATURE CMD from workers, will get feature from workers
@@ -342,7 +343,8 @@ void MFServer::ProcessPushFeatureUseShm(const ps::KVMeta& req_meta,
   //printf("current_epoch: %d\n", current_epoch); 
   if(current_epoch != target_epoch) {
 	  if(receive_times == 0) {
-		  memcpy(&dm.model.q[0], buf, sizeof(float) * size_q);  
+		  memcpy(&dm.model.q[0], buf, sizeof(float) * size_q); 
+//		 printf("[Process push] dm.model.q[0]: %.3f, dm.model.q[1]: %.3f, dm.model.q[2]: %.3f\n", dm.model.q[0], dm.model.q[1], dm.model.q[2]); 
 	  } else {
 		  for(int i = 0; i < size_q; i++) {
 			  dm.model.q[i] = (dm.model.q[i] + buf[i]) / 2;

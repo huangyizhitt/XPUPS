@@ -176,6 +176,7 @@ void MFWorker::PullFeatureUseShm()
 		memcpy(p, shm_buf, sizeof(float) * (size_p + size_q));
 	} else {
 		memcpy(q, shm_buf, sizeof(float) * size_q);
+//		printf("[Worker Pull] q[0]: %.3f, q[1]: %.3f, q[2]: %.3f\n", q[0], q[1], q[2]);
 	}
 //	print_feature_tail(p, q, size_p, size_q, 3, 0);
 }
@@ -198,6 +199,7 @@ void MFWorker::PushFeatureUseShm()
 		lens.push_back(1);
 
 		memcpy(shm_buf, q, (size_q)*sizeof(float));
+//		printf("[Worker Push] q[0]: %.3f, q[1]: %.3f, q[2]: %.3f\n", q[0], q[1], q[2]);
 #ifdef CAL_PORTION_RMSE
 		keys.push_back(rank+1);
 		lens.push_back(1);
