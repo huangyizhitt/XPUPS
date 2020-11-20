@@ -18,7 +18,7 @@ public:
 		kv_xpu = new ps::KVWorker<float>(0, 0);		
 	}
 
-	MFWorker() {}
+	MFWorker() : data_counter(0), current_epoch(0){}
 
 	~MFWorker() {delete kv_xpu; free(feature); delete xpu;}
 

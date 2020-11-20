@@ -20,13 +20,14 @@ void MFWorker::Init()
 	XPU *xpu = new XPU;
 	xpu->Init();
 	xpu->is_server = false;
-	xpu->worker_ratio = 1;
-	val = CHECK_NOTNULL(ps::Environment::Get()->find("EPOCH"));
+	val = CHECK_NOTNULL(ps::Environment::Get()->find("WORK_LOAD"));
+	xpu->worker_ratio = atoi(val);
 	this->xpu = xpu; 
+	InitCPUAffinity();
+	
 	core_num = xpu->core;
-	data_counter = 0;
+	val = CHECK_NOTNULL(ps::Environment::Get()->find("EPOCH"));
 	target_epoch = atoi(val);
-	current_epoch = 0;
 	rank = ps::MyRank();
 	kv_xpu = new ps::KVWorker<float>(0, 0);	
 }
@@ -619,11 +620,7 @@ void MFWorker::Test()
 
 void MFWorker::InitCPUAffinity()
 {
-	CPU_ZERO(&cpuset);
-	int start = rank * core_num;
-	int size = core_num;
-	for (int i = start; i < start + size; i++)
-        CPU_SET(i, &cpuset);
+	xpu->NumaBindNode();
 }
 
 int MFWorker::PrepareShmbuf()

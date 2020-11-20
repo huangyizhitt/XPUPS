@@ -44,11 +44,13 @@ void XPU::Init()
 	val = CHECK_NOTNULL(Environment::Get()->find(max_core.c_str()));
 	this->max_core = std::atoi(val);
 	val = CHECK_NOTNULL(Environment::Get()->find(threads.c_str()));
-	core = workers = std::atoi(val);	
-	val = Environment::Get()->find("NUMA_NODE");
-	if(val != NULL) {
-		numa_node = std::atoi(val);
-		NumaBindNode();
+	core = workers = std::atoi(val);
+
+	if(xpu_type == CPU) {
+		val = Environment::Get()->find("NUMA_NODE");
+		if(val != NULL) {
+			numa_node = std::atoi(val);
+		}
 	}
 }
 
