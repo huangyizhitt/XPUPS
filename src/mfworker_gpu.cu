@@ -47,7 +47,7 @@ void MFWorker::ReleaseGPUResources()
 void MFWorker::PullGPUData()
 {
 	MatrixNode *cpuR = dm.data.r_matrix.data();
-	cudaMemcpy(gpuR, cpuR, sizeof(MatrixNode) * size);
+	cudaMemcpy(gpuR, cpuR, sizeof(MatrixNode) * size, cudaMemcpyHostToDevice);
 }
 
 }

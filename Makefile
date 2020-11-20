@@ -2,7 +2,7 @@ NVCC = nvcc
 CXX = g++
 RM = rm -rf
 CU_FLAGS = -gencode arch=compute_70,code=compute_70 -Xcompiler -fopenmp
-CU_CFLAGS = -std=c++11 -g -O3 -lrt -lpthread
+CU_CFLAGS = -std=c++11 -g -O3 -lrt -lpthread -lcuda -lcudart
 CFLAGS = -std=c++11 -g -O3 -lrt -lpthread -DUSEOMP -fopenmp -lnuma 
 ARCH_FLAGS = -march=native
 AVX2_FLAGS = -mavx2 -DUSE_AVX2
@@ -68,7 +68,7 @@ endif
 
 
 mf: main.cpp $(OBJS) $(CU_OBJS)
-	$(CXX) $^ -o $@ $(CFLAGS) $(ARCH_FLAGS) $(PS_INC) $(PS_LIB)
+	$(CXX) $^ -o $@ $(CFLAGS) $(ARCH_FLAGS) $(PS_INC) $(PS_LIB) -lcuda -lcudart
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp 
 	$(CXX) -c $< -o $@ $(CFLAGS) $(ARCH_FLAGS) $(PS_INC)
