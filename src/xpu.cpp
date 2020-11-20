@@ -46,12 +46,20 @@ void XPU::Init()
 	val = CHECK_NOTNULL(Environment::Get()->find(threads.c_str()));
 	core = workers = std::atoi(val);
 
-	if(xpu_type == CPU) {
-		val = Environment::Get()->find("NUMA_NODE");
-		if(val != NULL) {
-			numa_node = std::atoi(val);
-		}
+	//bind xpu to numa node, default node is node 0
+	val = Environment::Get()->find("NUMA_NODE");
+	if(val != NULL) {
+		numa_node = std::atoi(val);
+	} else {
+		numa_node = 0;
 	}
+
+	if(xpu_type == GPU) {
+		val = Environment::Get()->find("GPU_DEVICE");
+		if(val != NULL) {
+			gpu_dev = std::atoi(val);
+		}
+	} 
 }
 
 void XPU::NumaBindNode()

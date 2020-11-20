@@ -23,10 +23,12 @@ struct XPU {
 	//if call XPU() create XPU object, must call this function
 	void Init();
 	void NumaBindNode();
+	inline bool IsGPU() const {return (xpu_type == GPU);}
 		
 	char xpu_name[64];
 	XPU_TYPE xpu_type;
 	int numa_node;
+	int gpu_dev;
 	int core;
 	int max_core;
 	int workers;

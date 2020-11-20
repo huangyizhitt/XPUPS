@@ -20,14 +20,21 @@ public:
 
 	MFWorker() : data_counter(0), current_epoch(0){}
 
-	~MFWorker() {delete kv_xpu; free(feature); delete xpu;}
+	~MFWorker() {delete kv_xpu; ReleaseResources(); delete xpu;}
 
 	inline void SetWorkload(const int& workload) {xpu->worker_ratio = workload;}
 	inline int NumaNode() const {return xpu->numa_node;}
 	//Worker init by environment
 	void Init();
-	
-	void PrepareData();
+
+	//Prepare the worker
+	void Prepare();
+	void PrepareCPUResources();
+	void PrepareGPUResources();
+	void PrepareResources();
+	void ReleaseCPUResources();
+	void ReleaseGPUResources();
+	void ReleaseResources();
 	void PullFeature();
 	void PushFeature();
 	void PullCompressFeature();
@@ -35,17 +42,19 @@ public:
 	void PullAllFeature();
 	void PushAllFeature();
 	void PullPushFeature();
-	void PushWorkerXPU();
-	void PullDataFromServer();
+	void PushXPUInfo();
+	void PullTrainingData();
 	void PullDataInfoFromServer();
 	void PullBlockAndFeature();
-	void InitTestData();
+	void InitTrainingData();
+	void PullGPUData();
 	int GetWorkerID() const  {return rank;}
 	void GridProblem();
 	void CreateTasks();
 	void StartUpTasks();
 	void JoinTasks();
 	void InitCPUAffinity();
+	bool InitGPUAffinity();
 	void SetCPUAffinity();
 	void Test();
 	int PrepareShmbuf();
@@ -71,6 +80,10 @@ private:
 	float *p;
 	float *q;
 	float *feature;
+	float *gpu_p;
+	float *gpu_q;
+	float *gpu_feature;
+	MatrixNode *gpuR;
 	unsigned char *shm_buf;
 #ifdef SEND_COMPRESS_Q_FEATURE
 	uint16_t *halfp;

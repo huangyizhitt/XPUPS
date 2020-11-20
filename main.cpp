@@ -54,13 +54,8 @@ int main(int argc, char **argv)
 
 	if (ps::IsWorker()) {
 		std::cout << "start worker" << std::endl;
-//		xpu = new XPU("W-2155", CPU, 8, 20, 8, 1, false);
 		worker = new MF::MFWorker();
-		worker->Init();
-		worker->PushWorkerXPU();
-		worker->InitTestData();
-		worker->PullDataFromServer();
-		worker->GridProblem();
+		worker->Prepare();
 		worker->CreateTasks();
 
 		double start, elapse = 0;

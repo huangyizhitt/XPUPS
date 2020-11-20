@@ -11,8 +11,6 @@
 
 namespace MF {
 
-static bool alloc_feature(false);
-
 //Worker init by environment
 void MFWorker::Init()
 {
@@ -24,6 +22,9 @@ void MFWorker::Init()
 	xpu->worker_ratio = atoi(val);
 	this->xpu = xpu; 
 	InitCPUAffinity();
+	if(xpu->IsGPU()) {
+		InitGPUAffinity();
+	}
 	
 	core_num = xpu->core;
 	val = CHECK_NOTNULL(ps::Environment::Get()->find("EPOCH"));
@@ -32,7 +33,7 @@ void MFWorker::Init()
 	kv_xpu = new ps::KVWorker<float>(0, 0);	
 }
 
-void MFWorker::PushWorkerXPU()
+void MFWorker::PushXPUInfo()
 {
 	std::vector<ps::Key> keys;									//XPU Info {rank, (peak_performance, mem_band)} len 2
 	std::vector<float> vals;
@@ -46,7 +47,7 @@ void MFWorker::PushWorkerXPU()
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 }
 
-void MFWorker::PullDataFromServer()
+void MFWorker::PullTrainingData()
 {
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
@@ -60,9 +61,13 @@ void MFWorker::PullDataFromServer()
 
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
 
+	size_t recv_size = keys.size();
+	if(recv_size != size) {
+		debugp("receive the training data fail, size: %d, recv_size: %d!\n", size, recv_size);
+		return ;
+	}
+
 	Data& data = this->dm.data;
-	size_t size = keys.size();
-	debugp("receive the data, size: %d!\n", size);
 	data.r_matrix.resize(size);	
 	data_counter = size;
 	int len = 3;
@@ -72,6 +77,7 @@ void MFWorker::PullDataFromServer()
 		data.r_matrix[i].r = (float)vals[i * len + 2];
 	}
 
+	if(xpu->xpu_type == GPU) PullGPUData();
 	debugp("Recive data count: %ld\n", data_counter);
 //	dm.PrintHead(rank, 3);
 }
@@ -483,8 +489,54 @@ void MFWorker::PullPushFeature()
 	current_epoch++;
 }
 
+void MFWorker::PrepareCPUResources()
+{
+	size_t size_p = m * k;
+	size_t size_q = n * k;
 
-void MFWorker::InitTestData()
+#ifdef CAL_PORTION_RMSE
+	feature = (float *)aligned_alloc(64, (size_p + size_q + 1) * sizeof(float));
+#else
+	feature = (float *)aligned_alloc(64, (size_p + size_q) * sizeof(float));
+#endif
+	p = feature;
+	q = feature + size_p;
+
+#ifdef SEND_COMPRESS_Q_FEATURE
+	halfp = (uint16_t *)malloc(sizeof(uint16_t) * (size_p + size_q + 2));
+	halfq = halfp + size_p;
+#endif
+}
+
+void MFWorker::PrepareResources()
+{
+	if(xpu->xpu_type == CPU) {
+		PrepareCPUResources();
+	} else if(xpu->xpu_type == GPU) {
+		PrepareGPUResources();
+	}
+
+	PrepareShmbuf();
+}
+
+void MFWorker::ReleaseCPUResources()
+{
+	free(feature);
+#ifdef SEND_COMPRESS_Q_FEATURE
+	free(halfp);
+#endif
+}
+
+void MFWorker::ReleaseResources()
+{
+	if(xpu->xpu_type == CPU) {
+		ReleaseCPUResources();
+	} else if(xpu->xpu_type == GPU) {
+		ReleaseGPUResources();
+	}
+}
+
+void MFWorker::InitTrainingData()
 {
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
@@ -507,23 +559,7 @@ void MFWorker::InitTestData()
 	lambda_p = lambda_p / scale;
 	lambda_q = lambda_q / scale;
 	dm.nnz = size;
-	size_t size_p = m * k;
-	size_t size_q = n * k;
 
-#ifdef CAL_PORTION_RMSE
-	feature = (float *)aligned_alloc(64, (size_p + size_q + 1) * sizeof(float));
-#else
-	feature = (float *)aligned_alloc(64, (size_p + size_q) * sizeof(float));
-#endif
-	p = feature;
-	q = feature + size_p;
-
-#ifdef SEND_COMPRESS_Q_FEATURE
-	halfp = (uint16_t *)malloc(sizeof(uint16_t) * (size_p + size_q + 2));
-	halfq = halfp + size_p;
-#endif
-
-	PrepareShmbuf();
 	debugp("[Worker %d] start: %ld, size: %ld, rows: %d, cols: %d\n", rank, start, size, dm.rows, dm.cols);
 }
 
@@ -645,5 +681,16 @@ int MFWorker::PrepareShmbuf()
 	return 0;
 }
 
+void MFWorker::Prepare()
+{
+	Init();
+	PushXPUInfo();
+	InitTrainingData();
+	PrepareResources();
+	PullTrainingData();
+	if(xpu->xpu_type == CPU) {
+		GridProblem();
+	}	
+}
 
 }
