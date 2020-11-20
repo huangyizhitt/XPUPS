@@ -39,6 +39,7 @@ export WORKER_XPU_TYPE='CPU'
 export WORKER_XPU_MAX_CORE='20'
 export WORKER_XPU_THREADS='18'
 export NUMA_NODE=${i}
+export WORK_LOAD=1
 ${bin} ${arg} &
 
 

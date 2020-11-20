@@ -43,7 +43,7 @@ void MFServer::Init()
 	XPU *xpu = new XPU;
 	xpu->Init();
 	xpu->is_server = true;
-	xpu->worker_ratio = 0;
+	xpu->NumaBindNode();
 	this->xpu = xpu;
 	
 	val = CHECK_NOTNULL(ps::Environment::Get()->find("EPOCH"));
