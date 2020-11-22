@@ -56,7 +56,6 @@ int main(int argc, char **argv)
 		std::cout << "start worker" << std::endl;
 		worker = new MF::MFWorker();
 		worker->Prepare();
-		worker->CreateTasks();
 
 		double start, elapse = 0;
 		start = cpu_second();
@@ -85,7 +84,7 @@ int main(int argc, char **argv)
    //                     printf("Pull cost time: %.3f\n", elapse);
 
 //			start = cpu_second();
-			worker->StartUpTasks();
+			worker->Computing()();
 //			elapse = cpu_second() - start;
 //                        printf("Compute cost time: %.3f\n", elapse);
 

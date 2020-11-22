@@ -8,6 +8,7 @@
 #include <cmath>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <cuda_runtime.h>
 
 namespace MF {
 
@@ -191,15 +192,23 @@ void MFWorker::PullFeatureUseShm()
 	int size_p = m * k;
 	int size_q = n * k;
 
+	size_t copy_size;
+	float *dst;
+
 	if(current_epoch == 1) {
-//		memcpy(p, &vals[0], sizeof(float) * size_p);
-//		memcpy(q, &vals[size_p], sizeof(float) * size_q);
-		memcpy(p, shm_buf, sizeof(float) * (size_p + size_q));
+		copy_size = sizeof(float) * (size_p + size_q);
+		dst = p;
 	} else {
-		memcpy(q, shm_buf, sizeof(float) * size_q);
-//		printf("[Worker Pull] q[0]: %.3f, q[1]: %.3f, q[2]: %.3f\n", q[0], q[1], q[2]);
+		copy_size = sizeof(float) * size_q;
+		dst = q;
 	}
-//	print_feature_tail(p, q, size_p, size_q, 3, 0);
+
+	if(xpu->xpu_type == CPU) {	
+		memcpy(dst, shm_buf, copy_size);	
+	} else if(xpu->xpu_type == GPU) {
+		cudaMemcpy(dst, shm_buf, copy_size, cudaMemcpyHostToDevice);
+	}
+
 }
 
 //push format {keys0, feature_p} {keys1, feature_q} {lens0: m*k} {lens1: n*k}
@@ -212,37 +221,34 @@ void MFWorker::PushFeatureUseShm()
 
 	size_t size_p = m * k;
 	size_t size_q = n * k; 
+	size_t copy_size;
+	float *src;
 
 	//current_epoch < target_epoch, only push q	
 	if(current_epoch < target_epoch) {
-		keys.push_back(rank);
-		vals.push_back(size_q);
-		lens.push_back(1);
-
-		memcpy(shm_buf, q, (size_q)*sizeof(float));
-//		printf("[Worker Push] q[0]: %.3f, q[1]: %.3f, q[2]: %.3f\n", q[0], q[1], q[2]);
-#ifdef CAL_PORTION_RMSE
-		keys.push_back(rank+1);
-		lens.push_back(1);
-		vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
-#endif
-		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
-
+		copy_size = size_q;
+		src = q;
 	} else {
-		keys.push_back(rank);
-		vals.push_back(size_q+size_p);
-		lens.push_back(1);
-		
-		memcpy(shm_buf, p, (size_p+size_q)*sizeof(float));
-#ifdef CAL_PORTION_RMSE
-		keys.push_back(rank+1);
-		lens.push_back(1);
-		vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
-#endif
-
-		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+		copy_size = size_p+size_q;
+		src = p;
 	}
-		
+
+	if(xpu->xpu_type == CPU) {
+		memcpy(shm_buf, src, copy_size * sizeof(float));
+	} else {
+		cudaMemcpy(shm_buf, src, copy_size * sizeof(float), cudaMemcpyDeviceToHost);
+	}
+
+	keys.push_back(rank);
+	vals.push_back(copy_size);
+	lens.push_back(1);
+	
+#ifdef CAL_PORTION_RMSE
+	keys.push_back(rank+1);
+	lens.push_back(1);
+	vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
+#endif
+	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));	
 }
 
 
@@ -588,7 +594,7 @@ void MFWorker::GridProblem()
 	dm.GridData(rank);
 }
 
-void MFWorker::CreateTasks()
+void MFWorker::CreateCPUTasks()
 {
 	tids.resize(core_num);
 #ifdef CAL_PORTION_RMSE	
@@ -649,6 +655,15 @@ void MFWorker::StartUpTasks()
 	dm.ClearBlockFlags();	
 }
 
+void MFWorker::Computing()
+{
+	if(xpu->xpu_type == CPU) {
+		StartUpTasks();
+	} else if(xpu->xpu_type == GPU) {
+		sgd_update_k128_gpu();
+	}
+}
+
 void MFWorker::Test()
 {
 	std::vector<ps::Key> keys;
@@ -704,6 +719,7 @@ void MFWorker::Prepare()
 	PullTrainingData();
 	if(xpu->xpu_type == CPU) {
 		GridProblem();
+		CreateCPUTasks();
 	}	
 }
 

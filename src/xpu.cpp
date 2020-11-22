@@ -58,6 +58,8 @@ void XPU::Init()
 		val = Environment::Get()->find("GPU_DEVICE");
 		if(val != NULL) {
 			gpu_dev = std::atoi(val);
+		} else {
+			gpu_dev = 0;
 		}
 	} 
 }

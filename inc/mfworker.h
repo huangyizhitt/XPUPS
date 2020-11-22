@@ -45,7 +45,7 @@ public:
 	void PullGPUData();
 	int GetWorkerID() const  {return rank;}
 	void GridProblem();
-	void CreateTasks();
+	void CreateCPUTasks();
 	void StartUpTasks();
 	void JoinTasks();
 	void InitCPUAffinity();
@@ -57,6 +57,8 @@ public:
 	void PushCompressFeatureUseShm();
 	void PullFeatureUseShm();
 	void PushFeatureUseShm();
+	void sgd_update_k128_gpu();
+	void Computing();
 
 public:
 	int target_epoch;
@@ -75,9 +77,6 @@ private:
 	float *p;
 	float *q;
 	float *feature;
-	float *gpu_p;
-	float *gpu_q;
-	float *gpu_feature;
 	MatrixNode *gpuR;
 	unsigned char *shm_buf;
 #ifdef SEND_COMPRESS_Q_FEATURE
@@ -96,6 +95,7 @@ private:
 	std::vector<pthread_t> tids;
 #ifdef CAL_PORTION_RMSE
 	std::vector<float> loss;
+	float *gpu_loss;
 #endif
 };
 
