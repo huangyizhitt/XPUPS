@@ -130,7 +130,8 @@ private:
 	static int fpgas;				//counts fpga
 	static int tpus;					//counts tpu
 	static int xpus;					//counts xpu
-	
+
+	int numa_node;
 	static int max_workers;
 	static int scale;
 	static int nr_threads;

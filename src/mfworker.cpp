@@ -1,56 +1,84 @@
-#include "mfworker.h"
+#include <unistd.h>
+#include <string.h>
+#include <cstdlib>
+#include <numeric>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include "utils.h"
 #include "ps/internal/env.h"
 #include "dmlc/logging.h"
-#include "cputask.h"
-#include <cstdlib>
-#include <numeric>
-#include <cmath>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <cuda_runtime.h>
+#include "mfworker.h"
 
 namespace MF {
 
-MFWorker::MFWorker(XPU * const xpu, const int& target_epoch) : xpu(xpu), core_num(xpu->core), data_counter(0),
-		target_epoch(target_epoch), current_epoch(0)
+void MFWorker::Init()
 {
+	const char *val = NULL;
+	//bind worker to numa node, default node is node 0
+	val = Environment::Get()->find("NUMA_NODE");
+	if(val != NULL) {
+		numa_node = std::atoi(val);
+	} else {
+		numa_node = 0;
+	}
+	BindNumaNode(numa_node);
+	
+	XPU *xpu;
+	val = CHECK_NOTNULL(Environment::Get()->find("XPU_TYPE"));
+	if(strcmp(val, "CPU") == 0) {
+		xpu = new CPU;
+		
+	} else if(strcmp(val, "GPU") == 0) {
+		
+	} else if(strcmp(val, "FPGA") == 0) {
+		
+	} else if(strcmp(val, "TPU") == 0) {
+		
+	} else {
+		
+	}
+
+	xpu->Init();
+	xpu->Bind();
+	this->xpu = xpu;
+
+	val = Environment::Get()->find("lambda");
+	if(val != NULL) {
+		lambda_p = lambda_q = strtod(val, NULL);
+	}
+
+	val = Environment::Get()->find("lrate");
+	if(val != NULL) {
+		lrate = strtod(val, NULL);
+	}
+
+	val = Environment::Get()->find("SHM");
+	if(val != NULL) {
+		use_shm = std::atoi(val);
+	}
+
+	val = Environment::Get()->find("TRANSMODE");
+	if(val != NULL) {
+		trans_mode = std::atoi(val);
+	}
+	
 	rank = ps::MyRank();
-	kv_xpu = new ps::KVWorker<float>(0, 0);		
+	workers = xpu->workers;
+	max_cores = xpu->max_cores;
+	kv_xpu = new ps::KVWorker<float>(0, 0);	
+	
 }
 
-MFWorker::~MFWorker() 
+void MFWorker::DeInit()
 {
-	delete kv_xpu; 
-	ReleaseResources(); 
+	delete kv_xpu;
 	delete xpu;
 }
 
-//Worker init by environment
-void MFWorker::Init()
-{
-	const char* val = NULL;
-	XPU *xpu = new XPU;
-	xpu->Init();
-	xpu->is_server = false;
-	val = CHECK_NOTNULL(ps::Environment::Get()->find("WORK_LOAD"));
-	xpu->worker_ratio = atoi(val);
-	this->xpu = xpu; 
-	InitCPUAffinity();
-	if(xpu->IsGPU()) {
-		InitGPUAffinity();
-	}
-	
-	core_num = xpu->core;
-	val = CHECK_NOTNULL(ps::Environment::Get()->find("EPOCH"));
-	target_epoch = atoi(val);
-	rank = ps::MyRank();
-	kv_xpu = new ps::KVWorker<float>(0, 0);	
-}
-
+//Push xpu information to server
 void MFWorker::PushXPUInfo()
 {
-	std::vector<ps::Key> keys;									//XPU Info {rank, (peak_performance, mem_band)} len 2
+	std::vector<ps::Key> keys;									
 	std::vector<float> vals;
 	std::vector<int> lens;
 	CMD cmd = PUSH_INFO;
@@ -62,6 +90,35 @@ void MFWorker::PushXPUInfo()
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 }
 
+//Send Init Training Data CMD to Server
+void MFWorker::InitTrainingData()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = INIT_DATA;
+
+	keys.push_back(rank);
+	lens.push_back(0);
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+	if(lens[0] != 5) {
+		printf("[Worker %d] InitTestData: receive data fail!\n");
+	}
+	
+	start = (size_t)vals[0];
+	size = (size_t)vals[1];
+	m = dm.rows = (size_t)vals[2];
+	n = dm.cols = (size_t)vals[3];
+	scale = vals[4];
+
+	lambda_p = lambda_p / scale;
+	lambda_q = lambda_q / scale;
+	dm.nnz = size;
+
+	debugp("[Worker %d] start: %ld, size: %ld, rows: %d, cols: %d\n", rank, start, size, dm.rows, dm.cols);
+}
+
+//Pull Training Data from Server
 void MFWorker::PullTrainingData()
 {
 	std::vector<ps::Key> keys;
@@ -94,420 +151,8 @@ void MFWorker::PullTrainingData()
 
 	if(xpu->xpu_type == GPU) PullGPUData();
 	debugp("Recive data count: %ld\n", data_counter);
-//	dm.PrintHead(rank, 3);
 }
 
-
-//pull feature, <keys, {feature}>
-void MFWorker::PullFeature()
-{
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = PULL_FEATURE;
-	
-	current_epoch++;
-	//only first epoch will pull feature p;
-	if(current_epoch == 1) {
-		keys.push_back(0);
-		keys.push_back(1);
-	} else {
-		keys.push_back(0);
-	}
-
-	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-
-	int size_p = m * k;
-	int size_q = n * k;
-
-	if(current_epoch == 1) {
-//		memcpy(p, &vals[0], sizeof(float) * size_p);
-//		memcpy(q, &vals[size_p], sizeof(float) * size_q);
-		memcpy(p, &vals[0], sizeof(float) * (size_p + size_q));
-	} else {
-		memcpy(q, &vals[0], sizeof(float) * size_q);
-	}
-//	print_feature_tail(p, q, size_p, size_q, 3, 0);
-}
-
-//push format {keys0, feature_p} {keys1, feature_q} {lens0: m*k} {lens1: n*k}
-void MFWorker::PushFeature()
-{
-	std::vector<ps::Key> keys;
-	
-	std::vector<int> lens;
-	CMD cmd = PUSH_FEATURE;
-
-	size_t size_p = m * k;
-	size_t size_q = n * k; 
-
-	//current_epoch < target_epoch, only push q	
-	if(current_epoch < target_epoch) {
-		keys.push_back(rank);
-		lens.push_back(size_q);
-	
-#ifdef CAL_PORTION_RMSE
-		std::vector<float> vals(q, q+size_q+1);
-		keys.push_back(rank+1);
-		lens.push_back(1);
-		vals[size_q] = std::accumulate(loss.begin(), loss.end(), 0.0);
-#else
-		std::vector<float> vals(q, q+size_q);
-#endif
-		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
-
-	} else {
-		keys.push_back(rank);
-		keys.push_back(rank+1);
-		lens.push_back(size_p);
-		lens.push_back(size_q);
-		
-#ifdef CAL_PORTION_RMSE
-		std::vector<float> vals(p, p+size_p+size_q+1);
-		keys.push_back(rank+2);
-		lens.push_back(1);
-		vals[size_p+size_q] =  std::accumulate(loss.begin(), loss.end(), 0.0);
-#else
-		std::vector<float> vals(p, p+size_p+size_q);
-#endif
-		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
-	}
-		
-}
-
-//pull feature, <keys, {feature}>
-void MFWorker::PullFeatureUseShm()
-{
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = PULL_FEATURE_SHM;
-	
-	current_epoch++;
-	//only first epoch will pull feature p;
-	keys.push_back(rank);
-
-	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-
-	int size_p = m * k;
-	int size_q = n * k;
-
-	size_t copy_size;
-	float *dst;
-
-	if(current_epoch == 1) {
-		copy_size = sizeof(float) * (size_p + size_q);
-		dst = p;
-	} else {
-		copy_size = sizeof(float) * size_q;
-		dst = q;
-	}
-
-	if(xpu->xpu_type == CPU) {	
-		memcpy(dst, shm_buf, copy_size);	
-	} else if(xpu->xpu_type == GPU) {
-		cudaMemcpy(dst, shm_buf, copy_size, cudaMemcpyHostToDevice);
-	}
-
-}
-
-//push format {keys0, feature_p} {keys1, feature_q} {lens0: m*k} {lens1: n*k}
-void MFWorker::PushFeatureUseShm()
-{
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = PUSH_FEATURE_SHM;
-
-	size_t size_p = m * k;
-	size_t size_q = n * k; 
-	size_t copy_size;
-	float *src;
-
-	//current_epoch < target_epoch, only push q	
-	if(current_epoch < target_epoch) {
-		copy_size = size_q;
-		src = q;
-	} else {
-		copy_size = size_p+size_q;
-		src = p;
-	}
-
-	if(xpu->xpu_type == CPU) {
-		memcpy(shm_buf, src, copy_size * sizeof(float));
-	} else {
-		cudaMemcpy(shm_buf, src, copy_size * sizeof(float), cudaMemcpyDeviceToHost);
-	}
-
-	keys.push_back(rank);
-	vals.push_back(copy_size);
-	lens.push_back(1);
-	
-#ifdef CAL_PORTION_RMSE
-	keys.push_back(rank+1);
-	lens.push_back(1);
-	vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
-#endif
-	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));	
-}
-
-
-#ifdef SEND_COMPRESS_Q_FEATURE
-void MFWorker::PullCompressFeature()
-{
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = PULL_HALF_FEATURE;
-
-	uint16_t *h_p, *h_q;
-	double start, elapse;	
-	current_epoch++;
-	//only first epoch will pull feature p;
-	if(current_epoch == 1) {
-		keys.push_back(0);
-		keys.push_back(1);
-	} else {
-		keys.push_back(0);
-	}
-//	start = cpu_second();
-	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-//	elapse = cpu_second() - start;
-//	printf("PullCompressFeature cost: %.3f\n", elapse);
-	int size_p = m * k;
-	int size_q = n * k;
-
-	if(current_epoch == 1) {
-		//decode
-		h_p = (uint16_t *)&vals[0];
-		halfp2singles(p, h_p, size_p+size_q, core_num);
-	} else {
-		h_q = (uint16_t *)&vals[0];
-		halfp2singles(q, h_q, size_q, core_num);
-	}
-//	print_feature_tail(p, q, size_p, size_q, 3, 0);
-}
-
-void MFWorker::PullCompressFeatureUseShm()
-{
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = PULL_HALF_FEATURE_SHM;
-
-	uint16_t *h_p, *h_q;
-//	double start, elapse;
-
-//	start = cpu_second();	
-	current_epoch++;
-	//only first epoch will pull feature p;
-	keys.push_back(rank);
-//	start = cpu_second();
-	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-//	elapse = cpu_second() - start;
-//	printf("PullCompressFeature cost time: %.3f\n", elapse);
-
-	int size_p = m * k;
-	int size_q = n * k;
-	if(current_epoch == 1) {
-		//decode
-		h_p = (uint16_t *)shm_buf;
-//		memcpy(halfp, shm_buf, vals[0]);
-		
-//		start = cpu_second();	
-		halfp2singles(p, h_p, size_p+size_q, core_num);
-	//	halfp2singles(p, halfp, size_p+size_q, core_num);
-//		elapse = cpu_second() - start;
-//		printf("PullCompressFeature halfp2singles cost: %.3f\n", elapse);
-//		halfp2singles(p, h_p, size_p+size_q, core_num);
-	} else {
-		h_q = (uint16_t *)shm_buf;
-//		memcpy(halfq, shm_buf, vals[0]);
-		
-//		start = cpu_second();	
-		halfp2singles(q, h_q, size_q, core_num);
-	//	halfp2singles(q, halfq, size_q, core_num);
-//		elapse = cpu_second() - start;
-//		printf("PullCompressFeature halfp2singles cost: %.3f\n", elapse);
-	}
-//	print_feature_tail(p, q, size_p, size_q, 3, 0);
-}
-
-
-
-void MFWorker::PushCompressFeature()
-{
-	std::vector<ps::Key> keys;
-	
-	std::vector<int> lens;
-	CMD cmd = PUSH_HALF_FEATURE;
-
-	size_t size_p = m * k;
-	size_t size_q = n * k; 
-
-	//recored transform
-	float *_p = (float *)halfp;			
-	float *_q = (float *)halfq;
-
-	if(current_epoch < target_epoch) {
-		keys.push_back(rank);
-		lens.push_back(size_q/2);				//compress half point
-
-		//encode
-		singles2halfp(halfq, q, size_q, FE_TONEAREST, 0, core_num);
-	
-#ifdef CAL_PORTION_RMSE
-		std::vector<float> vals(_q, _q+size_q/2+1);
-		keys.push_back(rank+1);
-		lens.push_back(1);
-		vals[size_q/2] = std::accumulate(loss.begin(), loss.end(), 0.0);
-#else
-		std::vector<float> vals(_q, _q+size_q/2);
-#endif
-		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
-
-	} else {
-		keys.push_back(rank);
-		keys.push_back(rank+1);
-		lens.push_back(size_p/2);
-		lens.push_back(size_q/2);
-
-		//encode
-		singles2halfp(halfp, p, size_p+size_q, FE_TONEAREST, 0, core_num);
-#ifdef CAL_PORTION_RMSE
-		std::vector<float> vals(_p, _p+size_p/2+size_q/2+1);
-		keys.push_back(rank+2);
-		lens.push_back(1);
-		vals[size_p/2+size_q/2] =  std::accumulate(loss.begin(), loss.end(), 0.0);
-#else
-		std::vector<float> vals(_p, _p+size_p/2+size_q/2);
-#endif
-		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
-	}	
-}
-
-void MFWorker::PushCompressFeatureUseShm()
-{
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = PUSH_HALF_FEATURE_SHM;
-
-	size_t size_p = m * k;
-	size_t size_q = n * k; 
-
-
-	if(current_epoch < target_epoch) {
-		keys.push_back(rank);
-		vals.push_back(size);
-		lens.push_back(1);				//compress half point
-
-		//encode
-		uint16_t *h_q = (uint16_t *)shm_buf;
-		singles2halfp(h_q, q, size_q, FE_TONEAREST, 0, core_num);
-	
-#ifdef CAL_PORTION_RMSE
-		keys.push_back(rank+1);
-		lens.push_back(1);
-		vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));	
-#endif
-//		memcpy(shm_buf, halfq, size * sizeof(uint16_t));
-		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
-
-	} else {
-		keys.push_back(rank);
-		vals.push_back(size);
-		lens.push_back(1);
-		//encode
-		uint16_t *h_p = (uint16_t *)shm_buf;
-		singles2halfp(h_p, p, size_p+size_q, FE_TONEAREST, 0, core_num);
-#ifdef CAL_PORTION_RMSE
-		keys.push_back(rank+1);
-		lens.push_back(1);
-		vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
-#endif
-//		memcpy(shm_buf, halfp, size*sizeof(uint16_t));
-		kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
-	}	
-}
-
-#endif
-
-//pull feature, <keys, {feature}>
-void MFWorker::PullAllFeature()
-{
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = PULL_ALL_FEATURE;
-
-	current_epoch++;	
-	keys.push_back(0);
-	keys.push_back(1);
-
-	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-
-	int size_p = m * k;
-	int size_q = n * k;
-	
-	memcpy(p, &vals[0], sizeof(float) * size_p);
-	memcpy(q, &vals[size_p], sizeof(float) * size_q);
-//	print_feature_tail(p, q, size_p, size_q, 3, 0);
-}
-
-
-//push format {keys0, feature_p} {keys1, feature_q} {lens0: m*k} {lens1: n*k}
-void MFWorker::PushAllFeature()
-{
-	std::vector<ps::Key> keys;
-	
-	std::vector<int> lens;
-	CMD cmd = PUSH_ALL_FEATURE;
-
-	size_t size_p = m * k;
-	size_t size_q = n * k; 
-
-	keys.push_back(0);
-	keys.push_back(1);
-
-	lens.push_back(size_p);
-	lens.push_back(size_q);
-
-#ifdef CAL_PORTION_RMSE
-	std::vector<float> vals(p, p+size_p+size_q+1);
-	keys.push_back(2);
-	lens.push_back(1);
-	vals[size_p+size_q] =  std::accumulate(loss.begin(), loss.end(), 0.0);
-#else
-	std::vector<float> vals(p, p+size_p+size_q);
-#endif
-
-	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
-}
-
-void MFWorker::PullPushFeature()
-{
-	std::vector<ps::Key> keys;
-	std::vector<int> lens;
-	std::vector<float> outs;
-	CMD cmd = PULL_PUSH_FEATURE;
-
-	size_t size_p = m * k;
-	size_t size_q = n * k; 
-
-	keys.push_back(0);
-	keys.push_back(1);
-//	lens.push_back(size_p);
-//	lens.push_back(size_q);
-
-	std::vector<float> vals(p, p+size_p+size_q);
-
-	kv_xpu->Wait(kv_xpu->PushPull(keys, vals, &outs, &lens, cmd));
-
-	memcpy(p, &outs[0], sizeof(float) * (size_p+size_q));
-	print_feature_head(p, q, 3, 0);
-	current_epoch++;
-}
 
 void MFWorker::PrepareCPUResources()
 {
@@ -522,170 +167,11 @@ void MFWorker::PrepareCPUResources()
 	p = feature;
 	q = feature + size_p;
 
-#ifdef SEND_COMPRESS_Q_FEATURE
-	halfp = (uint16_t *)malloc(sizeof(uint16_t) * (size_p + size_q + 2));
-	halfq = halfp + size_p;
-#endif
-}
-
-void MFWorker::PrepareResources()
-{
-	if(xpu->xpu_type == CPU) {
-		PrepareCPUResources();
-	} else if(xpu->xpu_type == GPU) {
-		PrepareGPUResources();
+	if(trans_mode == HALFQ) {
+		halfp = (uint16_t *)malloc(sizeof(uint16_t) * (size_p + size_q + 2));
+		halfq = halfp + size_p;
 	}
 
-	PrepareShmbuf();
-}
-
-void MFWorker::ReleaseCPUResources()
-{
-	free(feature);
-#ifdef SEND_COMPRESS_Q_FEATURE
-	free(halfp);
-#endif
-}
-
-void MFWorker::ReleaseResources()
-{
-	if(xpu->xpu_type == CPU) {
-		ReleaseCPUResources();
-	} else if(xpu->xpu_type == GPU) {
-		ReleaseGPUResources();
-	}
-}
-
-void MFWorker::InitTrainingData()
-{
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = INIT_DATA;
-
-	keys.push_back(rank);
-	lens.push_back(0);
-	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-	if(lens[0] != 5) {
-		printf("[Worker %d] InitTestData: receive data fail!\n");
-	}
-	
-	start = (int)vals[0];
-	size = (int)vals[1];
-	m = dm.rows = (int)vals[2];
-	n = dm.cols = (int)vals[3];
-	scale = vals[4];
-
-	lambda_p = lambda_p / scale;
-	lambda_q = lambda_q / scale;
-	dm.nnz = size;
-
-	debugp("[Worker %d] start: %ld, size: %ld, rows: %d, cols: %d\n", rank, start, size, dm.rows, dm.cols);
-}
-
-void MFWorker::GridProblem()
-{
-	Dim2 gridDim;
-		
-	gridDim.x =  2*core_num + 1;
-	gridDim.y =  2*core_num + 1;
-	
-	dm.SetGrid(gridDim);
-	dm.GridData(rank);
-}
-
-void MFWorker::CreateCPUTasks()
-{
-	tids.resize(core_num);
-#ifdef CAL_PORTION_RMSE	
-	loss.resize(core_num);
-#endif
-	for(int i = 0; i < core_num; i++) {
-		CPUArgs arg;
-		arg.tid = i;
-		arg.workers = core_num;
-		arg.target_epoch = target_epoch;
-		arg.current_epoch = &current_epoch;
-		arg.lambda_p = lambda_p;
-		arg.lambda_q = lambda_q;
-		arg.lrate = lrate;
-		arg.p = p;
-		arg.q = q;
-		arg.dm = &dm;
-		arg.cpuset = &cpuset;
-
-#ifdef CAL_PORTION_RMSE	
-		arg.loss = &loss[i];
-#endif
-
-		args.push_back(arg);
-	}
-
-	for(int i = 0; i < core_num; i++) {
-		pthread_create(&tids[i], NULL, sgd_kernel_hogwild_cpu, &args[i]);
-	}
-}
-
-void MFWorker::JoinTasks()
-{
-	for(int i = 0; i < core_num; i++) {
-		pthread_join(tids[i], NULL);
-	}
-}
-
-void MFWorker::StartUpTasks()
-{
-	//wake up worker threads;
-	pthread_mutex_lock(&cpu_workers_barrier_mutex);
-	cpu_workers_complete = 0;
-	pthread_cond_broadcast(&cpu_workers_barrier_con);
-	pthread_mutex_unlock(&cpu_workers_barrier_mutex);
-
-	//sleep control threads;
-	if(cpu_workers_complete == 0) {
-		debugp("control_thread will block!\n");
-		pthread_cond_wait(&control_wake_up_con,&control_wake_up_mutex);
-	}
-	//wake up, the worker complete a epoch
-
-	debugp("control_thread wake up and do something...!\n");
-	pthread_mutex_unlock(&control_wake_up_mutex);
-
-	//wake up control threads by worker completed
-	dm.ClearBlockFlags();	
-}
-
-void MFWorker::Computing()
-{
-	if(xpu->xpu_type == CPU) {
-		StartUpTasks();
-	} else if(xpu->xpu_type == GPU) {
-		sgd_update_k128_gpu();
-	}
-}
-
-void MFWorker::Test()
-{
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = PULL_DATA;
-
-	for(size_t i = 0; i < 5; i++) {
-		keys.push_back(i);
-		lens.push_back(3);
-	}
-
-	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-
-	for(size_t i = 0; i < vals.size(); i++) {
-		printf("vals[%d]: %d\n", i,(int)vals[i]);
-	}
-}
-
-void MFWorker::InitCPUAffinity()
-{
-	xpu->NumaBindNode();
 }
 
 int MFWorker::PrepareShmbuf()
@@ -695,8 +181,8 @@ int MFWorker::PrepareShmbuf()
     	perror("ftok fail!\n");
     	return -1;
 	}
-	size_t size = sizeof(float)*(m * k + n * k);
-	int shmid = shmget(key, size, IPC_CREAT | 0777);
+	size_t shm_size = sizeof(float)*(m * k + n * k);
+	int shmid = shmget(key, shm_size, IPC_CREAT | 0777);
 	if(shmid == -1) {
 		perror("shmget fail!\n");
 		return -1;
@@ -710,7 +196,47 @@ int MFWorker::PrepareShmbuf()
 	return 0;
 }
 
-void MFWorker::Prepare()
+void MFWorker::PrepareResources()
+{
+	if(xpu->xpu_type == CPU) {
+		PrepareCPUResources();
+	} else if(xpu->xpu_type == GPU) {
+		PrepareGPUResources();
+	}
+
+	ps_vals.resize(m * k + n * k + 1);
+	PrepareShmbuf();
+}
+
+void MFWorker::ReleaseCPUResources()
+{
+	free(feature);
+	if(trans_mode == HALFQ)
+		free(halfp);
+}
+
+void MFWorker::ReleaseResources()
+{
+	if(xpu->xpu_type == CPU) {
+		ReleaseCPUResources();
+	} else if(xpu->xpu_type == GPU) {
+		ReleaseGPUResources();
+	}
+}
+
+void MFWorker::GridProblem()
+{
+	Dim2 gridDim;
+		
+	gridDim.x = 2*workers + 1;
+	gridDim.y = 2*workers + 1;
+	
+	dm.SetGrid(gridDim);
+	dm.GridData(rank);
+}
+
+
+void MFWorker::PreProcess()
 {
 	Init();
 	PushXPUInfo();
@@ -719,8 +245,441 @@ void MFWorker::Prepare()
 	PullTrainingData();
 	if(xpu->xpu_type == CPU) {
 		GridProblem();
-		CreateCPUTasks();
 	}	
+}
+
+void MFWorker::PostProcess()
+{
+	ReleaseResources();
+	DeInit();
+}
+
+void MFWorker::PullAll()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_ALL_FEATURE;
+
+	xpu->current_epoch++;
+	keys.push_back(0);
+	keys.push_back(1);
+
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+
+	size_t transfer_size = (n+m)*k*sizeof(float);
+
+	xpu->Transfer(p, &vals[0], transfer_size, TransferDirect::S2C);
+}
+
+void MFWorker::PullAllShm()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_ALL_FEATURE_SHM;
+
+	xpu->current_epoch++;
+
+	//Only request the server to copy data to share memory;
+	keys.push_back(rank);
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+
+	size_t transfer_size = (n+m)*k*sizeof(float);
+	xpu->Transfer(p, shm_buf, transfer_size, TransferDirect::S2C);
+}
+
+//This function pulls P and Q in the first epoch 
+//And only pulls Q in other epoch
+void MFWorker::PullQ()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_FEATURE;
+	
+	xpu->current_epoch++;
+	
+	if(current_epoch == 1) {
+		keys.push_back(0);
+		keys.push_back(1);
+	} else {
+		keys.push_back(0);
+	}	
+
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+
+	size_t size_p = m * k;
+	size_t size_q = n * k;
+
+	if(xpu->current_epoch == 1) {
+		xpu->Transfer(p, &vals[0], (size_p+size_q) * sizeof(float), TransferDirect::S2C);	
+	} else {
+		xpu->Transfer(q, &vals[0], (size_q) * sizeof(float), TransferDirect::S2C);	
+	}
+}
+
+//Use share memory 
+void MFWorker::PullQShm()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_FEATURE_SHM;
+
+	xpu->current_epoch++;
+
+	//Only request the server to copy data to share memory;
+	keys.push_back(rank);
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+
+	size_t size_p = m * k;
+	size_t size_q = n * k;
+
+	if(xpu->current_epoch == 1) {
+		xpu->Transfer(p, shm_buf, (size_p+size_q)*sizeof(float), TransferDirect::S2C);
+	} else {
+		xpu->Transfer(q, shm_buf, (size_q)*sizeof(float), TransferDirect::S2C);
+	}
+}
+
+void MFWorker::PullHalfQ()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_HALF_FEATURE;
+
+	uint16_t *h_p, *h_q;
+	double start, elapse;	
+	xpu->current_epoch++;	
+
+	if(xpu->current_epoch == 1) {
+		keys.push_back(0);
+		keys.push_back(1);
+	} else {
+		keys.push_back(0);
+	}
+
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+
+	size_t size_p = m * k;
+	size_t size_q = n * k;
+
+	if(xpu->current_epoch == 1) {
+		//decode
+		h_p = (uint16_t *)&vals[0];
+		xpu->halfp2singles(p, h_p, size_p+size_q, max_cores);
+	} else {
+		h_q = (uint16_t *)&vals[0];
+		xpu->halfp2singles(q, h_q, size_q, max_cores);
+	}
+}
+
+void MFWorker::PullHalfQShm()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_HALF_FEATURE_SHM;
+
+	uint16_t *h_p, *h_q;
+
+	keys.push_back(rank);
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+
+	size_t size_p = m * k;
+	size_t size_q = n * k;
+
+	if(xpu->current_epoch == 1) {
+		h_p = (uint16_t *)shm_buf;
+		xpu->halfp2singles(p, h_p, size_p+size_q, max_cores);
+	} else {
+		h_q = (uint16_t *)shm_buf;
+		xpu->halfp2singles(q, h_q, size_q, max_cores);
+	}
+}
+
+void MFWorker::PushAll()
+{
+	std::vector<ps::Key> keys;
+	
+	std::vector<int> lens;
+	CMD cmd = PUSH_ALL_FEATURE;
+
+	size_t size_p = m * k;
+	size_t size_q = n * k; 
+	size_t trans_size;
+
+	keys.push_back(0);
+	keys.push_back(1);
+
+	lens.push_back(size_p);
+	lens.push_back(size_q);
+	trans_size = size_p+size_q;
+
+	xpu->Transfer(&ps_vals[0], p, trans_size * sizeof(float), TransferDirect::C2S);
+
+#ifdef CAL_PORTION_RMSE
+	keys.push_back(2);
+	lens.push_back(1);
+	ps_vals[trans_size] =  std::accumulate(loss.begin(), loss.end(), 0.0);
+	trans_size += 1;
+#endif
+
+	kv_xpu->Wait(kv_xpu->Push(keys, ps_vals, lens, cmd));
+}
+
+void MFWorker::PushAllShm()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PUSH_ALL_FEATURE_SHM;
+
+	size_t trans_size = (n+m)*k;
+
+	xpu->Transfer(shm_buf, p, trans_size * sizeof(float), TransferDirect::C2S);
+
+	keys.push_back(rank);
+	vals.push_back(trans_size);
+	lens.push_back(1);
+	
+#ifdef CAL_PORTION_RMSE
+	keys.push_back(rank+1);
+	lens.push_back(1);
+	vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
+#endif
+	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));		
+}
+
+void MFWorker::PushQ()
+{
+	std::vector<ps::Key> keys;
+	
+	std::vector<int> lens;
+	CMD cmd = PUSH_FEATURE;
+
+	size_t size_p = m * k;
+	size_t size_q = n * k; 	
+	size_t trans_size;
+	int index;
+	float *src;
+
+	//current_epoch < target_epoch, only push q 
+	if(xpu->current_epoch < xpu->target_epoch) {
+		keys.push_back(rank);
+		lens.push_back(size_q);
+		trans_size = size_q;
+		index = 1;
+		src = q;
+	} else {
+		keys.push_back(rank);
+		keys.push_back(rank+1);
+		lens.push_back(size_p);
+		lens.push_back(size_q);
+		trans_size = size_p + size_q;
+		index = 2;
+		src = p;
+	}
+
+	xpu->Transfer(&ps_vals[0], src, trans_size * sizeof(float), TransferDirect::C2S);
+
+#ifdef CAL_PORTION_RMSE
+	keys.push_back(rank+index);
+	lens.push_back(1);
+	ps_vals[trans_size] =  std::accumulate(loss.begin(), loss.end(), 0.0);
+	trans_size += 1;
+#endif
+
+	kv_xpu->Wait(kv_xpu->Push(keys, ps_vals, lens, cmd));
+}
+
+void MFWorker::PushQShm()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PUSH_FEATURE_SHM;
+
+	size_t size_p = m * k;
+	size_t size_q = n * k; 
+	size_t trans_size;
+	float *src;
+
+	//current_epoch < target_epoch, only push q	
+	if(xpu->current_epoch < xpu->target_epoch) {
+		trans_size = size_q;
+		src = q;
+	} else {
+		trans_size = size_p+size_q;
+		src = p;
+	}
+
+	xpu->Transfer(shm_buf, src, trans_size * sizeof(float), TransferDirect::C2S);
+
+	keys.push_back(rank);
+	vals.push_back(trans_size);
+	lens.push_back(1);
+	
+#ifdef CAL_PORTION_RMSE
+	keys.push_back(rank+1);
+	lens.push_back(1);
+	vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
+#endif
+	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));		
+}
+
+void MFWorker::PushHalfQ()
+{
+	std::vector<ps::Key> keys;
+	std::vector<int> lens;
+	CMD cmd = PUSH_HALF_FEATURE;
+
+	size_t size_p = m * k;
+	size_t size_q = n * k; 
+	size_t trans_size;
+	int index;
+	float *src;
+	uint16_t *dst;
+
+	if(xpu->current_epoch < xpu->target_epoch) {
+		keys.push_back(rank);
+		lens.push_back(size_q/2);				//compress half point
+		trans_size = size_q / 2;
+		index = 1;
+		src = q;
+		dst = halfq;
+	} else {
+		keys.push_back(rank);
+		keys.push_back(rank+1);
+		lens.push_back(size_p/2);
+		lens.push_back(size_q/2);
+		trans_size = (size_p+size_q)/2;
+		index = 2;
+		src = p;
+		dst = halfp;
+	}
+
+	xpu->singles2halfp(dst, src, trans_size, FE_TONEAREST, 0, max_cores);
+	xpu->Transfer(&ps_vals[0], dst, trans_size, TransferDirect::C2S);
+	
+#ifdef CAL_PORTION_RMSE
+	keys.push_back(rank+index);
+	lens.push_back(1);
+	ps_vals[trans_size] =  std::accumulate(loss.begin(), loss.end(), 0.0);
+#endif
+
+	kv_xpu->Wait(kv_xpu->Push(keys, ps_vals, lens, cmd));
+}
+
+void MFWorker::PushHalfQShm()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PUSH_HALF_FEATURE_SHM;
+
+	size_t size_p = m * k;
+	size_t size_q = n * k; 
+	size_t trans_size;
+	float *src;
+
+	if(xpu->current_epoch < xpu->target_epoch) {
+		trans_size = size_q;
+		src = q;
+	} else {
+		trans_size = size_p+size_q;
+		src = p;
+	}
+
+	keys.push_back(rank);
+	vals.push_back(trans_size);
+	lens.push_back(1);				//compress half point
+	
+	xpu->singles2halfp(shm_buf, src, trans_size, FE_TONEAREST, 0, max_cores);
+
+#ifdef CAL_PORTION_RMSE
+	keys.push_back(rank+1);
+	lens.push_back(1);
+	vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
+#endif
+	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));	
+}
+
+void MFWorker::Pull()
+{
+	switch(trans_mode) {
+		case ALL: 
+			use_shm ? PullAllShm() : PullAll();
+			break;
+
+		case Q:
+			use_shm ? PullQShm() : PullQShm();
+			break;
+
+		case HALFQ:
+			use_shm ? PullHalfQShm : PullHalfQ();
+			break;
+
+		default:
+			printf("Unkown trans_mode, exit!\n");
+			exit(-1);
+	}
+}
+
+void MFWorker::Push()
+{
+	switch(trans_mode) {
+		case ALL: 
+			use_shm ? PushAllShm() : PushAll();
+			break;
+
+		case Q:
+			use_shm ? PushQShm() : PushQShm();
+			break;
+
+		case HALFQ:
+			use_shm ? PushHalfQShm : PushHalfQ();
+			break;
+
+		default:
+			printf("Unkown trans_mode, exit!\n");
+			exit(-1);
+	}
+}
+
+void MFWorker::CreateWorkers(pFunc func)
+{
+#ifdef CAL_PORTION_RMSE
+		loss.resize(workers);
+#endif
+
+	for(int i = 0; i < workers; i++) {
+		Args args;
+		args.lambda_p = lambda_p;
+		args.lambda_q = lambda_q;
+		args.lrate = lrate;
+		args.p = p;
+		args.q = q;
+	
+#ifdef CAL_PORTION_RMSE	
+		args.loss = &loss[i];
+#endif
+		args.data = &dm;
+
+		xpu->CreateTasks(i, func, &args);
+	}
+}
+
+void MFWorker::Computing()
+{
+	xpu->RunTasks();
+}
+
+void MFWorker::JoinWorkers()
+{
+	xpu->JoinTasks();
 }
 
 }

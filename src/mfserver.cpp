@@ -40,10 +40,17 @@ static bool data_init_stage(false);
 void MFServer::Init()
 {
 	const char* val = NULL;
+	val = Environment::Get()->find("NUMA_NODE");
+	if(val != NULL) {
+		numa_node = std::atoi(val);
+	} else {
+		numa_node = 0;
+	}
+	BindNumaNode(numa_node);
+	
 	XPU *xpu = new XPU;
 	xpu->Init();
-	xpu->is_server = true;
-	xpu->NumaBindNode();
+
 	this->xpu = xpu;
 	
 	val = CHECK_NOTNULL(ps::Environment::Get()->find("EPOCH"));

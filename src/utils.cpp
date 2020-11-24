@@ -4,6 +4,7 @@
 #include <omp.h>
 #include <immintrin.h>
 #include <cstdint>
+#include <numa.h>
 #include "utils.h"
 
 long long cpu_microsecond(void)
@@ -51,7 +52,7 @@ static inline void singles2halfp(uint16_t *target, const float *source)
 	_mm_storeu_si128((__m128i*)target, _mm256_cvtps_ph(_mm256_loadu_ps(source), 0));
 }
 
-int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
+int _singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
 {
 	const float *src = (const float *)source;
 	uint16_t *dst = (uint16_t *)target;
@@ -87,7 +88,7 @@ inline void halfp2singles(float * dst, const uint16_t * src)
     _mm256_storeu_ps(dst, _mm256_cvtph_ps(_mm_loadu_si128((__m128i*)src)));
 }
 
-int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
+int _halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
 {
     float *dst = (float *)target;
 	const uint16_t *src = (const uint16_t *)source;
@@ -160,7 +161,7 @@ int halfp2singles_madd(void *target, void *source, ptrdiff_t numel, int nr_threa
 
 #else
 //MATLAB Software
-int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
+int _singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
 {
     UINT16_TYPE *hp = (UINT16_TYPE *) target; // Type pun output as an unsigned 16-bit int
     const UINT32_TYPE *xp = (const UINT32_TYPE *) source; // Type pun input as an unsigned 32-bit int
@@ -296,7 +297,7 @@ int singles2halfp(void *target, const void *source, ptrdiff_t numel, int roundin
     return 0;
 }
 
-int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
+int _halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
 {
     UINT16_TYPE *hp = (UINT16_TYPE *) source; // Type pun input as an unsigned 16-bit int
     UINT32_TYPE *xp = (UINT32_TYPE *) target; // Type pun output as an unsigned 32-bit int
@@ -366,4 +367,21 @@ int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
     }
     return 0;
 }
+
+void BindNumaNode(int node_id)
+{
+	if(numa_available() < 0) {
+		printf("System can not support numa arch!\n");
+		return;
+	}	
+
+	numa_set_localalloc();
+    int max_node = numa_max_node();
+    if(node_id <= max_node && numa_run_on_node(node_id) == 0) {
+            debugp("Bind task to node %d success!\n", node_id);
+    } else {
+            debugp("Bind task to node %d fail!\n", node_id);
+    }
+}
+
 #endif
