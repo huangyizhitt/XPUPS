@@ -25,7 +25,7 @@ struct sort_node_by_q
     }
 };
 
-void DataManager::Init(const char * file, , const bool& use_half = false)
+void DataManager::Init(const char * file, const bool& use_half)
 {
 	train_file_path = file;
 	this->use_half = use_half;

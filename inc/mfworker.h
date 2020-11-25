@@ -18,7 +18,7 @@ public:
 	void Pull();
 	void Push();
 	void Computing();
-	void CreateWorkers();
+	void CreateWorkers(pFunc func);
 	void JoinWorkers();
 	inline int GetCurrentEpoch() const {return xpu->current_epoch;}
 	inline int GetTargetEpoch() const {return xpu->target_epoch;}
@@ -29,12 +29,14 @@ private:
 	void InitTrainingData();
 	void PullTrainingData();
 	void PrepareCPUResources();
+	void PrepareGPUResources();
 	void PrepareResources();
 	int PrepareShmbuf();
 	void GridProblem();
 	
 	
 	void ReleaseCPUResources();
+	void ReleaseGPUResources();
 	void ReleaseResources();
 	
 	
@@ -52,7 +54,7 @@ private:
 	void PushHalfQShm();
 	void PushXPUInfo();
 	
-
+	void PullGPUData();
 private:
 	int rank;
 	int workers;

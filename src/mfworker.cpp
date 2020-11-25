@@ -68,7 +68,7 @@ void MFWorker::Init()
 
 	val = Environment::Get()->find("TRANSMODE");
 	if(val != NULL) {
-		trans_mode = std::atoi(val);
+		trans_mode = static_cast<TransMode>(std::atoi(val));
 	} else {
 		trans_mode = ALL;
 	}
@@ -94,7 +94,7 @@ void MFWorker::PushXPUInfo()
 	std::vector<int> lens;
 	CMD cmd = PUSH_INFO;
 	keys.push_back(rank);
-	vals.push_back(xpu->xpu_type);
+	vals.push_back(static_cast<float>(xpu->xpu_type));
 	vals.push_back(xpu->workers);
 	vals.push_back(xpu->worker_ratio);
 	lens.push_back(3);
@@ -113,7 +113,7 @@ void MFWorker::InitTrainingData()
 	lens.push_back(0);
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
 	if(lens[0] != 5) {
-		printf("[Worker %d] InitTestData: receive data fail!\n");
+		printf("[Worker %d] InitTestData: receive data fail!\n", rank);
 	}
 	
 	start = (size_t)vals[0];
@@ -152,7 +152,6 @@ void MFWorker::PullTrainingData()
 
 	Data& data = this->dm.data;
 	data.r_matrix.resize(size);	
-	data_counter = size;
 	int len = 3;
 	for(int i = 0; i < size; i++) {
 		data.r_matrix[i].row_index = (int)vals[i * len + 0];
@@ -160,7 +159,7 @@ void MFWorker::PullTrainingData()
 		data.r_matrix[i].r = (float)vals[i * len + 2];
 	}
 
-	if(xpu->xpu_type == GPU) PullGPUData();
+	if(xpu->xpu_type == XPU_TYPE::GPU) PullGPUData();
 	debugp("Recive data count: %ld\n", data_counter);
 }
 
@@ -209,9 +208,9 @@ int MFWorker::PrepareShmbuf()
 
 void MFWorker::PrepareResources()
 {
-	if(xpu->xpu_type == CPU) {
+	if(xpu->xpu_type == XPU_TYPE::CPU) {
 		PrepareCPUResources();
-	} else if(xpu->xpu_type == GPU) {
+	} else if(xpu->xpu_type == XPU_TYPE::GPU) {
 		PrepareGPUResources();
 	}
 
@@ -230,9 +229,9 @@ void MFWorker::ReleaseCPUResources()
 
 void MFWorker::ReleaseResources()
 {
-	if(xpu->xpu_type == CPU) {
+	if(xpu->xpu_type == XPU_TYPE::CPU) {
 		ReleaseCPUResources();
-	} else if(xpu->xpu_type == GPU) {
+	} else if(xpu->xpu_type == XPU_TYPE::GPU) {
 		ReleaseGPUResources();
 	}
 }
@@ -256,7 +255,7 @@ void MFWorker::PreProcess()
 	InitTrainingData();
 	PrepareResources();
 	PullTrainingData();
-	if(xpu->xpu_type == CPU) {
+	if(xpu->xpu_type == XPU_TYPE::CPU) {
 		GridProblem();
 	}	
 }
@@ -313,7 +312,7 @@ void MFWorker::PullQ()
 	
 	xpu->current_epoch++;
 	
-	if(current_epoch == 1) {
+	if(xpu->current_epoch == 1) {
 		keys.push_back(0);
 		keys.push_back(1);
 	} else {
@@ -632,7 +631,7 @@ void MFWorker::Pull()
 			break;
 
 		case HALFQ:
-			use_shm ? PullHalfQShm : PullHalfQ();
+			use_shm ? PullHalfQShm() : PullHalfQ();
 			break;
 
 		default:
@@ -653,7 +652,7 @@ void MFWorker::Push()
 			break;
 
 		case HALFQ:
-			use_shm ? PushHalfQShm : PushHalfQ();
+			use_shm ? PushHalfQShm() : PushHalfQ();
 			break;
 
 		default:

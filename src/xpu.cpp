@@ -22,7 +22,7 @@ void XPU::Init()
 	if(val != NULL)
 		this->max_cores = std::atoi(val);
 
-	val = Environment::Get()->find("XPU_WORKERS"));
+	val = Environment::Get()->find("XPU_WORKERS");
 	if(val != NULL)
 		workers = std::atoi(val);
 
@@ -30,7 +30,7 @@ void XPU::Init()
 	if(val != NULL)
 		worker_ratio = atoi(val);
 
-	if(xpu_type == CPU) {
+	if(xpu_type == XPU_TYPE::CPU) {
 		dev_id = 0;
 	} else {
 		val = Environment::Get()->find("DEVICE_ID");

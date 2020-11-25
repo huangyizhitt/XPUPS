@@ -61,7 +61,7 @@ void MFServer::Init()
 	xpu->Init();
 
 	server_xpu = new ps::KVServer<float>(0);	
-	server_xpu->set_request_handle(ReqHandle);
+	server_xpu->set_request_handle(ProcessHandle);
 
 	total_work_ratio = 0;
 	prepare_data_threads = xpu->max_cores;
@@ -86,14 +86,14 @@ void MFServer::Init()
 
 	val = Environment::Get()->find("TRANSMODE");
 	if(val != NULL) {
-		trans_mode = std::atoi(val);
+		trans_mode = static_cast<TransMode>(std::atoi(val));
 	} else {
 		trans_mode = ALL;
 	}
 
 	(trans_mode == HALFQ) ? dm.Init(file_path, true) : dm.Init(file_path, false);
 
-	printf("Server XPU TYPE: %d, data threads: %d, work threads: %d\n", xpu->xpu_type, xpu->max_cores, xpu->workers);
+	printf("Server XPU TYPE: %d, data threads: %d, work threads: %d\n", static_cast<int>(xpu->xpu_type), xpu->max_cores, xpu->workers);
 }
 
 void MFServer::ProcessHandle(const ps::KVMeta& req_meta,
@@ -185,30 +185,30 @@ void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
 	xpu_info.type = (XPU_TYPE)req_data.vals[0];
 	xpu_info.workers = (int)req_data.vals[1];
 	xpu_info.work_ratio = (int)req_data.vals[2];
-	printf("Worker: %d, XPU TYPE: %d, threads: %d, work_ratio: %d\n", worker_rank, xpu_info.type, xpu_info.workers, xpu_info.work_ratio);
+	printf("Worker: %d, XPU TYPE: %d, threads: %d, work_ratio: %d\n", worker_rank, static_cast<int>(xpu_info.type), xpu_info.workers, xpu_info.work_ratio);
 	total_work_ratio += xpu_info.work_ratio;
 	worker_xpu_info.insert(std::make_pair(worker_rank, xpu_info));
 
 	switch(xpu_info.type) {
 	  
-	  case CPU:
-		  cpus++;
-		  break;
+		case XPU_TYPE::CPU:
+		 	cpus++;
+			break;
 	  
-	  case GPU:
-		  gpus++;
-		  break;
+		case XPU_TYPE::GPU:
+		  	gpus++;
+		  	break;
 	  
-	  case FPGA:
-		  fpgas++;
-		  break;
+		case XPU_TYPE::FPGA:
+		  	fpgas++;
+		  	break;
 	  
-	  case TPU:
-		  tpus++;
-		  break;
+	  	case XPU_TYPE::TPU:
+		  	tpus++;
+		  	break;
 
-	  default:
-		  break;
+	  	default:
+		 	break;
 	}
 	xpus++;
 	ps::KVPairs<float> res;
@@ -446,7 +446,7 @@ void MFServer::ProcessPullQShm(const ps::KVMeta& req_meta,
 	float *buf = (float *)shm_buf[rank].second;
 	size_t size;
 	
-  	if(current_epoch != 1) {
+  	if(xpu->current_epoch != 1) {
 		res.vals[0] = size = size_q * sizeof(float);
 	  	memcpy(buf, &dm.model.q[0], res.vals[0]);
 //		 printf("[Process Pull] dm.model.q[0]: %.3f, dm.model.q[1]: %.3f, dm.model.q[2]: %.3f\n", dm.model.q[0], dm.model.q[1], dm.model.q[2]); 
@@ -663,7 +663,7 @@ void MFServer::ProcessPushHalfQ(const ps::KVMeta& req_meta,
 #else
 		  	for(int i = 0; i < size_q; i++) {
 				float tmp;
-				halfp2singles(&tmp, h_q+i, 1, nr_threads);
+				halfp2singles(&tmp, h_q+i, 1, quantify_data_threads);
 			  	dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
 			}
 #endif
@@ -692,7 +692,7 @@ void MFServer::ProcessPushHalfQ(const ps::KVMeta& req_meta,
 		  	for(int i = 0; i < size_q; i++) {
 //			  	dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
 				float tmp;
-				halfp2singles(&tmp, h_q+i, 1, nr_threads);
+				halfp2singles(&tmp, h_q+i, 1, quantify_data_threads);
 				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
 		  	}
 #endif
@@ -791,7 +791,7 @@ void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 #else
 			for(int i = 0; i < size_q; i++) {
 				float tmp;
-				halfp2singles(&tmp, h_q+i, 1, nr_threads);
+				halfp2singles(&tmp, h_q+i, 1, quantify_data_threads);
 				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
 			}
 #endif
@@ -807,8 +807,8 @@ void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 //		memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
 		h_p = (uint16_t *)shm_buf[rank].second;
 		h_q = h_p + size_p;
-		halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, nr_threads);
-		if(receive_times == 0) {
+		halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, quantify_data_threads);
+		if(received == 0) {
 //			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
 			halfp2singles(&dm.model.q[0], h_q, size_q, quantify_data_threads);
 		} else {

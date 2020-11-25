@@ -52,7 +52,7 @@ static inline void singles2halfp(uint16_t *target, const float *source)
 	_mm_storeu_si128((__m128i*)target, _mm256_cvtps_ph(_mm256_loadu_ps(source), 0));
 }
 
-int _singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
+int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
 {
 	const float *src = (const float *)source;
 	uint16_t *dst = (uint16_t *)target;
@@ -88,7 +88,7 @@ inline void halfp2singles(float * dst, const uint16_t * src)
     _mm256_storeu_ps(dst, _mm256_cvtph_ps(_mm_loadu_si128((__m128i*)src)));
 }
 
-int _halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
+int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
 {
     float *dst = (float *)target;
 	const uint16_t *src = (const uint16_t *)source;
@@ -161,7 +161,7 @@ int halfp2singles_madd(void *target, void *source, ptrdiff_t numel, int nr_threa
 
 #else
 //MATLAB Software
-int _singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
+int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
 {
     UINT16_TYPE *hp = (UINT16_TYPE *) target; // Type pun output as an unsigned 16-bit int
     const UINT32_TYPE *xp = (const UINT32_TYPE *) source; // Type pun input as an unsigned 32-bit int
@@ -297,7 +297,7 @@ int _singles2halfp(void *target, const void *source, ptrdiff_t numel, int roundi
     return 0;
 }
 
-int _halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
+int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
 {
     UINT16_TYPE *hp = (UINT16_TYPE *) source; // Type pun input as an unsigned 16-bit int
     UINT32_TYPE *xp = (UINT32_TYPE *) target; // Type pun output as an unsigned 32-bit int

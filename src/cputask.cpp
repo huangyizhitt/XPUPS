@@ -3,6 +3,7 @@
 #include <iostream>
 #include <immintrin.h>
 #include "utils.h"
+#include "xpu.h"
 
 namespace MF{
 #ifdef USE_AVX2
@@ -118,7 +119,7 @@ static inline float inner_product(float *a, float *b, int k)
 void *fpsgd_kernel(void *args)
 {
 	Args *cpu_args = (Args *)args;
-	WorkerDM *dm = cpu_args->dm;
+	WorkerDM *dm = (WorkerDM *)cpu_args->data;
 	Grid *grid = &dm->grid;
 	int k = dm->k;
 

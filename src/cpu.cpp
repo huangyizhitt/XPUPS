@@ -16,22 +16,22 @@ void *task_thread(void *args)
 	int total_works = pool->tasks.size();
 	int tid = pool->tid;
 	while(true) {
-		pthread_mutex_lock(&barrier_mutex);
-		pthread_cond_wait(&barrier_con, &barrier_mutex);
-		pthread_mutex_unlock(&barrier_mutex);
+		pthread_mutex_lock(barrier_mutex);
+		pthread_cond_wait(barrier_con, barrier_mutex);
+		pthread_mutex_unlock(barrier_mutex);
 
 		pFunc func = pool->tasks[tid].func;
 		func(pool->tasks[tid].args);
 
-		pthread_mutex_lock(&wake_mutex);
+		pthread_mutex_lock(wake_mutex);
 		*complete_workers++;
 		if(*complete_workers == total_works) {
 			debugp("will wake up control thread!\n");
-			pthread_cond_signal(&wake_con);
+			pthread_cond_signal(wake_con);
 		}
-		pthread_mutex_unlock(&wake_mutex);
+		pthread_mutex_unlock(wake_mutex);
 
-		if(*current_epoch == target_epoch) break;
+		if(current_epoch == target_epoch) break;
 	}
 }
 
@@ -65,12 +65,12 @@ void CPU::RunTasks()
 {
 	//wake up worker threads;
 	pthread_mutex_lock(&task_pool.barrier_mutex);
-	cpu_workers_complete = 0;
+	task_pool.complete_workers = 0;
 	pthread_cond_broadcast(&task_pool.barrier_con);
 	pthread_mutex_unlock(&task_pool.barrier_mutex);
 
 	//sleep control threads;
-	if(cpu_workers_complete == 0) {
+	if(task_pool.complete_workers == 0) {
 		debugp("control_thread will block!\n");
 		pthread_cond_wait(&task_pool.wake_con,&task_pool.wake_mutex);
 	}
@@ -108,12 +108,12 @@ void CPU::SetTask(pFunc func, void * args, int index)
 
 int CPU::singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
 {
-	return _singles2halfp(target, source, numel, rounding_mode, is_quiet, nr_threads);
+	return singles2halfp(target, source, numel, rounding_mode, is_quiet, nr_threads);
 }
 
 int CPU::halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
 {
-	return _halfp2singles(target, source, numel, nr_threads);
+	return halfp2singles(target, source, numel, nr_threads);
 }
 
 }

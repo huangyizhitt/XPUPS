@@ -60,8 +60,8 @@ long long cpu_microsecond(void);
 double cpu_second(void);
 void print_feature_head(const float *p, const float *q, int head = 5, bool is_server = false);
 void print_feature_tail(const float *p, const float *q, size_t size_p, size_t size_q, int tail = 3, bool is_server = false);
-int _singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads);
-int _halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads);
+int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads);
+int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads);
 void BindNumaNode(int node_id);
 
 #if defined(USE_AVX2) || defined(USE_AVX512)

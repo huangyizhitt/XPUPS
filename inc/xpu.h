@@ -55,8 +55,8 @@ struct XPU {
 	virtual void JoinTasks(){}
 	virtual void DestroyTasks(){}
 	virtual void Transfer(void *dst, void *src, size_t size, TransferDirect direct){}
-	virtual int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads){}
-	virtual int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads){}
+	virtual int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads){return 0;}
+	virtual int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads){return 0;}
 		
 	char xpu_name[64];
 	XPU_TYPE xpu_type;
