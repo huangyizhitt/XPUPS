@@ -25,6 +25,13 @@ struct sort_node_by_q
     }
 };
 
+void DataManager::Init(const char * file, , const bool& use_half = false)
+{
+	train_file_path = file;
+	this->use_half = use_half;
+	k = 128;
+}
+
 bool DataManager::LoadData()
 {
 	double start, elapse;
@@ -144,7 +151,7 @@ void DataManager::ShuffleData()
     }
 }
 
-void DataManager::Init(int nr_threads)
+void DataManager::PrepareTrainingData(int nr_threads)
 {
 	double start, elapse;
 	scale = 1.0f;
@@ -272,10 +279,11 @@ void DataManager::InitModel()
     std::uniform_real_distribution<float> distribution(0.0, 1.0);
 	float s = (float)sqrt(1.0/k);
 	
-	model.p.resize(rows * k, 0);
-	model.q.resize(k * cols, 0);
+	model.feature.resize((rows+cols) * k, 0);
+	model.p = &model.feature[0];
+	model.q = &model.feature[rows*k];
 
-	auto init1 = [&](std::vector<float>& feature, size_t size, std::vector<int>& counts)
+	auto init1 = [&](float *feature, size_t size, std::vector<int>& counts)
 	{
 		for(size_t i = 0; i < size; ++i)
         	{
@@ -292,10 +300,10 @@ void DataManager::InitModel()
 	init1(model.p, rows, counts_p);
 	init1(model.q, cols, counts_q);
 
-#ifdef SEND_COMPRESS_Q_FEATURE
-	halfp = (uint16_t *)malloc(sizeof(uint16_t) * (rows + cols) * k);
-	halfq = halfp + (rows * k);
-#endif
+	if(use_half) {
+		halfp = (uint16_t *)malloc(sizeof(uint16_t) * (rows + cols) * k);
+		halfq = halfp + (rows * k);
+	}
 
 	printf("init model success!\n");
 }

@@ -7,35 +7,8 @@
 #include "mfworker.h"
 #include "utils.h"
 
-std::unordered_map<int, XPU_INFO> MF::MFServer::worker_xpu_info;
-std::unordered_map<int, std::pair<int, unsigned char *> > MF::MFServer::shm_buf;
-MF::DataManager MF::MFServer::dm("netflix_train.bin", 128, 3);
-int MF::MFServer::cpus(0);
-int MF::MFServer::gpus(0);
-int MF::MFServer::fpgas(0);
-int MF::MFServer::tpus(0);
-int MF::MFServer::xpus(0);
-int MF::MFServer::max_workers(0);
-int MF::MFServer::scale(0);
-int MF::MFServer::nr_threads(0);
-int MF::MFServer::data_nr_threads(0);
-
-#ifdef EXPLORE
-std::ofstream  MF::MFServer::out("feature.csv", std::ios::out);
-#endif
-
-
-int MF::MFServer::receive_times(0);
-int MF::MFServer::current_epoch(1);
-int MF::MFServer::target_epoch(20);
-#ifdef CAL_PORTION_RMSE
-float MF::MFServer::loss(0.0);
-#endif
-
-
 int main(int argc, char **argv)
 {
-	XPU *xpu;
 	MF::MFServer* server;
 	MF::MFWorker* worker;
 
@@ -55,72 +28,37 @@ int main(int argc, char **argv)
 	if (ps::IsWorker()) {
 		std::cout << "start worker" << std::endl;
 		worker = new MF::MFWorker();
-		worker->Prepare();
+		worker->PreProcess();
 
 		double start, elapse = 0;
 		start = cpu_second();
 		while(true) {
-#ifdef SEND_ALL_FEATURE
 //			printf("Begin epoch\n");
 //			start = cpu_second();
-			worker->PullAllFeature();
+			worker->Pull();
 //			elapse = cpu_second() - start;
 //                        printf("Pull cost time: %.3f\n", elapse);
 
 //			start = cpu_second();
-			worker->StartUpTasks();
+			worker->Computing();
 //			elapse = cpu_second() - start;
  //                       printf("Compute cost time: %.3f\n", elapse);
 
 //			start = cpu_second();
-			worker->PushAllFeature();
+			worker->Push();
 //                        elapse = cpu_second() - start;
 //                        printf("Push cost time: %.3f\n", elapse);
-#elif SEND_Q_FEATURE
-//			start = cpu_second();
-//			worker->PullFeature();
-			worker->PullFeatureUseShm();
-//			elapse = cpu_second() - start;
-   //                     printf("Pull cost time: %.3f\n", elapse);
 
-//			start = cpu_second();
-			worker->Computing()();
-//			elapse = cpu_second() - start;
-//                        printf("Compute cost time: %.3f\n", elapse);
-
-//			start = cpu_second();
-//			worker->PushFeature();
-			worker->PushFeatureUseShm();
-//			elapse = cpu_second() - start;
-//                        printf("Push cost time: %.3f\n", elapse);
-#elif SEND_COMPRESS_Q_FEATURE
-//			start = cpu_second();
-//			worker->PullCompressFeature();
-			worker->PullCompressFeatureUseShm();
-//			elapse += cpu_second() - start;
-//			printf("Pull cost time: %.3f\n", elapse);
-
-//			start = cpu_second();
-			worker->StartUpTasks();
-//			elapse += cpu_second() - start;
-//			printf("Compute cost time: %.3f\n", elapse);
-
-//			start = cpu_second();
-//			worker->PushCompressFeature();
-			worker->PushCompressFeatureUseShm();
-//			elapse += cpu_second() - start;
-//			printf("Push cost time: %.3f\n", elapse);
-#endif
 			ps::Postoffice::Get()->Barrier(0, ps::kWorkerGroup);
 //			elapse = cpu_second() - start;
   //                      printf("Push cost time: %.3f\n", elapse);
-			if(worker->current_epoch == worker->target_epoch) break;
+			if(worker->GetCurrentEpoch() == worker->GetTargetEpoch) break;
 		}
 		elapse = cpu_second() - start;
 		printf("[Worker %d] 20 epoch cost time: %.3f\n", worker->GetWorkerID(), elapse);
 //		printf("20 epoch compute cost time: %.3f\n", elapse);
 //		printf("20 epoch communication cost time %.3f\n", elapse);
-		worker->JoinTasks();
+		worker->JoinWorkers();
 		ps::RegisterExitCallback([worker](){ delete worker;});
 	}
 

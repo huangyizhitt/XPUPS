@@ -29,8 +29,9 @@ struct Model{
 	int n;
 	int k;
 	float scale;
-	std::vector<float> p;           //m*k
-	std::vector<float> q;			//k*n
+	float *p;           //m*k
+	float *q;			//k*n
+	std::vector<float> feature;		
 };
 
 //2D Grid
@@ -50,22 +51,22 @@ enum EpochStatus {
 
 class DataManager {
 public:
-	DataManager(const char *file, int k, int epoch) : train_file_path(file), k(k), epoch(epoch)							//build manager and open file	
+	DataManager()	
 	{
 		
 	}
 	
 	~DataManager() 
 	{
-#ifdef SEND_COMPRESS_Q_FEATURE
-		free(halfp);
-#endif
+		if(use_half)
+			free(halfp);
 	}
 	
-	void Init(int nr_threads);
+	void Init(const char *file, const bool& use_half = false);
 	void DeInit();
 	void SetGrid(const Dim2& gridDim);
 	void GridData(int nr_threads);
+	void PrepareTrainingData(int nr_threads);
 	
 //private:
 	bool LoadData();
@@ -110,10 +111,9 @@ public:
 	float means;
 	float stddev;
 	float scale;
-#ifdef SEND_COMPRESS_Q_FEATURE
+	bool use_half;
 	uint16_t *halfp;
 	uint16_t *halfq;
-#endif
 	struct Grid grid;
 	Data data;
 	Model model;

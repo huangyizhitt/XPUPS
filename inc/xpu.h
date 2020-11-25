@@ -24,6 +24,24 @@ enum class TransferDirect {
 
 typedef void* (*pFunc)(void *);
 
+struct Args {
+	float lambda_p;
+	float lambda_q;
+	float lrate;
+	float *p;
+	float *q;
+	
+#ifdef CAL_PORTION_RMSE	
+	float *loss;
+#endif
+	void *data;
+
+#ifdef DEBUG
+	int tid;
+#endif
+};
+
+
 struct XPU {
 	XPU() {}
 	virtual ~XPU() {}
@@ -31,14 +49,14 @@ struct XPU {
 	//Init by env
 	//if call XPU() create XPU object, must call this function
 	virtual void Init();
-	virtual void Bind() = 0;				//xpu task bind numa node and device;  
-	virtual void CreateTasks(int task_index, pFunc func, void *args)=0;								
-	virtual void RunTasks()=0;							
-	virtual void JoinTasks()=0;
-	virtual void DestroyTasks()=0;
-	virtual void Transfer(void *dst, void *src, size_t size, TransferDirect direct) = 0;
-	virtual int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads) = 0;
-	virtual int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads) = 0;
+	virtual void Bind(){}				//xpu task bind numa node and device;  
+	virtual void CreateTasks(int task_index, pFunc func, void *args){}								
+	virtual void RunTasks(){}							
+	virtual void JoinTasks(){}
+	virtual void DestroyTasks(){}
+	virtual void Transfer(void *dst, void *src, size_t size, TransferDirect direct){}
+	virtual int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads){}
+	virtual int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads){}
 		
 	char xpu_name[64];
 	XPU_TYPE xpu_type;

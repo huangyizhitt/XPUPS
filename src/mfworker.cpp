@@ -9,6 +9,8 @@
 #include "dmlc/logging.h"
 #include "mfworker.h"
 
+using namespace ps;
+
 namespace MF {
 
 void MFWorker::Init()
@@ -41,25 +43,34 @@ void MFWorker::Init()
 	xpu->Init();
 	xpu->Bind();
 	this->xpu = xpu;
+	this->k = 128;
 
 	val = Environment::Get()->find("lambda");
 	if(val != NULL) {
 		lambda_p = lambda_q = strtod(val, NULL);
+	} else {
+		lambda_p = lambda_q = 0.01;
 	}
 
 	val = Environment::Get()->find("lrate");
 	if(val != NULL) {
 		lrate = strtod(val, NULL);
+	} else {
+		lrate = 0.005;
 	}
 
 	val = Environment::Get()->find("SHM");
 	if(val != NULL) {
 		use_shm = std::atoi(val);
+	} else {
+		use_shm = false;
 	}
 
 	val = Environment::Get()->find("TRANSMODE");
 	if(val != NULL) {
 		trans_mode = std::atoi(val);
+	} else {
+		trans_mode = ALL;
 	}
 	
 	rank = ps::MyRank();
@@ -205,7 +216,9 @@ void MFWorker::PrepareResources()
 	}
 
 	ps_vals.resize(m * k + n * k + 1);
-	PrepareShmbuf();
+
+	if(use_shm)
+		PrepareShmbuf();
 }
 
 void MFWorker::ReleaseCPUResources()
@@ -296,7 +309,7 @@ void MFWorker::PullQ()
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
 	std::vector<int> lens;
-	CMD cmd = PULL_FEATURE;
+	CMD cmd = PULL_Q_FEATURE;
 	
 	xpu->current_epoch++;
 	
@@ -325,7 +338,7 @@ void MFWorker::PullQShm()
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
 	std::vector<int> lens;
-	CMD cmd = PULL_FEATURE_SHM;
+	CMD cmd = PULL_Q_FEATURE_SHM;
 
 	xpu->current_epoch++;
 
@@ -458,7 +471,7 @@ void MFWorker::PushQ()
 	std::vector<ps::Key> keys;
 	
 	std::vector<int> lens;
-	CMD cmd = PUSH_FEATURE;
+	CMD cmd = PUSH_Q_FEATURE;
 
 	size_t size_p = m * k;
 	size_t size_q = n * k; 	
@@ -500,7 +513,7 @@ void MFWorker::PushQShm()
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
 	std::vector<int> lens;
-	CMD cmd = PUSH_FEATURE_SHM;
+	CMD cmd = PUSH_Q_FEATURE_SHM;
 
 	size_t size_p = m * k;
 	size_t size_q = n * k; 
@@ -668,6 +681,10 @@ void MFWorker::CreateWorkers(pFunc func)
 #endif
 		args.data = &dm;
 
+#ifdef DEBUG
+		args.tid = i;
+#endif
+
 		xpu->CreateTasks(i, func, &args);
 	}
 }
@@ -675,6 +692,7 @@ void MFWorker::CreateWorkers(pFunc func)
 void MFWorker::Computing()
 {
 	xpu->RunTasks();
+	dm.ClearBlockFlags();
 }
 
 void MFWorker::JoinWorkers()

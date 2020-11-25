@@ -7,152 +7,110 @@
 #include "xpu.h"
 #include "mfdata.h"
 
-#ifdef EXPLORE
-#include <iostream>
-#include <fstream>
-#endif
-
-
-namespace MF{
+namespace MF {
 
 class MFServer {
 public:
-	MFServer(XPU * const xpu_inf) : xpu(xpu_inf) {
-		server_xpu = new ps::KVServer<float>(0);
-		server_xpu->set_request_handle(ReceiveXPUHandle);
-	}
-
-	MFServer() {
-		
-	}
-
-	~MFServer() {DestroyShmbuf();delete server_xpu;}
-
-	void Init();
-
-	static void ReceiveXPUHandle(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server);
-
-	static void GetWorkerInfo(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server);
-
-	static void PushDataToWorker(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server);
-
-	static void PushDataInfoToWorker(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server);
-
-	static void PushBlockAndFeature(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server);
-
-	static void PullFeature(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server);
-
-	static void PushStopWorker(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server);
-
-	static void ProcessInitData(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server);
-
-	static void ProcessPullData(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server);
-
-	static void ProcessPushFeature(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server);
-
-	static void ProcessPullFeature(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server);
-
-	static void ProcessPullPushFeature(const ps::KVMeta& req_meta,
-							const ps::KVPairs<float>& req_data,
-							ps::KVServer<float>* server);
-
-	static void ProcessPullFeatureUseShm(const ps::KVMeta& req_meta,
-							const ps::KVPairs<float>& req_data,
-							ps::KVServer<float>* server);
-
-	static void ProcessPushFeatureUseShm(const ps::KVMeta& req_meta,
-							const ps::KVPairs<float>& req_data,
-							ps::KVServer<float>* server);
-
-	static void ProcessPullAllFeature(const ps::KVMeta& req_meta,
-							  const ps::KVPairs<float>& req_data,
-							  ps::KVServer<float>* server);
-
-	static void ProcessPushAllFeature(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server);		
-
-	static void ProcessPullCompressFeature(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server);
-
-	static void ProcessPushCompressFeature(const ps::KVMeta& req_meta,
-							const ps::KVPairs<float>& req_data,
-							ps::KVServer<float>* server);
-
-	static void ProcessPullCompressFeatureUseShm(const ps::KVMeta& req_meta,
-							const ps::KVPairs<float>& req_data,
-							ps::KVServer<float>* server);
-
-	static void ProcessPushCompressFeatureUseShm(const ps::KVMeta& req_meta,
-							const ps::KVPairs<float>& req_data,
-							ps::KVServer<float>* server);
-
-
-	static int CreateShmbuf();
-	static void DestroyShmbuf();
+	MFServer() : cpus(0), gpus(0), fpgas(0), tpus(0), xpus(0){}
+	~MFServer() {if(use_shm) DestroyShmbuf(); delete server_xpu;}
 	
-	void PrintWorkerXPU();
-
-	static void PrepareData();
-
-	static void Test(const ps::KVMeta& req_meta,
-                          const ps::KVPairs<float>& req_data,
-                          ps::KVServer<float>* server);
-	static void SetThreads(const int& t) {nr_threads = t;}
-	static void SetDataThreads(const int& t) {data_nr_threads = t;}
+	void Init();
+	static void ProcessHandle(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
 
 private:
-	static int cpus;					//counts cpu
-	static int gpus;					//counts gpu
-	static int fpgas;				//counts fpga
-	static int tpus;					//counts tpu
-	static int xpus;					//counts xpu
+	void GetWorkerInfo(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
+	void ProcessInitTrainingData(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
+	
+	void ProcessPullTrainingData(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
+	void ProcessPullAll(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
+	void ProcessPullAllShm(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
+	void ProcessPullQ(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
+	void ProcessPullQShm(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
+	void ProcessPullHalfQ(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
+	void ProcessPullHalfQShm(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
+	void ProcessPushAll(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
+	void ProcessPushAllShm(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
+	void ProcessPushQ(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
+	void ProcessPushQShm(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
+	void ProcessPushHalfQ(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
+	void ProcessPushHalfQShm(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);	
+
+	void SetCurServer();
+	void PrepareData();
+	int CreateShmbuf();
+	void DestroyShmbuf();
+
+private:
+	int cpus;
+	int gpus;
+	int fpgas;
+	int tpus;
+	int xpus;
 
 	int numa_node;
-	static int max_workers;
-	static int scale;
-	static int nr_threads;
-	static int data_nr_threads;				//process data threads
-	static int target_epoch;			
-	static int current_epoch;
-	static int receive_times;		//receive times from worker;
+	int total_work_ratio;
+	int quantify_data_threads;
+	int prepare_data_threads;
+	int received;							//received times from workers
+	TransMode trans_mode;
+	bool use_shm;
 
 #ifdef CAL_PORTION_RMSE	
-	static float loss;
-#endif
+	float loss;
+#endif	
 
-#ifdef EXPLORE
-	static std::ofstream out;
-#endif
-
+	static MFServer *cur_server;
 	ps::KVServer<float>* server_xpu;
-	XPU *xpu;								//xpu of server
-	static std::unordered_map<int, XPU_INFO> worker_xpu_info;			//<XPU_TYPE, workers, work_ratio>
-	static std::unordered_map<int, std::pair<int, unsigned char *> > shm_buf;			
-	static DataManager dm;
+	XPU *xpu;
+	std::unordered_map<int, XPU_INFO> worker_xpu_info;
+	std::unordered_map<int, std::pair<int, unsigned char *> > shm_buf;
+	DataManager dm;
 };
 
 }

@@ -9,26 +9,6 @@
 
 namespace MF {
 
-enum TransMode {
-	ALL=0,
-	Q = 1,
-	HALFQ = 2,
-	UNKONWN_MODE,
-};
-
-struct Args {
-	float lambda_p;
-	float lambda_q;
-	float lrate;
-	float *p;
-	float *q;
-	
-#ifdef CAL_PORTION_RMSE	
-	float *loss;
-#endif
-	void *data;
-};
-
 class MFWorker {
 public:
 	MFWorker() {}
@@ -40,6 +20,8 @@ public:
 	void Computing();
 	void CreateWorkers();
 	void JoinWorkers();
+	inline int GetCurrentEpoch() const {return xpu->current_epoch;}
+	inline int GetTargetEpoch() const {return xpu->target_epoch;}
 
 private:
 	void Init();

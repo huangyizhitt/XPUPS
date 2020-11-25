@@ -2,6 +2,7 @@
 #include "utils.h"
 #include "ps/base.h"
 #include "ps/internal/postoffice.h"
+#include "ps/internal/env.h"
 #include <cstdio>
 #include <mutex>
 #include <numeric> 
@@ -10,9 +11,9 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
-namespace MF{
+using namespace ps;
 
-//static int merge_feature = 0;
+namespace MF {
 
 #ifdef CAL_RMSE	
 static double calc_rmse(std::vector<MatrixNode>& R, Model& model)
@@ -35,11 +36,18 @@ static double calc_rmse(std::vector<MatrixNode>& R, Model& model)
 #endif
 
 static bool data_init_stage(false);
-//static std::mutex mtx;
+MFServer* MFServer::cur_server = NULL;
+
+void MFServer::SetCurServer()
+{
+	cur_server = this;
+}
 
 void MFServer::Init()
 {
-	const char* val = NULL;
+	SetCurServer();
+	//bind server to numa node, default node is node 0
+	const char *val = NULL;
 	val = Environment::Get()->find("NUMA_NODE");
 	if(val != NULL) {
 		numa_node = std::atoi(val);
@@ -47,26 +55,125 @@ void MFServer::Init()
 		numa_node = 0;
 	}
 	BindNumaNode(numa_node);
-	
-	XPU *xpu = new XPU;
+
+	xpu = new XPU;
+	xpu->xpu_type = XPU_TYPE::CPU;
 	xpu->Init();
 
-	this->xpu = xpu;
-	
-	val = CHECK_NOTNULL(ps::Environment::Get()->find("EPOCH"));
-	target_epoch = atoi(val);
+	server_xpu = new ps::KVServer<float>(0);	
+	server_xpu->set_request_handle(ReqHandle);
 
-	server_xpu = new ps::KVServer<float>(0);
-	server_xpu->set_request_handle(ReceiveXPUHandle);
-	SetDataThreads(xpu->max_core);
-	SetThreads(xpu->workers);
-	printf("Server XPU TYPE: %d, data threads: %d, work threads: %d\n", xpu->xpu_type, xpu->max_core, xpu->workers);
+	total_work_ratio = 0;
+	prepare_data_threads = xpu->max_cores;
+	quantify_data_threads = xpu->workers;
+
+#ifdef CAL_PORTION_RMSE	
+	loss = 0.0;
+#endif
+
+	const char *file_path = "netflix_train.bin";
+	val = Environment::Get()->find("DATA_PATH");
+	if(val != NULL) {
+		file_path = val;
+	}	 
+
+	val = Environment::Get()->find("SHM");
+	if(val != NULL) {
+		use_shm = std::atoi(val);
+	} else {
+		use_shm = false;
+	}
+
+	val = Environment::Get()->find("TRANSMODE");
+	if(val != NULL) {
+		trans_mode = std::atoi(val);
+	} else {
+		trans_mode = ALL;
+	}
+
+	(trans_mode == HALFQ) ? dm.Init(file_path, true) : dm.Init(file_path, false);
+
+	printf("Server XPU TYPE: %d, data threads: %d, work threads: %d\n", xpu->xpu_type, xpu->max_cores, xpu->workers);
+}
+
+void MFServer::ProcessHandle(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server)
+{
+	CMD cmd = (CMD) req_meta.cmd;
+
+	switch(cmd) {
+		case PUSH_INFO:
+			cur_server->GetWorkerInfo(req_meta, req_data, server);
+			break;
+
+		case INIT_DATA:
+			cur_server->ProcessInitTrainingData(req_meta, req_data, server);
+			break;
+
+		case PULL_DATA:
+			cur_server->ProcessPullTrainingData(req_meta, req_data, server);
+			break;
+
+		case PULL_Q_FEATURE:
+			cur_server->ProcessPullQ(req_meta, req_data, server);
+			break;
+				
+			
+		case PUSH_Q_FEATURE:
+			cur_server->ProcessPushQ(req_meta, req_data, server);
+			break;
+
+		case PULL_Q_FEATURE_SHM:
+			cur_server->ProcessPullQShm(req_meta, req_data, server);
+			break;
+
+		case PUSH_Q_FEATURE_SHM:
+			cur_server->ProcessPushQShm(req_meta, req_data, server);
+			break;
+
+		case PULL_ALL_FEATURE:
+			cur_server->ProcessPullAll(req_meta, req_data, server);
+			break;
+
+		case PUSH_ALL_FEATURE:
+			cur_server->ProcessPushAll(req_meta, req_data, server);
+			break;
+
+		case PULL_ALL_FEATURE_SHM:
+			cur_server->ProcessPullAllShm(req_meta, req_data, server);
+			break;
+
+		case PUSH_ALL_FEATURE_SHM:
+			cur_server->ProcessPushAllShm(req_meta, req_data, server);
+			break;
+	
+		case PULL_HALF_FEATURE:
+			cur_server->ProcessPullHalfQ(req_meta, req_data, server);
+			break;
+
+		case PUSH_HALF_FEATURE:
+			cur_server->ProcessPushHalfQ(req_meta, req_data, server);
+			break;
+
+		case PULL_HALF_FEATURE_SHM:
+			cur_server->ProcessPullHalfQShm(req_meta, req_data, server);
+			break;
+
+		case PUSH_HALF_FEATURE_SHM:
+			cur_server->ProcessPushHalfQShm(req_meta, req_data, server);
+			break;
+
+		default:
+			break;
+	}
+
 }
 
 //Get Worker XPU Info
 void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server)
+							const ps::KVPairs<float>& req_data,
+							ps::KVServer<float>* server)
 {
 	size_t keys_size = req_data.keys.size();
 	size_t vals_size = req_data.vals.size();
@@ -74,830 +181,57 @@ void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
 
 	int worker_rank = req_data.keys[0];
 	XPU_INFO xpu_info;
-	
 
 	xpu_info.type = (XPU_TYPE)req_data.vals[0];
 	xpu_info.workers = (int)req_data.vals[1];
 	xpu_info.work_ratio = (int)req_data.vals[2];
 	printf("Worker: %d, XPU TYPE: %d, threads: %d, work_ratio: %d\n", worker_rank, xpu_info.type, xpu_info.workers, xpu_info.work_ratio);
-	if(xpu_info.workers > max_workers) max_workers = xpu_info.workers;
-	scale += xpu_info.work_ratio;
+	total_work_ratio += xpu_info.work_ratio;
 	worker_xpu_info.insert(std::make_pair(worker_rank, xpu_info));
-	
-	switch(xpu_info.type) {
-		
-		case CPU:
-			cpus++;
-			break;
-		
-		case GPU:
-			gpus++;
-			break;
-		
-		case FPGA:
-			fpgas++;
-			break;
-		
-		case TPU:
-			tpus++;
-			break;
 
-		default:
-			break;
+	switch(xpu_info.type) {
+	  
+	  case CPU:
+		  cpus++;
+		  break;
+	  
+	  case GPU:
+		  gpus++;
+		  break;
+	  
+	  case FPGA:
+		  fpgas++;
+		  break;
+	  
+	  case TPU:
+		  tpus++;
+		  break;
+
+	  default:
+		  break;
 	}
 	xpus++;
 	ps::KVPairs<float> res;
 	server->Response(req_meta, res);
 }
 
+
 void MFServer::PrepareData()
 {
 	if(!data_init_stage) {
 
-		dm.Init(data_nr_threads);
+		dm.PrepareTrainingData(prepare_data_threads);
 
 		Dim2 gridDim;
 		
 		gridDim.x = 1;
-		gridDim.y = scale;
+		gridDim.y = total_work_ratio;
 		dm.SetGrid(gridDim);
-		dm.GridData(data_nr_threads);
+		dm.GridData(prepare_data_threads);
 		dm.InitModel();
-
-#ifdef EXPLORE
-		size_t size_q = dm.cols * dm.k;
-		for(size_t i = 0; i < size_q; i++) {
-			out << dm.model.q[i] << ",";
-		}	
-		out << std::endl;
-		printf("%.7f\n", dm.model.q[10]);
-#endif
 
 		data_init_stage = true;
 	}
-}
-
-//Prepare training data and send the data info to workers
-void MFServer::ProcessInitData(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server)
-{
-	ps::KVPairs<float> res;
-	size_t n = req_data.keys.size();
-	res.keys = req_data.keys;
-	res.lens.resize(n);
-	
-	PrepareData();
-	CreateShmbuf();
-	
-	int rank = req_data.keys[0];
-	int start = 0;
-	int size = 0;
-
-	dm.SplitData(start, size, worker_xpu_info[rank].work_ratio);
-	worker_xpu_info[rank].start = start;
-	worker_xpu_info[rank].size = size;
-	res.vals.push_back((float)start);
-	res.vals.push_back((float)size);
-	res.vals.push_back((float)dm.rows);
-	res.vals.push_back((float)dm.cols);
-	res.vals.push_back(dm.scale);
-	res.lens[0] = 5;
-	server->Response(req_meta, res);
-}
-
-//Process PULLDATA cmd from Workers, will send Data to Workers
-//Data format{keys[0], MatrixNode[0]}
-void MFServer::ProcessPullData(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server)
-{
-	size_t keys_size = req_data.keys.size();
-	size_t vals_size = keys_size * 3;
-	ps::KVPairs<float> res;
-
-	res.keys = req_data.keys;
-	res.vals.resize(vals_size);
-	res.lens.resize(keys_size);
-
-	size_t start = req_data.keys[0];
-
-	for(size_t i = start, j = 0; i < start + keys_size; i++, j+=3) {
-		res.vals[j] = (dm.data.r_matrix[i].row_index);
-		res.vals[j+1] = (dm.data.r_matrix[i].col_index);
-		res.vals[j+2] = (dm.data.r_matrix[i].r);
-		res.lens[i-start] = 3;
-	}
-
-	debugp("start: %d, keys_size: %d, vals_size:%d, lens:%d\n", start, keys_size, res.vals.size(), res.lens.size());
-	//dm.PrintHead(start, 3);
-	server->Response(req_meta, res);
-}
-
-//Process PULL_FEATURE cmd from workers, will send feature to workers
-//Data format{keys[0], p, keys[1], q}
-void MFServer::ProcessPullFeature(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server)
-{
-	size_t keys_size = req_data.keys.size();
-	size_t size_p = dm.rows * dm.k;
-	size_t size_q = dm.cols * dm.k;
-	size_t vals_size = size_p + size_q;
-	
-	ps::KVPairs<float> res;
-	res.keys = req_data.keys;
-	res.vals.resize(vals_size);
-	res.lens.resize(keys_size);
-
-	if(current_epoch != 1) {
-		res.lens[0] = size_q;
-		memcpy(&res.vals[0], &dm.model.q[0], size_q * sizeof(float));
-	} else {
-		res.lens[0] = size_p;
-		res.lens[1] = size_q;
-		memcpy(&res.vals[0], &dm.model.p[0], size_p * sizeof(float));
-		memcpy(&res.vals[size_p], &dm.model.q[0], size_q * sizeof(float));
-	}
-	
-//	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
-	server->Response(req_meta, res);
-}
-													  
-//Process PUSH_FEATURE CMD from workers, will get feature from workers
-//Data format{keys[0], p, keys[1], q}
-//only in the last epoch need get feature p
-void MFServer::ProcessPushFeature(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server)
-{
-	size_t keys_size = req_data.keys.size();
-	size_t size_p = dm.rows * dm.k;
-	size_t size_q = dm.cols * dm.k;
-	size_t vals_size = req_data.vals.size();
-	
-	ps::KVPairs<float> res;
-	res.keys = req_data.keys;
-	res.lens.resize(keys_size);
-	
-	//printf("current_epoch: %d\n", current_epoch);	
-	if(current_epoch != target_epoch) {
-		if(receive_times == 0) {
-			memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);	
-		} else {
-			for(int i = 0; i < size_q; i++) {
-				dm.model.q[i] = (dm.model.q[i] + req_data.vals[i]) / 2;
-			}
-		}
-	} else {
-		int rank = req_data.keys[0];
-		int start = worker_xpu_info[rank].start;
-		int size = worker_xpu_info[rank].size;
-
-		//Get feature p in the last epoch	
-		int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
-		int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
-		memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
-		
-		if(receive_times == 0) {
-			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
-		} else {
-			for(int i = size_p; i < size_p + size_q; i++) {
-				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
-			}
-		}
-	}
-
-	server->Response(req_meta, res);
-#ifdef CAL_PORTION_RMSE	
-	loss += req_data.vals.back();
-#endif
-
-	receive_times++;
-	if(receive_times == xpus) {
-//		current_epoch++;
-
-#ifdef CAL_PORTION_RMSE
-		printf("Epoch %d loss %.4f\n", current_epoch, std::sqrt(loss / dm.nnz));
-		loss = 0;
-#endif
-
-#ifdef CAL_RMSE
-		if(current_epoch < target_epoch)
-			printf("Epoch %d\n", current_epoch);
-		else
-			printf("Epoch %d global loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
-#endif
-		current_epoch++;
-		receive_times = 0;
-	}
-	
-}
-
-//Process PULL_FEATURE cmd from workers, will send feature to workers
-//Data format{keys[0], p, keys[1], q}
-void MFServer::ProcessPullFeatureUseShm(const ps::KVMeta& req_meta,
-							const ps::KVPairs<float>& req_data,
-							ps::KVServer<float>* server)
-{
-	size_t keys_size = req_data.keys.size();
-	size_t size_p = dm.rows * dm.k;
-	size_t size_q = dm.cols * dm.k;
-	size_t vals_size = size_p + size_q;
-
-	ps::KVPairs<float> res;
-	res.keys = req_data.keys;
-	int rank = req_data.keys[0];
-	res.vals.resize(1);
-	res.lens.resize(keys_size);
-	res.lens[0] = 1;
-	
-	float *buf = (float *)shm_buf[rank].second;
-	size_t size;
-	
-  	if(current_epoch != 1) {
-		res.vals[0] = size = size_q * sizeof(float);
-	  	memcpy(buf, &dm.model.q[0], res.vals[0]);
-//		 printf("[Process Pull] dm.model.q[0]: %.3f, dm.model.q[1]: %.3f, dm.model.q[2]: %.3f\n", dm.model.q[0], dm.model.q[1], dm.model.q[2]); 
-  	} else {
-		res.vals[0] = size = (size_q+size_p) * sizeof(float);
-		memcpy(buf, &dm.model.p[0], size_p * sizeof(float));
-		memcpy(buf+size_p, &dm.model.q[0], size_q * sizeof(float));
-  	}
-//  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
-	server->Response(req_meta, res);
-}
-													
-//Process PUSH_FEATURE CMD from workers, will get feature from workers
-//Data format{keys[0], p, keys[1], q}
-//only in the last epoch need get feature p
-void MFServer::ProcessPushFeatureUseShm(const ps::KVMeta& req_meta,
-							const ps::KVPairs<float>& req_data,
-							ps::KVServer<float>* server)
-{
-	size_t keys_size = req_data.keys.size();
-	size_t size_p = dm.rows * dm.k;
-	size_t size_q = dm.cols * dm.k;
-	size_t vals_size = req_data.vals.size();
-  
-	ps::KVPairs<float> res;
-	res.keys = req_data.keys;
-	res.lens.resize(keys_size);
-
-	int rank = req_data.keys[0];
-	float *buf = (float *)shm_buf[rank].second;
-  
-  //printf("current_epoch: %d\n", current_epoch); 
-  if(current_epoch != target_epoch) {
-	  if(receive_times == 0) {
-		  memcpy(&dm.model.q[0], buf, sizeof(float) * size_q); 
-//		 printf("[Process push] dm.model.q[0]: %.3f, dm.model.q[1]: %.3f, dm.model.q[2]: %.3f\n", dm.model.q[0], dm.model.q[1], dm.model.q[2]); 
-	  } else {
-		  for(int i = 0; i < size_q; i++) {
-			  dm.model.q[i] = (dm.model.q[i] + buf[i]) / 2;
-		  }
-	  }
-  } else {
-	  int start = worker_xpu_info[rank].start;
-	  int size = worker_xpu_info[rank].size;
-
-	  //Get feature p in the last epoch   
-	  int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
-	  int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
-	  memcpy(&dm.model.p[worker_start_p], &buf[worker_start_p], sizeof(float) * worker_size_p);
-	  
-	  if(receive_times == 0) {
-		  memcpy(&dm.model.q[0], &buf[size_p], sizeof(float) * size_q);
-	  } else {
-		  for(int i = size_p; i < size_p + size_q; i++) {
-			  dm.model.q[i-size_p] = (dm.model.q[i-size_p] + buf[i]) / 2;
-		  }
-	  }
-  }
-
-  server->Response(req_meta, res);
-#ifdef CAL_PORTION_RMSE	
-  loss += req_data.vals.back();
-#endif
-
-  receive_times++;
-  if(receive_times == xpus) {
-//	  current_epoch++;
-
-#ifdef CAL_PORTION_RMSE
-	  printf("Epoch %d loss %.4f\n", current_epoch, std::sqrt(loss / dm.nnz));
-	  loss = 0;
-#endif
-
-#ifdef CAL_RMSE
-	  if(current_epoch < target_epoch)
-		  printf("Epoch %d\n", current_epoch);
-	  else
-		  printf("Epoch %d global loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		  
-#endif
-	  current_epoch++;
-	  receive_times = 0;
-  }
-  
-}
-
-#ifdef SEND_COMPRESS_Q_FEATURE
-void MFServer::ProcessPullCompressFeature(const ps::KVMeta& req_meta,
-							const ps::KVPairs<float>& req_data,
-							ps::KVServer<float>* server)
-{
-  	size_t keys_size = req_data.keys.size();
-  	size_t size_p = dm.rows * dm.k;
-  	size_t size_q = dm.cols * dm.k;
-  	size_t vals_size = (size_p + size_q)/2;
-  
-  	ps::KVPairs<float> res; 
-  	res.keys = req_data.keys;
-
-  	res.lens.resize(keys_size);
-
-  	if(current_epoch != 1) {
-		  //encode
-		  singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, nr_threads);
-
-		  //prepare transmission data
-		  res.lens[0] = size_q/2;					  //compress
-		  float *_q = (float *)dm.halfq;
-		  res.vals.CopyFrom(_q, res.lens[0]);
-		  
-		  server->Response(req_meta, res);
-	 } else {
-		  //encode
-		  singles2halfp(dm.halfp, &dm.model.p[0], size_p, FE_TONEAREST, 0, nr_threads);
-		  singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, nr_threads);
-
-		  //prepare transmission data
-		  res.lens[0] = size_p/2;
-		  res.lens[1] = size_q/2;
-		  float *_p = (float *)dm.halfp;
-		  res.vals.CopyFrom(_p, (size_p+size_q)/2);
-
-		  server->Response(req_meta, res);
-	 }
-  
-//  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
-}
-
-void MFServer::ProcessPullCompressFeatureUseShm(const ps::KVMeta& req_meta,
-							const ps::KVPairs<float>& req_data,
-							ps::KVServer<float>* server)
-{
-	size_t keys_size = req_data.keys.size();
-	size_t size_p = dm.rows * dm.k;
-	size_t size_q = dm.cols * dm.k;
-	size_t vals_size = (size_p + size_q)/2;
-  
-	ps::KVPairs<float> res; 
-	res.keys = req_data.keys;
-	int rank = req_data.keys[0];
-	res.lens.resize(keys_size);
-	res.vals.resize(1);
-	
-	if(current_epoch != 1) {
-		  //encode
-		  singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, nr_threads);
-
-		  //prepare transmission data
-		  res.vals[0] = size_q * sizeof(uint16_t);					  //compress
-		  res.lens[0] = 1;
-		  uint16_t *_buf = (uint16_t *)shm_buf[rank].second;
-		  
-		  memcpy(_buf, dm.halfq, res.vals[0]);
-		 	
-		  server->Response(req_meta, res);
-	 } else {
-		  //encode
-		  singles2halfp(dm.halfp, &dm.model.p[0], size_p, FE_TONEAREST, 0, nr_threads);
-		  singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, nr_threads);
-		  //prepare transmission data
-		  res.vals[0] = (size_p+size_q) * sizeof(uint16_t);
-		  res.lens[0] = 1;
-		  uint16_t *_buf = (uint16_t *)shm_buf[rank].second;
-		  memcpy(_buf, dm.halfp, res.vals[0]);
-		  server->Response(req_meta, res);
-	 }
-  
-//	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
-}
-
-
-void MFServer::ProcessPushCompressFeature(const ps::KVMeta& req_meta,
-							const ps::KVPairs<float>& req_data,
-							ps::KVServer<float>* server)
-{
-	size_t keys_size = req_data.keys.size();
-	size_t size_p = dm.rows * dm.k;
-	size_t size_q = dm.cols * dm.k;
-	size_t vals_size = req_data.vals.size();
-	uint16_t *h_p;
-	uint16_t *h_q;
-	ps::KVPairs<float> res;
-	res.keys = req_data.keys;
-	res.lens.resize(keys_size);
-  
-  	//printf("current_epoch: %d\n", current_epoch); 
-  	if(current_epoch != target_epoch) {
-		h_q = (uint16_t *)&req_data.vals[0];
-	  	if(receive_times == 0) {
-//			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
-			halfp2singles(&dm.model.q[0], h_q, size_q, nr_threads);
-	  	} else {
-#if defined(USE_AVX2) || defined(USE_AVX512)
-			halfp2singles_madd(&dm.model.q[0], h_q, size_q, nr_threads, 0.5);
-#else
-		  	for(int i = 0; i < size_q; i++) {
-				float tmp;
-				halfp2singles(&tmp, h_q+i, 1, nr_threads);
-			  	dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
-			}
-#endif
-	  	}
-  	} else {
-	  	int rank = req_data.keys[0];
-	  	int start = worker_xpu_info[rank].start;
-	  	int size = worker_xpu_info[rank].size;
-
-	  	//Get feature p in the last epoch   
-	  	int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
-	  	int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
-//	  	printf("start: %d, start_p: %d, size_p: %d\n", start, worker_start_p, worker_size_p);
-//	  	memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
-		h_p = (uint16_t *)&req_data.vals[0];
-		h_q = h_p + size_p;
-		halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, nr_threads);
-
-	  	if(receive_times == 0) {
-//		  	memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
-			halfp2singles(&dm.model.q[0], h_q, size_q, nr_threads);
-	  	} else {
-#if defined(USE_AVX2) || defined(USE_AVX512)
-			halfp2singles_madd(&dm.model.q[0], h_q, size_q, nr_threads, 0.5);
-#else
-		  	for(int i = 0; i < size_q; i++) {
-//			  	dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
-				float tmp;
-				halfp2singles(&tmp, h_q+i, 1, nr_threads);
-				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
-		  	}
-#endif
-	  	}
-  	}
-
-  	server->Response(req_meta, res);
-#ifdef CAL_PORTION_RMSE	
-  	loss += req_data.vals.back();
-#endif
-
-  	receive_times++;
-  	if(receive_times == xpus) {
-//	  current_epoch++;
-
-#ifdef CAL_PORTION_RMSE
-	  	printf("Epoch %d loss %.4f\n", current_epoch, std::sqrt(loss / dm.nnz));
-	  	loss = 0;
-#endif
-
-#ifdef CAL_RMSE
-	  	if(current_epoch < target_epoch)
-		  	printf("Epoch %d\n", current_epoch);
-	  	else
-		  	printf("Epoch %d global loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		  
-#endif
-	  	current_epoch++;
-	  	receive_times = 0;
-  	}
-  
-}
-
-void MFServer::ProcessPushCompressFeatureUseShm(const ps::KVMeta& req_meta,
-							const ps::KVPairs<float>& req_data,
-							ps::KVServer<float>* server)
-{
-	size_t keys_size = req_data.keys.size();
-	size_t size_p = dm.rows * dm.k;
-	size_t size_q = dm.cols * dm.k;
-	size_t vals_size = req_data.vals.size();
-	uint16_t *h_p;
-	uint16_t *h_q;
-	ps::KVPairs<float> res;
-	res.keys = req_data.keys;
-	res.lens.resize(keys_size);
-
-	int rank = req_data.keys[0];
-	//printf("current_epoch: %d\n", current_epoch); 
-	if(current_epoch != target_epoch) {
-		h_q = (uint16_t *)shm_buf[rank].second;
-		if(receive_times == 0) {
-//			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
-			halfp2singles(&dm.model.q[0], h_q, size_q, nr_threads);
-		} else {
-#if defined(USE_AVX2) || defined(USE_AVX512)
-			halfp2singles_madd(&dm.model.q[0], h_q, size_q, nr_threads, 0.5);
-#else
-			for(int i = 0; i < size_q; i++) {
-				float tmp;
-				halfp2singles(&tmp, h_q+i, 1, nr_threads);
-				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
-			}
-#endif
-		}
-	} else {
-		int start = worker_xpu_info[rank].start;
-		int size = worker_xpu_info[rank].size;
-
-		//Get feature p in the last epoch	
-		int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
-		int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
-//		printf("start: %d, start_p: %d, size_p: %d\n", start, worker_start_p, worker_size_p);
-//		memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
-		h_p = (uint16_t *)shm_buf[rank].second;
-		h_q = h_p + size_p;
-		halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, nr_threads);
-		if(receive_times == 0) {
-//			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
-			halfp2singles(&dm.model.q[0], h_q, size_q, nr_threads);
-		} else {
-#if defined(USE_AVX2) || defined(USE_AVX512)
-			halfp2singles_madd(&dm.model.q[0], h_q, size_q, nr_threads, 0.5);
-#else
-			for(int i = 0; i < size_q; i++) {
-//				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
-				float tmp;
-				halfp2singles(&tmp, h_q+i, 1, nr_threads);
-				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
-			}
-#endif
-		}
-	}
-
-	server->Response(req_meta, res);
-#ifdef CAL_PORTION_RMSE	
-	loss += req_data.vals.back();
-#endif
-
-	receive_times++;
-	if(receive_times == xpus) {
-//	  current_epoch++;
-
-#ifdef CAL_PORTION_RMSE
-		printf("Epoch %d loss %.4f\n", current_epoch, std::sqrt(loss / dm.nnz));
-		loss = 0;
-#endif
-
-#ifdef CAL_RMSE
-		if(current_epoch < target_epoch)
-			printf("Epoch %d\n", current_epoch);
-		else
-			printf("Epoch %d global loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		  
-#endif
-		current_epoch++;
-		receive_times = 0;
-	}
-  
-}
-
-#endif
-
-void MFServer::ProcessPullPushFeature(const ps::KVMeta& req_meta,
-							const ps::KVPairs<float>& req_data,
-							ps::KVServer<float>* server)
-{
-	size_t keys_size = req_data.keys.size();
-	size_t size_p = dm.rows * dm.k;
-	size_t size_q = dm.cols * dm.k;
-	size_t vals_size = size_p + size_q;
-
-	ps::KVPairs<float> res;
-	res.keys = req_data.keys;
-	res.vals.resize(vals_size);
-	res.lens.resize(keys_size);
-		
-	if(receive_times == 0) {
-		memcpy(&dm.model.p[0], &req_data.vals[0], sizeof(float) * size_p);
-		memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
-	} else {
-		for(int i = 0; i < size_p; i++) {
-			dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;	
-		}
-
-		for(int i = size_p; i < size_p + size_q; i++) {
-			dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;				
-		}
-	}
-
-#ifdef CAL_PORTION_RMSE	
-	loss += req_data.vals.back();
-#endif
-	
-	receive_times++;
-	if(receive_times == xpus) {
-	//		current_epoch++;
-		memcpy(&res.vals[0], &dm.model.p[0], size_p * sizeof(float));
-		memcpy(&res.vals[size_p], &dm.model.q[0], size_q * sizeof(float));
-		print_feature_head(&res.vals[0], &res.vals[size_p], 3, 1);
-		res.lens[0] = size_p;
-		res.lens[1] = size_q;
-		server->Response(req_meta, res);
-#ifdef CAL_PORTION_RMSE
-		printf("Epoch %d loss %.4f\n", current_epoch, std::sqrt(loss / dm.nnz));
-		loss = 0;
-#endif
-	
-#ifdef CAL_RMSE
-		if(current_epoch < target_epoch)
-			printf("Epoch %d\n", current_epoch);
-		else
-			printf("Epoch %d loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
-#endif
-		current_epoch++;
-		receive_times = 0;	
-	}
-}
-
-//Process PULL_FEATURE cmd from workers, will send feature to workers
-//Data format{keys[0], p, keys[1], q}
-void MFServer::ProcessPullAllFeature(const ps::KVMeta& req_meta,
-							  const ps::KVPairs<float>& req_data,
-							  ps::KVServer<float>* server)
-{
-	size_t keys_size = req_data.keys.size();
-	size_t size_p = dm.rows * dm.k;
-	size_t size_q = dm.cols * dm.k;
-	size_t vals_size = size_p + size_q;
-
-	ps::KVPairs<float> res;
-	res.keys = req_data.keys;
-	res.vals.resize(vals_size);
-	res.lens.resize(keys_size);
-
-	res.lens[0] = size_p;
-	res.lens[1] = size_q;
-
-	memcpy(&res.vals[0], &dm.model.p[0], size_p * sizeof(float));
-	memcpy(&res.vals[size_p], &dm.model.q[0], size_q * sizeof(float));
-//	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
-	server->Response(req_meta, res);
-}
-
-//Process PUSH_FEATURE CMD from workers, will get feature from workers
-//Data format{keys[0], p, keys[1], q}
-void MFServer::ProcessPushAllFeature(const ps::KVMeta& req_meta,
-							  const ps::KVPairs<float>& req_data,
-							  ps::KVServer<float>* server)
-{
-	size_t keys_size = req_data.keys.size();
-	size_t size_p = dm.rows * dm.k;
-	size_t size_q = dm.cols * dm.k;
-	size_t vals_size = req_data.vals.size();
-	
-	ps::KVPairs<float> res;
-	res.keys = req_data.keys;
-	res.lens.resize(keys_size);
-
-	if(receive_times == 0) {
-		for(int i = 0; i < size_p; i++) {
-			dm.model.p[i] = req_data.vals[i];
-
-		}
-
-		for(int i = size_p; i < size_p + size_q; i++) {
-			dm.model.q[i-size_p] = req_data.vals[i];
-		} 
-	} else {
-			for(int i = 0; i < size_p; i++) {
-				dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;
-			}
-
-			for(int i = size_p; i < size_p + size_q; i++) {
-				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
-			}
-	}
-
-	server->Response(req_meta, res);
-#ifdef CAL_PORTION_RMSE	
-	loss += req_data.vals.back();
-#endif
-	
-	receive_times++;
-	if(receive_times == xpus) {
-	
-#ifdef CAL_PORTION_RMSE
-		printf("Epoch %d loss %.4f\n", current_epoch, std::sqrt(loss / dm.nnz));
-		loss = 0;
-#endif
-	
-#ifdef CAL_RMSE
-		if(current_epoch < target_epoch) {
-			printf("Epoch %d\n", current_epoch);
-		} else {
-			printf("Epoch %d global loss %.4f\n", current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
-		}
-#endif
-		current_epoch++;
-		receive_times = 0;
-	}
-}
-
-
-							  
-void MFServer::Test(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server)
-{
-	size_t keys_size = req_data.keys.size();
-	size_t vals_size = req_data.vals.size();
-	ps::KVPairs<float> res;
-
-	res.keys = req_data.keys;
-	res.vals.resize(keys_size * 3);
-	res.lens.resize(keys_size);
-
-	for(int i = 0; i < keys_size * 3; i+=3) {
-		res.vals[i] = i;
-		res.vals[i+1] = i+1;
-		res.vals[i+2] = i+2;
-//		res.lens[i] = 3;
-		printf("vals[%d]: %d\n", i, i);
-	}
-	printf("key_size %d\n", keys_size);
-	server->Response(req_meta, res);
-}
-
-void MFServer::ReceiveXPUHandle(const ps::KVMeta& req_meta,
-                              const ps::KVPairs<float>& req_data,
-                              ps::KVServer<float>* server)
-{
-	CMD cmd = (CMD) req_meta.cmd;
-	
-	switch(cmd) {
-		case PUSH_INFO:
-			GetWorkerInfo(req_meta, req_data, server);
-			break;
-
-		case INIT_DATA:
-			ProcessInitData(req_meta, req_data, server);
-			break;
-
-		case PULL_DATA:
-			ProcessPullData(req_meta, req_data, server);
-			break;
-
-		case PULL_FEATURE:
-			ProcessPullFeature(req_meta, req_data, server);
-			break;
-				
-			
-		case PUSH_FEATURE:
-			ProcessPushFeature(req_meta, req_data, server);
-			break;
-
-		case PULL_FEATURE_SHM:
-			ProcessPullFeatureUseShm(req_meta, req_data, server);
-			break;
-
-		case PUSH_FEATURE_SHM:
-			ProcessPushFeatureUseShm(req_meta, req_data, server);
-			break;
-
-		case PULL_PUSH_FEATURE:
-			ProcessPullPushFeature(req_meta, req_data, server);
-			break;
-
-		case PULL_ALL_FEATURE:
-			ProcessPullAllFeature(req_meta, req_data, server);
-			break;
-
-		case PUSH_ALL_FEATURE:
-			ProcessPushAllFeature(req_meta, req_data, server);
-			break;
-#ifdef SEND_COMPRESS_Q_FEATURE	
-		case PULL_HALF_FEATURE:
-			ProcessPullCompressFeature(req_meta, req_data, server);
-			break;
-
-		case PUSH_HALF_FEATURE:
-	//		printf("entry push half feature\n");
-			ProcessPushCompressFeature(req_meta, req_data, server);
-			break;
-
-		case PULL_HALF_FEATURE_SHM:
-			ProcessPullCompressFeatureUseShm(req_meta, req_data, server);
-			break;
-
-		case PUSH_HALF_FEATURE_SHM:
-			ProcessPushCompressFeatureUseShm(req_meta, req_data, server);
-			break;
-#endif
-
-		default:
-			break;
-	}
-   
 }
 
 int MFServer::CreateShmbuf()
@@ -927,6 +261,36 @@ int MFServer::CreateShmbuf()
 	return 0;
 }
 
+void MFServer::ProcessInitTrainingData(const ps::KVMeta& req_meta,
+					  const ps::KVPairs<float>& req_data,
+					  ps::KVServer<float>* server)
+{
+	ps::KVPairs<float> res;
+	size_t n = req_data.keys.size();
+	res.keys = req_data.keys;
+	res.lens.resize(n);
+	
+	PrepareData();
+
+	if(use_shm)
+		CreateShmbuf();
+	
+	int rank = req_data.keys[0];
+	int start = 0;
+	int size = 0;
+
+	dm.SplitData(start, size, worker_xpu_info[rank].work_ratio);
+	worker_xpu_info[rank].start = start;
+	worker_xpu_info[rank].size = size;
+	res.vals.push_back((float)start);
+	res.vals.push_back((float)size);
+	res.vals.push_back((float)dm.rows);
+	res.vals.push_back((float)dm.cols);
+	res.vals.push_back(dm.scale);
+	res.lens[0] = 5;
+	server->Response(req_meta, res);	
+}
+
 void MFServer::DestroyShmbuf()
 {
 	for(const auto& n : shm_buf) {
@@ -936,15 +300,632 @@ void MFServer::DestroyShmbuf()
 }
 
 
-void MFServer::PrintWorkerXPU()
+void MFServer::ProcessPullTrainingData(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server)	
 {
-	XPU_INFO xpu_info;
-	int worker_rank;
-	for(std::unordered_map<int, XPU_INFO>::iterator it = worker_xpu_info.begin(); it != worker_xpu_info.end(); it++) {
-		worker_rank = it->first;
-		xpu_info = it->second;
-		printf("Worker: %d, XPU TYPE: %d, workers: %d, work_ratio: %d\n", worker_rank, xpu_info.type, xpu_info.workers, xpu_info.work_ratio);
+	size_t keys_size = req_data.keys.size();
+	size_t vals_size = keys_size * 3;
+	ps::KVPairs<float> res;
+
+	res.keys = req_data.keys;
+	res.vals.resize(vals_size);
+	res.lens.resize(keys_size);
+
+	size_t start = req_data.keys[0];
+
+	for(size_t i = start, j = 0; i < start + keys_size; i++, j+=3) {
+		res.vals[j] = (dm.data.r_matrix[i].row_index);
+		res.vals[j+1] = (dm.data.r_matrix[i].col_index);
+		res.vals[j+2] = (dm.data.r_matrix[i].r);
+		res.lens[i-start] = 3;
+	}
+
+	debugp("start: %d, keys_size: %d, vals_size:%d, lens:%d\n", start, keys_size, res.vals.size(), res.lens.size());
+	//dm.PrintHead(start, 3);
+	server->Response(req_meta, res);	
+}
+
+//Process PULL_Q_FEATURE cmd from workers, will send P and Q feature to workers in the first epoch
+//Will send Q feature to workers in the other epoch
+void MFServer::ProcessPullQ(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server)	
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size;
+	float *src;
+	
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+
+	res.lens.resize(keys_size);
+
+	if(xpu->current_epoch != 1) {
+		res.lens[0] = size_q;
+		vals_size = size_q;
+		src = dm.model.q;
+	} else {
+		res.lens[0] = size_p;
+		res.lens[1] = size_q;
+		vals_size = size_p + size_q;
+		src = dm.model.p;
+	}
+
+	//zero-copy constructor and operator=
+	ps::SArray<float> vals(src, vals_size);
+	res.vals = vals;
+
+//	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
+	server->Response(req_meta, res);	
+}
+
+void MFServer::ProcessPushQ(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server)	
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = req_data.vals.size();
+	
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.lens.resize(keys_size);
+	
+	//printf("current_epoch: %d\n", current_epoch);	
+	if(xpu->current_epoch != xpu->target_epoch) {
+		if(received == 0) {
+			memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);	
+		} else {
+			for(int i = 0; i < size_q; i++) {
+				dm.model.q[i] = (dm.model.q[i] + req_data.vals[i]) / 2;
+			}
+		}
+	} else {
+		int rank = req_data.keys[0];
+		int start = worker_xpu_info[rank].start;
+		int size = worker_xpu_info[rank].size;
+
+		//Get feature p in the last epoch	
+		int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
+		int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
+		memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
+		
+		if(received == 0) {
+			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
+		} else {
+			for(int i = size_p; i < size_p + size_q; i++) {
+				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
+			}
+		}
+	}
+
+	server->Response(req_meta, res);
+#ifdef CAL_PORTION_RMSE	
+	loss += req_data.vals.back();
+#endif
+
+	received++;
+	if(received == xpus) {
+//		current_epoch++;
+
+#ifdef CAL_PORTION_RMSE
+		printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz));
+		loss = 0;
+#endif
+
+#ifdef CAL_RMSE
+		if(xpu->current_epoch < xpu->target_epoch)
+			printf("Epoch %d\n", xpu->current_epoch);
+		else
+			printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
+#endif
+		xpu->current_epoch++;
+		received = 0;
+	}	
+}
+
+void MFServer::ProcessPullQShm(const ps::KVMeta& req_meta,
+					const ps::KVPairs<float>& req_data,
+					ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	int rank = req_data.keys[0];
+	res.vals.resize(1);
+	res.lens.resize(keys_size);
+	res.lens[0] = 1;
+	
+	float *buf = (float *)shm_buf[rank].second;
+	size_t size;
+	
+  	if(current_epoch != 1) {
+		res.vals[0] = size = size_q * sizeof(float);
+	  	memcpy(buf, &dm.model.q[0], res.vals[0]);
+//		 printf("[Process Pull] dm.model.q[0]: %.3f, dm.model.q[1]: %.3f, dm.model.q[2]: %.3f\n", dm.model.q[0], dm.model.q[1], dm.model.q[2]); 
+  	} else {
+		res.vals[0] = size = (size_q+size_p) * sizeof(float);
+		memcpy(buf, &dm.model.p[0], size * sizeof(float));
+  	}
+//  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
+	server->Response(req_meta, res);	
+}
+
+void MFServer::ProcessPushQShm(const ps::KVMeta& req_meta,
+                  const ps::KVPairs<float>& req_data,
+                  ps::KVServer<float>* server)	
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = req_data.vals.size();
+
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.lens.resize(keys_size);
+
+	int rank = req_data.keys[0];
+	float *buf = (float *)shm_buf[rank].second;
+
+	//printf("current_epoch: %d\n", current_epoch); 
+	if(xpu->current_epoch != xpu->target_epoch) {
+	  if(received == 0) {
+		  memcpy(&dm.model.q[0], buf, sizeof(float) * size_q); 
+	//		 printf("[Process push] dm.model.q[0]: %.3f, dm.model.q[1]: %.3f, dm.model.q[2]: %.3f\n", dm.model.q[0], dm.model.q[1], dm.model.q[2]); 
+	  } else {
+		  for(int i = 0; i < size_q; i++) {
+			  dm.model.q[i] = (dm.model.q[i] + buf[i]) / 2;
+		  }
+	  }
+	} else {
+	  int start = worker_xpu_info[rank].start;
+	  int size = worker_xpu_info[rank].size;
+
+	  //Get feature p in the last epoch   
+	  int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
+	  int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
+	  memcpy(&dm.model.p[worker_start_p], &buf[worker_start_p], sizeof(float) * worker_size_p);
+	  
+	  if(received == 0) {
+		  memcpy(&dm.model.q[0], &buf[size_p], sizeof(float) * size_q);
+	  } else {
+		  for(int i = size_p; i < size_p + size_q; i++) {
+			  dm.model.q[i-size_p] = (dm.model.q[i-size_p] + buf[i]) / 2;
+		  }
+	  }
+	}
+
+	server->Response(req_meta, res);
+#ifdef CAL_PORTION_RMSE	
+	loss += req_data.vals.back();
+#endif
+
+	received++;
+	if(received == xpus) {
+	//	  current_epoch++;
+
+#ifdef CAL_PORTION_RMSE
+	  printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz));
+	  loss = 0;
+#endif
+
+#ifdef CAL_RMSE
+	  if(xpu->current_epoch < xpu->target_epoch)
+		  printf("Epoch %d\n", xpu->current_epoch);
+	  else
+		  printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		  
+#endif
+	  xpu->current_epoch++;
+	  received = 0;
 	}
 }
-							  
+
+void MFServer::ProcessPullAll(const ps::KVMeta& req_meta,
+                  const ps::KVPairs<float>& req_data,
+                  ps::KVServer<float>* server)	
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = size_p + size_q;
+
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.lens.resize(keys_size);
+
+	res.lens[0] = size_p;
+	res.lens[1] = size_q;
+
+	ps::SArray<float> vals(&dm.model.p[0], vals_size);
+	res.vals = vals;
+//	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
+	server->Response(req_meta, res);	
+}
+
+void MFServer::ProcessPushAll(const ps::KVMeta& req_meta,
+                  const ps::KVPairs<float>& req_data,
+                  ps::KVServer<float>* server)	
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = req_data.vals.size();
+	
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.lens.resize(keys_size);
+
+	if(received == 0) {
+		memcpy(&dm.model.p[0], &req_data.vals[0], (size_p + size_q)*sizeof(float)); 
+	} else {
+		for(int i = 0; i < size_p; i++) {
+			dm.model.p[i] = (dm.model.p[i] + req_data.vals[i]) / 2;
+		}
+
+		for(int i = size_p; i < size_p + size_q; i++) {
+			dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
+		}
+	}
+
+	server->Response(req_meta, res);
+#ifdef CAL_PORTION_RMSE	
+	loss += req_data.vals.back();
+#endif
+	
+	received++;
+	if(received == xpus) {
+	
+#ifdef CAL_PORTION_RMSE
+		printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz));
+		loss = 0;
+#endif
+	
+#ifdef CAL_RMSE
+		if(xpu->current_epoch < xpu->target_epoch) {
+			printf("Epoch %d\n", current_epoch);
+		} else {
+			printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
+		}
+#endif
+		xpu->current_epoch++;
+		received = 0;
+	}	
+}
+
+void MFServer::ProcessPullHalfQ(const ps::KVMeta& req_meta,
+				const ps::KVPairs<float>& req_data,
+				ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size;
+	float *src;
+
+	ps::KVPairs<float> res; 
+	res.keys = req_data.keys;
+
+	res.lens.resize(keys_size);
+
+	if(xpu->current_epoch != 1) {
+	  	//encode
+	  	singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, quantify_data_threads);
+
+		//prepare transmission data
+		res.lens[0] = vals_size = size_q/2;					  //compress
+		src = (float *)dm.halfq; 
+	} else {
+		//encode
+		singles2halfp(dm.halfp, &dm.model.p[0], size_p+size_q, FE_TONEAREST, 0, quantify_data_threads);
+
+		//prepare transmission data
+		res.lens[0] = size_p/2;
+		res.lens[1] = size_q/2;
+		vals_size = (size_p+size_q)/2;
+		src = (float *)dm.halfp;
+	}
+
+	res.vals = ps::SArray<float>(src, vals_size);
+	server->Response(req_meta, res);
+//  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);	
+}
+
+void MFServer::ProcessPushHalfQ(const ps::KVMeta& req_meta,
+					  const ps::KVPairs<float>& req_data,
+					  ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = req_data.vals.size();
+	uint16_t *h_p;
+	uint16_t *h_q;
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.lens.resize(keys_size);
+  
+  	//printf("current_epoch: %d\n", current_epoch); 
+  	if(xpu->current_epoch != xpu->target_epoch) {
+		h_q = (uint16_t *)&req_data.vals[0];
+	  	if(received == 0) {
+//			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
+			halfp2singles(&dm.model.q[0], h_q, size_q, quantify_data_threads);
+	  	} else {
+#if defined(USE_AVX2) || defined(USE_AVX512)
+			halfp2singles_madd(&dm.model.q[0], h_q, size_q, quantify_data_threads, 0.5);
+#else
+		  	for(int i = 0; i < size_q; i++) {
+				float tmp;
+				halfp2singles(&tmp, h_q+i, 1, nr_threads);
+			  	dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
+			}
+#endif
+	  	}
+  	} else {
+	  	int rank = req_data.keys[0];
+	  	int start = worker_xpu_info[rank].start;
+	  	int size = worker_xpu_info[rank].size;
+
+	  	//Get feature p in the last epoch   
+	  	int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
+	  	int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
+//	  	printf("start: %d, start_p: %d, size_p: %d\n", start, worker_start_p, worker_size_p);
+//	  	memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
+		h_p = (uint16_t *)&req_data.vals[0];
+		h_q = h_p + size_p;
+		halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, quantify_data_threads);
+
+	  	if(received == 0) {
+//		  	memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
+			halfp2singles(&dm.model.q[0], h_q, size_q, quantify_data_threads);
+	  	} else {
+#if defined(USE_AVX2) || defined(USE_AVX512)
+			halfp2singles_madd(&dm.model.q[0], h_q, size_q, quantify_data_threads, 0.5);
+#else
+		  	for(int i = 0; i < size_q; i++) {
+//			  	dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
+				float tmp;
+				halfp2singles(&tmp, h_q+i, 1, nr_threads);
+				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
+		  	}
+#endif
+	  	}
+  	}
+
+  	server->Response(req_meta, res);
+#ifdef CAL_PORTION_RMSE	
+  	loss += req_data.vals.back();
+#endif
+
+  	received++;
+  	if(received == xpus) {
+//	  current_epoch++;
+
+#ifdef CAL_PORTION_RMSE
+	  	printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz));
+	  	loss = 0;
+#endif
+
+#ifdef CAL_RMSE
+	  	if(xpu->current_epoch < xpu->target_epoch)
+		  	printf("Epoch %d\n", xpu->current_epoch);
+	  	else
+		  	printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		  
+#endif
+	  	xpu->current_epoch++;
+	  	received = 0;
+  	}	
+}
+
+void MFServer::ProcessPullHalfQShm(const ps::KVMeta& req_meta,
+				const ps::KVPairs<float>& req_data,
+				ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+
+	ps::KVPairs<float> res; 
+	res.keys = req_data.keys;
+	int rank = req_data.keys[0];
+	res.lens.resize(keys_size);
+	res.vals.resize(1);
+
+	if(xpu->current_epoch != 1) {
+		//encode
+		singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, quantify_data_threads);
+
+		//prepare transmission data
+		res.vals[0] = size_q * sizeof(uint16_t);					//compress
+		res.lens[0] = 1;
+		uint16_t *_buf = (uint16_t *)shm_buf[rank].second;
+		
+		memcpy(_buf, dm.halfq, res.vals[0]);
+		  
+		server->Response(req_meta, res);
+	} else {
+		//encode
+		singles2halfp(dm.halfp, &dm.model.p[0], size_p+size_q, FE_TONEAREST, 0, quantify_data_threads);
+		//prepare transmission data
+		res.vals[0] = (size_p+size_q) * sizeof(uint16_t);
+		res.lens[0] = 1;
+		uint16_t *_buf = (uint16_t *)shm_buf[rank].second;
+		memcpy(_buf, dm.halfp, res.vals[0]);
+		server->Response(req_meta, res);
+	}
+	//  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
+
+}
+
+void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
+				  const ps::KVPairs<float>& req_data,
+				  ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = req_data.vals.size();
+	uint16_t *h_p;
+	uint16_t *h_q;
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.lens.resize(keys_size);
+
+	int rank = req_data.keys[0];
+	//printf("current_epoch: %d\n", current_epoch); 
+	if(xpu->current_epoch != xpu->target_epoch) {
+		h_q = (uint16_t *)shm_buf[rank].second;
+		if(received == 0) {
+//			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
+			halfp2singles(&dm.model.q[0], h_q, size_q, quantify_data_threads);
+		} else {
+#if defined(USE_AVX2) || defined(USE_AVX512)
+			halfp2singles_madd(&dm.model.q[0], h_q, size_q, quantify_data_threads, 0.5);
+#else
+			for(int i = 0; i < size_q; i++) {
+				float tmp;
+				halfp2singles(&tmp, h_q+i, 1, nr_threads);
+				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
+			}
+#endif
+		}
+	} else {
+		int start = worker_xpu_info[rank].start;
+		int size = worker_xpu_info[rank].size;
+
+		//Get feature p in the last epoch	
+		int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
+		int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
+//		printf("start: %d, start_p: %d, size_p: %d\n", start, worker_start_p, worker_size_p);
+//		memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
+		h_p = (uint16_t *)shm_buf[rank].second;
+		h_q = h_p + size_p;
+		halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, nr_threads);
+		if(receive_times == 0) {
+//			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
+			halfp2singles(&dm.model.q[0], h_q, size_q, quantify_data_threads);
+		} else {
+#if defined(USE_AVX2) || defined(USE_AVX512)
+			halfp2singles_madd(&dm.model.q[0], h_q, size_q, quantify_data_threads, 0.5);
+#else
+			for(int i = 0; i < size_q; i++) {
+//				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
+				float tmp;
+				halfp2singles(&tmp, h_q+i, 1, quantify_data_threads);
+				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
+			}
+#endif
+		}
+	}
+
+	server->Response(req_meta, res);
+#ifdef CAL_PORTION_RMSE	
+	loss += req_data.vals.back();
+#endif
+
+	received++;
+	if(received == xpus) {
+//	  current_epoch++;
+
+#ifdef CAL_PORTION_RMSE
+		printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz));
+		loss = 0;
+#endif
+
+#ifdef CAL_RMSE
+		if(xpu->current_epoch < xpu->target_epoch)
+			printf("Epoch %d\n",  xpu->current_epoch);
+		else
+			printf("Epoch %d global loss %.4f\n",  xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		  
+#endif
+		xpu->current_epoch++;
+		received = 0;
+	}	
+}
+
+void MFServer::ProcessPullAllShm(const ps::KVMeta& req_meta,
+					const ps::KVPairs<float>& req_data,
+					ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = size_p + size_q;
+
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	int rank = req_data.keys[0];
+	res.vals.resize(1);
+	res.vals[0] = vals_size;
+	res.lens.resize(keys_size);
+	res.lens[0] = 1;
+
+	float *buf = (float *)shm_buf[rank].second;
+	memcpy(buf, &dm.model.p[0], vals_size * sizeof(float));
+//	print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
+	server->Response(req_meta, res);	
+}
+
+void MFServer::ProcessPushAllShm(const ps::KVMeta& req_meta,
+                  const ps::KVPairs<float>& req_data,
+                  ps::KVServer<float>* server)	
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = req_data.vals.size();
+
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.lens.resize(keys_size);
+
+	int rank = req_data.keys[0];
+	float *buf = (float *)shm_buf[rank].second;
+
+	//printf("current_epoch: %d\n", current_epoch); 
+
+	if(received == 0) {
+		memcpy(&dm.model.p[0], buf, (size_p+size_q)*sizeof(float));
+	} else {
+			for(int i = 0; i < size_p; i++) {
+				dm.model.p[i] = (dm.model.p[i] + buf[i]) / 2;
+			}
+
+			for(int i = size_p; i < size_p + size_q; i++) {
+				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + buf[i]) / 2;
+			}
+	}
+
+	server->Response(req_meta, res);
+#ifdef CAL_PORTION_RMSE	
+	loss += req_data.vals.back();
+#endif
+
+	received++;
+	if(received == xpus) {
+	//	  current_epoch++;
+
+#ifdef CAL_PORTION_RMSE
+	  printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz));
+	  loss = 0;
+#endif
+
+#ifdef CAL_RMSE
+	  if(xpu->current_epoch < xpu->target_epoch)
+		  printf("Epoch %d\n", xpu->current_epoch);
+	  else
+		  printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		  
+#endif
+	  xpu->current_epoch++;
+	  received = 0;
+	}	
+}
+				  
 }
