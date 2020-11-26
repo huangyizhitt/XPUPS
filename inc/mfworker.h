@@ -6,6 +6,7 @@
 #include "xpu.h"
 #include "ps/ps.h"
 #include "mfdata.h"
+#include "utils.h"
 
 namespace MF {
 

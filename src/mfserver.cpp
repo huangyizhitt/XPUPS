@@ -616,14 +616,14 @@ void MFServer::ProcessPullHalfQ(const ps::KVMeta& req_meta,
 
 	if(xpu->current_epoch != 1) {
 	  	//encode
-	  	singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, quantify_data_threads);
+	  	cpu_singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, quantify_data_threads);
 
 		//prepare transmission data
 		res.lens[0] = vals_size = size_q/2;					  //compress
 		src = (float *)dm.halfq; 
 	} else {
 		//encode
-		singles2halfp(dm.halfp, &dm.model.p[0], size_p+size_q, FE_TONEAREST, 0, quantify_data_threads);
+		cpu_singles2halfp(dm.halfp, &dm.model.p[0], size_p+size_q, FE_TONEAREST, 0, quantify_data_threads);
 
 		//prepare transmission data
 		res.lens[0] = size_p/2;
@@ -656,14 +656,14 @@ void MFServer::ProcessPushHalfQ(const ps::KVMeta& req_meta,
 		h_q = (uint16_t *)&req_data.vals[0];
 	  	if(received == 0) {
 //			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
-			halfp2singles(&dm.model.q[0], h_q, size_q, quantify_data_threads);
+			cpu_halfp2singles(&dm.model.q[0], h_q, size_q, quantify_data_threads);
 	  	} else {
 #if defined(USE_AVX2) || defined(USE_AVX512)
 			halfp2singles_madd(&dm.model.q[0], h_q, size_q, quantify_data_threads, 0.5);
 #else
 		  	for(int i = 0; i < size_q; i++) {
 				float tmp;
-				halfp2singles(&tmp, h_q+i, 1, quantify_data_threads);
+				cpu_halfp2singles(&tmp, h_q+i, 1, quantify_data_threads);
 			  	dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
 			}
 #endif
@@ -680,11 +680,11 @@ void MFServer::ProcessPushHalfQ(const ps::KVMeta& req_meta,
 //	  	memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
 		h_p = (uint16_t *)&req_data.vals[0];
 		h_q = h_p + size_p;
-		halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, quantify_data_threads);
+		cpu_halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, quantify_data_threads);
 
 	  	if(received == 0) {
 //		  	memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
-			halfp2singles(&dm.model.q[0], h_q, size_q, quantify_data_threads);
+			cpu_halfp2singles(&dm.model.q[0], h_q, size_q, quantify_data_threads);
 	  	} else {
 #if defined(USE_AVX2) || defined(USE_AVX512)
 			halfp2singles_madd(&dm.model.q[0], h_q, size_q, quantify_data_threads, 0.5);
@@ -692,7 +692,7 @@ void MFServer::ProcessPushHalfQ(const ps::KVMeta& req_meta,
 		  	for(int i = 0; i < size_q; i++) {
 //			  	dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
 				float tmp;
-				halfp2singles(&tmp, h_q+i, 1, quantify_data_threads);
+				cpu_halfp2singles(&tmp, h_q+i, 1, quantify_data_threads);
 				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
 		  	}
 #endif
@@ -740,7 +740,7 @@ void MFServer::ProcessPullHalfQShm(const ps::KVMeta& req_meta,
 
 	if(xpu->current_epoch != 1) {
 		//encode
-		singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, quantify_data_threads);
+		cpu_singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, quantify_data_threads);
 
 		//prepare transmission data
 		res.vals[0] = size_q * sizeof(uint16_t);					//compress
@@ -752,7 +752,7 @@ void MFServer::ProcessPullHalfQShm(const ps::KVMeta& req_meta,
 		server->Response(req_meta, res);
 	} else {
 		//encode
-		singles2halfp(dm.halfp, &dm.model.p[0], size_p+size_q, FE_TONEAREST, 0, quantify_data_threads);
+		cpu_singles2halfp(dm.halfp, &dm.model.p[0], size_p+size_q, FE_TONEAREST, 0, quantify_data_threads);
 		//prepare transmission data
 		res.vals[0] = (size_p+size_q) * sizeof(uint16_t);
 		res.lens[0] = 1;
@@ -784,14 +784,14 @@ void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 		h_q = (uint16_t *)shm_buf[rank].second;
 		if(received == 0) {
 //			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
-			halfp2singles(&dm.model.q[0], h_q, size_q, quantify_data_threads);
+			cpu_halfp2singles(&dm.model.q[0], h_q, size_q, quantify_data_threads);
 		} else {
 #if defined(USE_AVX2) || defined(USE_AVX512)
 			halfp2singles_madd(&dm.model.q[0], h_q, size_q, quantify_data_threads, 0.5);
 #else
 			for(int i = 0; i < size_q; i++) {
 				float tmp;
-				halfp2singles(&tmp, h_q+i, 1, quantify_data_threads);
+				cpu_halfp2singles(&tmp, h_q+i, 1, quantify_data_threads);
 				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
 			}
 #endif
@@ -807,10 +807,10 @@ void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 //		memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
 		h_p = (uint16_t *)shm_buf[rank].second;
 		h_q = h_p + size_p;
-		halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, quantify_data_threads);
+		cpu_halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, quantify_data_threads);
 		if(received == 0) {
 //			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
-			halfp2singles(&dm.model.q[0], h_q, size_q, quantify_data_threads);
+			cpu_halfp2singles(&dm.model.q[0], h_q, size_q, quantify_data_threads);
 		} else {
 #if defined(USE_AVX2) || defined(USE_AVX512)
 			halfp2singles_madd(&dm.model.q[0], h_q, size_q, quantify_data_threads, 0.5);
@@ -818,7 +818,7 @@ void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 			for(int i = 0; i < size_q; i++) {
 //				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
 				float tmp;
-				halfp2singles(&tmp, h_q+i, 1, quantify_data_threads);
+				cpu_halfp2singles(&tmp, h_q+i, 1, quantify_data_threads);
 				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
 			}
 #endif

@@ -31,7 +31,7 @@ __global__ void sgd_k128_kernel_hogwild_warp32_loss(
 							const MatrixNode *R,
 							size_t size,
 							curandState *state,
-							float *loss;
+							float *loss,
 							float *p,
 							float *q,
 							int k,
@@ -236,6 +236,7 @@ void *sgd_update_k128_gpu(void *args)
 	if(current_epoch == target_epoch) {
 		cudaFree(rand_state);
 	}
+	return NULL;
 }
 
 }

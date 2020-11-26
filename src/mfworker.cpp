@@ -554,7 +554,7 @@ void MFWorker::PushHalfQ()
 	size_t trans_size;
 	int index;
 	float *src;
-	short *dst = &ps_vals[0];
+	short *dst = (short *)&ps_vals[0];
 
 	if(xpu->current_epoch < xpu->target_epoch) {
 		keys.push_back(rank);
@@ -707,7 +707,7 @@ void MFWorker::CreateWorkers(pFunc func)
 		args.tid = 0;
 #endif
 
-		xpu->CreateTasks(0, func, args);
+		xpu->CreateTasks(0, func, &args);
 	}
 }
 
