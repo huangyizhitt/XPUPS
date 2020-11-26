@@ -79,8 +79,6 @@ private:
 	float *feature;
 	MatrixNode *gpuR;
 	unsigned char *shm_buf;
-	uint16_t *halfp;
-	uint16_t *halfq;
 
 	XPU *xpu;
 	WorkerDM dm;

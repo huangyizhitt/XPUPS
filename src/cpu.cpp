@@ -49,11 +49,6 @@ void CPU::Init()
 	task_pool.complete_workers = 0;
 }
 
-void CPU::Bind()
-{
-
-}
-
 void CPU::CreateTasks(int task_index, pFunc func, void *args)
 {
 	task_pool.tasks[task_index].func = func;
@@ -106,12 +101,13 @@ void CPU::SetTask(pFunc func, void * args, int index)
 	task_pool.tasks[index].args = args;
 }
 
-int CPU::singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
+//There is no cross-device on the CPU
+int CPU::singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads, bool cross_device)
 {
 	return singles2halfp(target, source, numel, rounding_mode, is_quiet, nr_threads);
 }
 
-int CPU::halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
+int CPU::halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads, bool cross_device)
 {
 	return halfp2singles(target, source, numel, nr_threads);
 }

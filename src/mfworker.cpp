@@ -2,12 +2,14 @@
 #include <string.h>
 #include <cstdlib>
 #include <numeric>
+#include <new>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include "utils.h"
 #include "ps/internal/env.h"
 #include "dmlc/logging.h"
 #include "mfworker.h"
+#include "task.h"
 
 using namespace ps;
 
@@ -28,16 +30,20 @@ void MFWorker::Init()
 	XPU *xpu;
 	val = CHECK_NOTNULL(Environment::Get()->find("XPU_TYPE"));
 	if(strcmp(val, "CPU") == 0) {
-		xpu = new CPU;
-		
+		xpu = new(std::nothrow) CPU;
 	} else if(strcmp(val, "GPU") == 0) {
-		
+		xpu = new(std::nothrow) GPU;
 	} else if(strcmp(val, "FPGA") == 0) {
 		
 	} else if(strcmp(val, "TPU") == 0) {
 		
 	} else {
 		
+	}
+
+	if(xpu == NULL) {
+		printf("Worker init fail, bad_alloc!\n");
+		exit(1);
 	}
 
 	xpu->Init();
@@ -160,7 +166,7 @@ void MFWorker::PullTrainingData()
 	}
 
 	if(xpu->xpu_type == XPU_TYPE::GPU) PullGPUData();
-	debugp("Recive data count: %ld\n", data_counter);
+	debugp("Recive data count: %ld\n", size);
 }
 
 
@@ -176,12 +182,6 @@ void MFWorker::PrepareCPUResources()
 #endif
 	p = feature;
 	q = feature + size_p;
-
-	if(trans_mode == HALFQ) {
-		halfp = (uint16_t *)malloc(sizeof(uint16_t) * (size_p + size_q + 2));
-		halfq = halfp + size_p;
-	}
-
 }
 
 int MFWorker::PrepareShmbuf()
@@ -223,8 +223,6 @@ void MFWorker::PrepareResources()
 void MFWorker::ReleaseCPUResources()
 {
 	free(feature);
-	if(trans_mode == HALFQ)
-		free(halfp);
 }
 
 void MFWorker::ReleaseResources()
@@ -257,6 +255,9 @@ void MFWorker::PreProcess()
 	PullTrainingData();
 	if(xpu->xpu_type == XPU_TYPE::CPU) {
 		GridProblem();
+		CreateWorkers(fpsgd_kernel);
+	} else if(xpu->xpu_type == XPU_TYPE::GPU) {
+		CreateWorkers(sgd_update_k128_gpu);
 	}	
 }
 
@@ -362,7 +363,7 @@ void MFWorker::PullHalfQ()
 	std::vector<int> lens;
 	CMD cmd = PULL_HALF_FEATURE;
 
-	uint16_t *h_p, *h_q;
+	short *h_p, *h_q;
 	double start, elapse;	
 	xpu->current_epoch++;	
 
@@ -380,11 +381,11 @@ void MFWorker::PullHalfQ()
 
 	if(xpu->current_epoch == 1) {
 		//decode
-		h_p = (uint16_t *)&vals[0];
-		xpu->halfp2singles(p, h_p, size_p+size_q, max_cores);
+		h_p = (short *)&vals[0];
+		xpu->halfp2singles(p, h_p, size_p+size_q, max_cores, true);
 	} else {
-		h_q = (uint16_t *)&vals[0];
-		xpu->halfp2singles(q, h_q, size_q, max_cores);
+		h_q = (short *)&vals[0];
+		xpu->halfp2singles(q, h_q, size_q, max_cores, true);
 	}
 }
 
@@ -395,7 +396,7 @@ void MFWorker::PullHalfQShm()
 	std::vector<int> lens;
 	CMD cmd = PULL_HALF_FEATURE_SHM;
 
-	uint16_t *h_p, *h_q;
+	short *h_p, *h_q;
 
 	keys.push_back(rank);
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
@@ -404,11 +405,11 @@ void MFWorker::PullHalfQShm()
 	size_t size_q = n * k;
 
 	if(xpu->current_epoch == 1) {
-		h_p = (uint16_t *)shm_buf;
-		xpu->halfp2singles(p, h_p, size_p+size_q, max_cores);
+		h_p = (short *)shm_buf;
+		xpu->halfp2singles(p, h_p, size_p+size_q, max_cores, true);
 	} else {
-		h_q = (uint16_t *)shm_buf;
-		xpu->halfp2singles(q, h_q, size_q, max_cores);
+		h_q = (short *)shm_buf;
+		xpu->halfp2singles(q, h_q, size_q, max_cores, true);
 	}
 }
 
@@ -553,7 +554,7 @@ void MFWorker::PushHalfQ()
 	size_t trans_size;
 	int index;
 	float *src;
-	uint16_t *dst;
+	short *dst = &ps_vals[0];
 
 	if(xpu->current_epoch < xpu->target_epoch) {
 		keys.push_back(rank);
@@ -561,7 +562,6 @@ void MFWorker::PushHalfQ()
 		trans_size = size_q / 2;
 		index = 1;
 		src = q;
-		dst = halfq;
 	} else {
 		keys.push_back(rank);
 		keys.push_back(rank+1);
@@ -570,11 +570,9 @@ void MFWorker::PushHalfQ()
 		trans_size = (size_p+size_q)/2;
 		index = 2;
 		src = p;
-		dst = halfp;
 	}
 
-	xpu->singles2halfp(dst, src, trans_size, FE_TONEAREST, 0, max_cores);
-	xpu->Transfer(&ps_vals[0], dst, trans_size, TransferDirect::C2S);
+	xpu->singles2halfp(dst, src, trans_size, FE_TONEAREST, 0, max_cores, true);
 	
 #ifdef CAL_PORTION_RMSE
 	keys.push_back(rank+index);
@@ -609,7 +607,7 @@ void MFWorker::PushHalfQShm()
 	vals.push_back(trans_size);
 	lens.push_back(1);				//compress half point
 	
-	xpu->singles2halfp(shm_buf, src, trans_size, FE_TONEAREST, 0, max_cores);
+	xpu->singles2halfp(shm_buf, src, trans_size, FE_TONEAREST, 0, max_cores, true);
 
 #ifdef CAL_PORTION_RMSE
 	keys.push_back(rank+1);
@@ -661,30 +659,55 @@ void MFWorker::Push()
 	}
 }
 
+//CPU multithread
+//GPU only a CPU thread, and workers GPU threads
 void MFWorker::CreateWorkers(pFunc func)
 {
+	if(xpu->xpu_type == XPU_TYPE::CPU) {
 #ifdef CAL_PORTION_RMSE
 		loss.resize(workers);
 #endif
 
-	for(int i = 0; i < workers; i++) {
+		for(int i = 0; i < workers; i++) {
+			Args args;
+			args.lambda_p = lambda_p;
+			args.lambda_q = lambda_q;
+			args.lrate = lrate;
+			args.p = p;
+			args.q = q;
+			args.workers = workers;
+			args.size = size;
+#ifdef CAL_PORTION_RMSE	
+			args.loss = &loss[i];
+#endif
+			args.data = &dm;
+
+#ifdef DEBUG
+			args.tid = i;
+#endif
+
+			xpu->CreateTasks(i, func, &args);
+		}
+	}else if(xpu->xpu_type == XPU_TYPE::GPU) {
 		Args args;
 		args.lambda_p = lambda_p;
 		args.lambda_q = lambda_q;
 		args.lrate = lrate;
 		args.p = p;
 		args.q = q;
-	
+		args.workers = workers;
+		args.size = size;
 #ifdef CAL_PORTION_RMSE	
-		args.loss = &loss[i];
+		args.loss = &loss[0];
+		args.gpu_loss = gpu_loss;
 #endif
-		args.data = &dm;
-
+		args.data = gpuR;
+		
 #ifdef DEBUG
-		args.tid = i;
+		args.tid = 0;
 #endif
 
-		xpu->CreateTasks(i, func, &args);
+		xpu->CreateTasks(0, func, args);
 	}
 }
 

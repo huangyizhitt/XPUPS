@@ -47,15 +47,15 @@ void print_feature_tail(const float *p, const float *q, size_t size_p, size_t si
 
 #if defined(USE_AVX2) || defined(USE_AVX512)
 //AVX SIMD cite https://clang.llvm.org/doxygen/f16cintrin_8h.html#ad1cae0481f65ec5c509425d5b4ccc5c1
-static inline void singles2halfp(uint16_t *target, const float *source)
+static inline void singles2halfp(short *target, const float *source)
 {
 	_mm_storeu_si128((__m128i*)target, _mm256_cvtps_ph(_mm256_loadu_ps(source), 0));
 }
 
-int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
+int singles2halfp(void     *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads)
 {
 	const float *src = (const float *)source;
-	uint16_t *dst = (uint16_t *)target;
+	short *dst = (short *)target;
 	if(dst == NULL || src == NULL || numel < 8) {
 		return -1;
 	}
@@ -83,7 +83,7 @@ int singles2halfp(void *target, const void *source, ptrdiff_t numel, int roundin
 	return 0;
 }
 
-inline void halfp2singles(float * dst, const uint16_t * src)
+inline void halfp2singles(float * dst, const short * src)
 {
     _mm256_storeu_ps(dst, _mm256_cvtph_ps(_mm_loadu_si128((__m128i*)src)));
 }
@@ -91,7 +91,7 @@ inline void halfp2singles(float * dst, const uint16_t * src)
 int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
 {
     float *dst = (float *)target;
-	const uint16_t *src = (const uint16_t *)source;
+	const short *src = (const short *)source;
 
 	if(!dst || !src || numel < 8) return -1;
 
@@ -121,7 +121,7 @@ int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads)
 
 //src->mid
 //dst=(dst+mid) * scale
-inline void half2singles_madd(float *dst, const uint16_t *src, float scale)
+inline void half2singles_madd(float *dst, const short *src, float scale)
 {
 	__m256 scale_vec = _mm256_set1_ps(scale);
 	__m256 src_vec = _mm256_cvtph_ps(_mm_loadu_si128((__m128i*)src));
@@ -131,7 +131,7 @@ inline void half2singles_madd(float *dst, const uint16_t *src, float scale)
 int halfp2singles_madd(void *target, void *source, ptrdiff_t numel, int nr_threads, float scale)
 {
 	float *dst = (float *)target;
-	const uint16_t *src = (const uint16_t *)source;
+	const short *src = (const short *)source;
 
 	if(!dst || !src || numel < 8) return -1;
 
