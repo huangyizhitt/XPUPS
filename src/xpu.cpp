@@ -47,7 +47,6 @@ void XPU::Init()
 	else
 		target_epoch = 20;
 
-	current_epoch = 0;
 }
 
 }

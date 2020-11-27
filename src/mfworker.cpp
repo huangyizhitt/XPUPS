@@ -47,6 +47,7 @@ void MFWorker::Init()
 	}
 
 	xpu->Init();
+	xpu->current_epoch = 0;
 	xpu->Bind();
 	this->xpu = xpu;
 	this->k = 128;
@@ -625,7 +626,7 @@ void MFWorker::Pull()
 			break;
 
 		case Q:
-			use_shm ? PullQShm() : PullQShm();
+			use_shm ? PullQShm() : PullQ();
 			break;
 
 		case HALFQ:
@@ -646,7 +647,7 @@ void MFWorker::Push()
 			break;
 
 		case Q:
-			use_shm ? PushQShm() : PushQShm();
+			use_shm ? PushQShm() : PushQ();
 			break;
 
 		case HALFQ:

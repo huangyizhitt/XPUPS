@@ -112,8 +112,8 @@ public:
 	float stddev;
 	float scale;
 	bool use_half;
-	uint16_t *halfp;
-	uint16_t *halfq;
+	short *halfp;
+	short *halfq;
 	struct Grid grid;
 	Data data;
 	Model model;

@@ -59,11 +59,10 @@ int cpu_singles2halfp(void     *target, const void *source, ptrdiff_t numel, int
 	if(dst == NULL || src == NULL || numel < 8) {
 		return -1;
 	}
-
 	size_t fullAlignedSize = numel&~(32-1);
     size_t partialAlignedSize = numel&~(8-1);
 
-	int sum = 0;
+	size_t sum = 0;
 #if defined USEOMP
 #pragma omp parallel for num_threads(nr_threads) schedule(static) reduction(+:sum)
 #endif
@@ -367,6 +366,7 @@ int cpu_halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_thread
     }
     return 0;
 }
+#endif
 
 void BindNumaNode(int node_id)
 {
@@ -384,4 +384,3 @@ void BindNumaNode(int node_id)
     }
 }
 
-#endif

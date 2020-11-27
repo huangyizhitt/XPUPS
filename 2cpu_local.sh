@@ -19,6 +19,7 @@ ${bin} ${arg} &
 
 
 export EPOCH='20'
+export TRANSMODE=2
 # start servers
 export DMLC_ROLE='server'
 i=0
@@ -26,7 +27,7 @@ export HEAPPROFILE=./S${i}
 export XPU_NAME='W-2155'
 export XPU_TYPE='CPU'
 export XPU_MAX_CORES='20'
-export XPU_WORKERS='10'
+export XPU_WORKERS='2'
 export NUMA_NODE=0
 ${bin} ${arg} &
 
@@ -40,7 +41,6 @@ export XPU_MAX_CORES='20'
 export XPU_WORKERS='18'
 export NUMA_NODE=${i}
 export WORK_LOAD=1
-export TRANSMODE=0
 ${bin} ${arg} &
 
 

@@ -59,6 +59,7 @@ void MFServer::Init()
 	xpu = new XPU;
 	xpu->xpu_type = XPU_TYPE::CPU;
 	xpu->Init();
+	xpu->current_epoch = 1;
 
 	server_xpu = new ps::KVServer<float>(0);	
 	server_xpu->set_request_handle(ProcessHandle);
@@ -92,7 +93,6 @@ void MFServer::Init()
 	}
 
 	(trans_mode == HALFQ) ? dm.Init(file_path, true) : dm.Init(file_path, false);
-
 	printf("Server XPU TYPE: %d, data threads: %d, work threads: %d\n", static_cast<int>(xpu->xpu_type), xpu->max_cores, xpu->workers);
 }
 
@@ -375,7 +375,7 @@ void MFServer::ProcessPushQ(const ps::KVMeta& req_meta,
 	res.keys = req_data.keys;
 	res.lens.resize(keys_size);
 	
-	//printf("current_epoch: %d\n", current_epoch);	
+	//printf("current_epoch: %d\n", xpu->current_epoch);	
 	if(xpu->current_epoch != xpu->target_epoch) {
 		if(received == 0) {
 			memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);	
@@ -613,7 +613,6 @@ void MFServer::ProcessPullHalfQ(const ps::KVMeta& req_meta,
 	res.keys = req_data.keys;
 
 	res.lens.resize(keys_size);
-
 	if(xpu->current_epoch != 1) {
 	  	//encode
 	  	cpu_singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, quantify_data_threads);
@@ -631,7 +630,7 @@ void MFServer::ProcessPullHalfQ(const ps::KVMeta& req_meta,
 		vals_size = (size_p+size_q)/2;
 		src = (float *)dm.halfp;
 	}
-
+	
 	res.vals = ps::SArray<float>(src, vals_size);
 	server->Response(req_meta, res);
 //  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);	

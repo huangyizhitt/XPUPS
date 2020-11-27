@@ -304,7 +304,7 @@ void DataManager::InitModel()
 	init1(model.q, cols, counts_q);
 
 	if(use_half) {
-		halfp = (uint16_t *)malloc(sizeof(uint16_t) * (rows + cols) * k);
+		halfp = (short *)malloc(sizeof(short) * (rows + cols) * k);
 		halfq = halfp + (rows * k);
 	}
 

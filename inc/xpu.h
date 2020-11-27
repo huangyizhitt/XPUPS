@@ -118,8 +118,6 @@ struct CPU : public XPU {
 	pthread_cond_t wake_con;
 	pthread_mutex_t wake_mutex;
 	int complete_workers;
-	int target_epoch;
-	int current_epoch;
 	std::vector<CPUTask> tasks;
 };
 

@@ -3,6 +3,8 @@
 
 namespace MF {
 
+CPU* CPU::cur_cpu = NULL;
+
 void* CPU::task_thread(void *args)
 {
 	CPUTask *task = (CPUTask *)args;
@@ -10,7 +12,7 @@ void* CPU::task_thread(void *args)
 		pthread_mutex_lock(&cur_cpu->barrier_mutex);
 		pthread_cond_wait(&cur_cpu->barrier_con, &cur_cpu->barrier_mutex);
 		pthread_mutex_unlock(&cur_cpu->barrier_mutex);
-		printf("Thread %d wake up!\n", task->tid);
+		debugp("Thread %d wake up!\n", task->tid);
 		pFunc func = task->func;
 		func(task->args);
 
@@ -35,8 +37,6 @@ void CPU::Init()
 	pthread_mutex_init(&wake_mutex, NULL);
 	pthread_cond_init(&barrier_con, NULL);
 	pthread_cond_init(&wake_con, NULL);
-	target_epoch = XPU::target_epoch;
-	current_epoch = 0;
 	complete_workers = 0;
 	SetCurCPU();
 }
