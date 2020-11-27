@@ -83,22 +83,18 @@ struct XPU_INFO {
 	size_t size;
 };
 
-struct Task {
+struct CPUTask {
+	pFunc func;
+	void *args;
+	int tid;
+	pthread_t thread;
+};
+
+struct GPUTask {
 	pFunc func;
 	void *args;
 };
 
-struct CPUTaskPool {
-	pthread_cond_t barrier_con;
-	pthread_mutex_t barrier_mutex;
-	pthread_cond_t wake_con;
-	pthread_mutex_t wake_mutex;
-	int complete_workers;
-	int target_epoch;
-	int current_epoch;
-	Task task;
-	std::vector<pthread_t> threads;
-};
 
 struct CPU : public XPU {
 	CPU() {}
@@ -113,8 +109,18 @@ struct CPU : public XPU {
 	virtual void Transfer(void *dst, void *src, size_t size, TransferDirect direct);	
 	virtual int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads, bool cross_device);
 	virtual int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads, bool cross_device);
-	
-	CPUTaskPool task_pool;
+	inline void SetCurCPU() {cur_cpu = this;}
+	static void *task_thread(void *args);
+
+	static CPU *cur_cpu;
+	pthread_cond_t barrier_con;
+	pthread_mutex_t barrier_mutex;
+	pthread_cond_t wake_con;
+	pthread_mutex_t wake_mutex;
+	int complete_workers;
+	int target_epoch;
+	int current_epoch;
+	std::vector<CPUTask> tasks;
 };
 
 struct GPU : public XPU {
@@ -130,7 +136,7 @@ struct GPU : public XPU {
 	virtual int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads, bool cross_device);
 	virtual int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads, bool cross_device);
 
-	Task task;
+	GPUTask task;
 };
 
 }
