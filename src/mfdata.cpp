@@ -156,7 +156,10 @@ void DataManager::PrepareTrainingData(int nr_threads)
 	double start, elapse;
 	scale = 1.0f;
 	
-	LoadData();
+	if(!LoadData()) {
+		printf("Load data fail, abort!\n");
+		exit(1);
+	}
 	CollectDataInfo(nr_threads);
 	scale = std::max((float)1e-4, stddev);
 

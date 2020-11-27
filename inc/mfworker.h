@@ -23,7 +23,7 @@ public:
 	void JoinWorkers();
 	inline int GetCurrentEpoch() const {return xpu->current_epoch;}
 	inline int GetTargetEpoch() const {return xpu->target_epoch;}
-
+	inline int GetWorkerID() const {return rank;}
 private:
 	void Init();
 	void DeInit();
@@ -86,7 +86,7 @@ private:
 	ps::KVWorker<float>* kv_xpu;
 	std::vector<int> blocks;					//current hand blocks id
 	std::vector<float> ps_vals;
-
+	std::vector<Args> args;	
 #ifdef CAL_PORTION_RMSE
 	std::vector<float> loss;
 	float *gpu_loss;

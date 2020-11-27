@@ -19,7 +19,7 @@ void *task_thread(void *args)
 		pthread_mutex_lock(barrier_mutex);
 		pthread_cond_wait(barrier_con, barrier_mutex);
 		pthread_mutex_unlock(barrier_mutex);
-
+		printf("Thread %d wake up!\n", tid);
 		pFunc func = pool->tasks[tid].func;
 		func(pool->tasks[tid].args);
 
@@ -53,6 +53,7 @@ void CPU::CreateTasks(int task_index, pFunc func, void *args)
 {
 	task_pool.tasks[task_index].func = func;
 	task_pool.tasks[task_index].args = args;
+	task_pool.tid.push_back(task_index);
 	pthread_create(&task_pool.tasks[task_index].thread, NULL, task_thread, &task_pool);
 }
 

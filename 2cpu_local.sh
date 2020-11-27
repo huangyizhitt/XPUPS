@@ -23,10 +23,10 @@ export EPOCH='20'
 export DMLC_ROLE='server'
 i=0
 export HEAPPROFILE=./S${i}
-export SERVER_XPU_NAME='W-2155'
-export SERVER_XPU_TYPE='CPU'
-export SERVER_XPU_MAX_CORE='20'
-export SERVER_XPU_THREADS='2'
+export XPU_NAME='W-2155'
+export XPU_TYPE='CPU'
+export XPU_MAX_CORES='20'
+export XPU_WORKERS='10'
 export NUMA_NODE=0
 ${bin} ${arg} &
 
@@ -34,12 +34,13 @@ ${bin} ${arg} &
 i=1
 export DMLC_ROLE='worker'
 export HEAPPROFILE=./W${i}
-export WORKER_XPU_NAME='W-2155'
-export WORKER_XPU_TYPE='CPU'
-export WORKER_XPU_MAX_CORE='20'
-export WORKER_XPU_THREADS='18'
+export XPU_NAME='W-2155'
+export XPU_TYPE='CPU'
+export XPU_MAX_CORES='20'
+export XPU_WORKERS='18'
 export NUMA_NODE=${i}
 export WORK_LOAD=1
+export TRANSMODE=0
 ${bin} ${arg} &
 
 

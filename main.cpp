@@ -36,23 +36,26 @@ int main(int argc, char **argv)
 //			printf("Begin epoch\n");
 //			start = cpu_second();
 			worker->Pull();
+			printf("pull success!\n");
 //			elapse = cpu_second() - start;
 //                        printf("Pull cost time: %.3f\n", elapse);
 
 //			start = cpu_second();
 			worker->Computing();
+			printf("Computing success!\n");
 //			elapse = cpu_second() - start;
  //                       printf("Compute cost time: %.3f\n", elapse);
 
 //			start = cpu_second();
 			worker->Push();
+			printf("Push success!\n");
 //                        elapse = cpu_second() - start;
 //                        printf("Push cost time: %.3f\n", elapse);
 
 			ps::Postoffice::Get()->Barrier(0, ps::kWorkerGroup);
 //			elapse = cpu_second() - start;
   //                      printf("Push cost time: %.3f\n", elapse);
-			if(worker->GetCurrentEpoch() == worker->GetTargetEpoch) break;
+			if(worker->GetCurrentEpoch() == worker->GetTargetEpoch()) break;
 		}
 		elapse = cpu_second() - start;
 		printf("[Worker %d] 20 epoch cost time: %.3f\n", worker->GetWorkerID(), elapse);

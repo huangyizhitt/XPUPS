@@ -139,10 +139,10 @@ void *fpsgd_kernel(void *args)
 #ifdef CAL_PORTION_RMSE	
 	*loss = 0.0;
 #endif	
-	
+	debugp("Entry %d fpsgd_kernel!\n", cpu_args->tid);	
 	while((blockId = dm->GetFreeBlock()) != -1) {
 		if(blockId == -2) continue;
-		debugp("[Thread %d] blockId %d\n", cpu_args->tid, blockId);
+//		debugp("[Thread %d] blockId %d\n", cpu_args->tid, blockId);
 		for(MatrixNode *N = ptrs[blockId]; N != ptrs[blockId+1]; N++) {
 			int u = N->row_index;
 			int v = N->col_index;

@@ -1,6 +1,7 @@
 #ifndef _XPU_H_
 #define _XPU_H_
 
+#include <stddef.h>
 #include <string.h>
 #include <pthread.h>
 #include <vector>
@@ -82,10 +83,9 @@ struct XPU_INFO {
 	size_t size;
 };
 
-struct CPUTask {
+struct Task {
 	pFunc func;
 	void *args;
-	pthread_t thread;
 };
 
 struct CPUTaskPool {
@@ -96,8 +96,8 @@ struct CPUTaskPool {
 	int complete_workers;
 	int target_epoch;
 	int current_epoch;
-	int tid;
-	std::vector<CPUTask> tasks;
+	Task task;
+	std::vector<pthread_t> threads;
 };
 
 struct CPU : public XPU {
@@ -117,11 +117,6 @@ struct CPU : public XPU {
 	CPUTaskPool task_pool;
 };
 
-struct GPUTask {
-	pFunc func;
-	void *args;
-};
-
 struct GPU : public XPU {
 	GPU() {}
 	~GPU() {}
@@ -135,7 +130,7 @@ struct GPU : public XPU {
 	virtual int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads, bool cross_device);
 	virtual int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads, bool cross_device);
 
-	GPUTask task;
+	Task task;
 };
 
 }
