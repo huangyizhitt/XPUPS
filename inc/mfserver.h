@@ -13,7 +13,7 @@ namespace MF {
 class MFServer {
 public:
 	MFServer() : cpus(0), gpus(0), fpgas(0), tpus(0), xpus(0){}
-	~MFServer() {if(use_shm) DestroyShmbuf(); delete server_xpu;}
+	~MFServer() {if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM) DestroyShmbuf(); delete server_xpu;}
 	
 	void Init();
 	static void ProcessHandle(const ps::KVMeta& req_meta,
@@ -100,7 +100,6 @@ private:
 	int prepare_data_threads;
 	int received;							//received times from workers
 	TransMode trans_mode;
-	bool use_shm;
 
 #ifdef CAL_PORTION_RMSE	
 	float loss;

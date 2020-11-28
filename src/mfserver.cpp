@@ -78,13 +78,6 @@ void MFServer::Init()
 		file_path = val;
 	}	 
 
-	val = Environment::Get()->find("SHM");
-	if(val != NULL) {
-		use_shm = std::atoi(val);
-	} else {
-		use_shm = false;
-	}
-
 	val = Environment::Get()->find("TRANSMODE");
 	if(val != NULL) {
 		trans_mode = static_cast<TransMode>(std::atoi(val));
@@ -92,7 +85,7 @@ void MFServer::Init()
 		trans_mode = ALL;
 	}
 
-	(trans_mode == HALFQ) ? dm.Init(file_path, true) : dm.Init(file_path, false);
+	(trans_mode == HALFQ || trans_mode == HALFQ_SHM) ? dm.Init(file_path, true) : dm.Init(file_path, false);
 	printf("Server XPU TYPE: %d, data threads: %d, work threads: %d\n", static_cast<int>(xpu->xpu_type), xpu->max_cores, xpu->workers);
 }
 
@@ -272,7 +265,7 @@ void MFServer::ProcessInitTrainingData(const ps::KVMeta& req_meta,
 	
 	PrepareData();
 
-	if(use_shm)
+	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM)
 		CreateShmbuf();
 	
 	int rank = req_data.keys[0];
@@ -445,14 +438,14 @@ void MFServer::ProcessPullQShm(const ps::KVMeta& req_meta,
 	
 	float *buf = (float *)shm_buf[rank].second;
 	size_t size;
-	
-  	if(xpu->current_epoch != 1) {
+  	
+	if(xpu->current_epoch != 1) {
 		res.vals[0] = size = size_q * sizeof(float);
 	  	memcpy(buf, &dm.model.q[0], res.vals[0]);
 //		 printf("[Process Pull] dm.model.q[0]: %.3f, dm.model.q[1]: %.3f, dm.model.q[2]: %.3f\n", dm.model.q[0], dm.model.q[1], dm.model.q[2]); 
   	} else {
 		res.vals[0] = size = (size_q+size_p) * sizeof(float);
-		memcpy(buf, &dm.model.p[0], size * sizeof(float));
+		memcpy(buf, &dm.model.p[0], size);
   	}
 //  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
 	server->Response(req_meta, res);	

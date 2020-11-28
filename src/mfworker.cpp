@@ -287,7 +287,6 @@ void MFWorker::PullAllShm()
 	CMD cmd = PULL_ALL_FEATURE_SHM;
 
 	xpu->current_epoch++;
-
 	//Only request the server to copy data to share memory;
 	keys.push_back(rank);
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
@@ -335,7 +334,6 @@ void MFWorker::PullQShm()
 	CMD cmd = PULL_Q_FEATURE_SHM;
 
 	xpu->current_epoch++;
-
 	//Only request the server to copy data to share memory;
 	keys.push_back(rank);
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
@@ -391,6 +389,8 @@ void MFWorker::PullHalfQShm()
 	CMD cmd = PULL_HALF_FEATURE_SHM;
 
 	short *h_p, *h_q;
+	
+	xpu->current_epoch++;
 
 	keys.push_back(rank);
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));

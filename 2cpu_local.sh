@@ -19,7 +19,7 @@ ${bin} ${arg} &
 
 
 export EPOCH='20'
-export TRANSMODE=2
+export TRANSMODE=5
 # start servers
 export DMLC_ROLE='server'
 i=0
