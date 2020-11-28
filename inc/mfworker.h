@@ -62,7 +62,6 @@ private:
 	int max_cores;
 	int numa_node;
 	TransMode trans_mode;
-	bool use_shm;
 	size_t start;
 	size_t size;
 

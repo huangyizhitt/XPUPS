@@ -66,13 +66,6 @@ void MFWorker::Init()
 		lrate = 0.005;
 	}
 
-	val = Environment::Get()->find("SHM");
-	if(val != NULL) {
-		use_shm = std::atoi(val);
-	} else {
-		use_shm = false;
-	}
-
 	val = Environment::Get()->find("TRANSMODE");
 	if(val != NULL) {
 		trans_mode = static_cast<TransMode>(std::atoi(val));
@@ -217,8 +210,8 @@ void MFWorker::PrepareResources()
 
 	ps_vals.resize(m * k + n * k + 1);
 
-	if(use_shm)
-		PrepareShmbuf();
+	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM)
+		PrepareShmbuf();					//Share memory is create by server
 }
 
 void MFWorker::ReleaseCPUResources()
@@ -623,15 +616,27 @@ void MFWorker::Pull()
 {
 	switch(trans_mode) {
 		case ALL: 
-			use_shm ? PullAllShm() : PullAll();
+			PullAll();
 			break;
 
 		case Q:
-			use_shm ? PullQShm() : PullQ();
+			PullQ();
 			break;
 
 		case HALFQ:
-			use_shm ? PullHalfQShm() : PullHalfQ();
+			PullHalfQ();
+			break;
+
+		case ALL_SHM:
+			PullAllShm();
+			break;
+
+		case Q_SHM:
+			PullQShm();
+			break;
+
+		case HALFQ_SHM:
+			PullHalfQShm();
 			break;
 
 		default:
@@ -644,15 +649,27 @@ void MFWorker::Push()
 {
 	switch(trans_mode) {
 		case ALL: 
-			use_shm ? PushAllShm() : PushAll();
+			PushAll();
 			break;
 
 		case Q:
-			use_shm ? PushQShm() : PushQ();
+			PushQ();
 			break;
 
 		case HALFQ:
-			use_shm ? PushHalfQShm() : PushHalfQ();
+			PushHalfQ();
+			break;
+		
+		case ALL_SHM:
+			PushAllShm();
+			break;
+
+		case Q_SHM:
+			PushQShm();
+			break;
+
+		case HALFQ_SHM:
+			PushHalfQShm();
 			break;
 
 		default:

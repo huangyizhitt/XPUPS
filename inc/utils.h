@@ -53,6 +53,9 @@ enum TransMode {
 	ALL=0,
 	Q = 1,
 	HALFQ = 2,
+	ALL_SHM = 3,
+	Q_SHM = 4,
+	HALFQ_SHM = 5,
 	UNKONWN_MODE,
 };
 
