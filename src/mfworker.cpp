@@ -573,7 +573,7 @@ void MFWorker::PushHalfQ()
 		src = p;
 	}
 
-	xpu->singles2halfp(dst, src, size_p+size_q, FE_TONEAREST, 0, max_cores, true);
+	xpu->singles2halfp(dst, src, trans_size * 2, FE_TONEAREST, 0, max_cores, true);
 	
 #ifdef CAL_PORTION_RMSE
 	keys.push_back(rank+index);
