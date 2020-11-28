@@ -441,7 +441,7 @@ void MFWorker::PushAll()
 	trans_size += 1;
 #endif
 
-	kv_xpu->Wait(kv_xpu->Push(keys, ps_vals, lens, cmd));
+	kv_xpu->Wait(kv_xpu->Push(keys, &ps_vals[0], trans_size, lens, cmd));
 }
 
 void MFWorker::PushAllShm()
@@ -506,7 +506,7 @@ void MFWorker::PushQ()
 	trans_size += 1;
 #endif
 
-	kv_xpu->Wait(kv_xpu->Push(keys, ps_vals, lens, cmd));
+	kv_xpu->Wait(kv_xpu->Push(keys, &ps_vals[0], trans_size, lens, cmd));
 }
 
 void MFWorker::PushQShm()
@@ -573,15 +573,16 @@ void MFWorker::PushHalfQ()
 		src = p;
 	}
 
-	xpu->singles2halfp(dst, src, trans_size, FE_TONEAREST, 0, max_cores, true);
+	xpu->singles2halfp(dst, src, size_p+size_q, FE_TONEAREST, 0, max_cores, true);
 	
 #ifdef CAL_PORTION_RMSE
 	keys.push_back(rank+index);
 	lens.push_back(1);
 	ps_vals[trans_size] =  std::accumulate(loss.begin(), loss.end(), 0.0);
+	trans_size += 1;
 #endif
 
-	kv_xpu->Wait(kv_xpu->Push(keys, ps_vals, lens, cmd));
+	kv_xpu->Wait(kv_xpu->Push(keys, &ps_vals[0], trans_size, lens, cmd));
 }
 
 void MFWorker::PushHalfQShm()
