@@ -6,7 +6,7 @@ if [ $# -lt 1 ]; then
 fi
 export DMLC_PS_VAN_TYPE='zmq_ipc'
 export DMLC_NUM_SERVER=1
-export DMLC_NUM_WORKER=2
+export DMLC_NUM_WORKER=3			# 2 cpu and 1 gpu 
 bin=$1
 shift
 arg="$@"
@@ -19,7 +19,7 @@ ${bin} ${arg} &
 
 
 export EPOCH='20'
-export TRANSMODE=5
+export TRANSMODE=0
 # start servers
 export DMLC_ROLE='server'
 i=0
@@ -31,7 +31,7 @@ export XPU_WORKERS='2'
 export NUMA_NODE=0
 ${bin} ${arg} &
 
-# start workers, node 0
+# start workers, cpu node 0
 export DMLC_ROLE='worker'
 export HEAPPROFILE=./W${i}
 export XPU_NAME='W-2155'
@@ -39,6 +39,17 @@ export XPU_TYPE='CPU'
 export XPU_MAX_CORES='20'
 export XPU_WORKERS='18'
 export NUMA_NODE=0
+export WORK_LOAD=1
+${bin} ${arg} &
+
+
+export DMLC_ROLE='worker'
+export HEAPPROFILE=./W${i}
+export XPU_NAME='W-2155'
+export XPU_TYPE='CPU'
+export XPU_MAX_CORES='20'
+export XPU_WORKERS='20'
+export NUMA_NODE=1
 export WORK_LOAD=1
 ${bin} ${arg} &
 

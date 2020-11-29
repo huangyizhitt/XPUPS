@@ -31,26 +31,27 @@ export XPU_WORKERS='2'
 export NUMA_NODE=0
 ${bin} ${arg} &
 
-# start workers, node 0
+# start workers
+i=1
 export DMLC_ROLE='worker'
 export HEAPPROFILE=./W${i}
 export XPU_NAME='W-2155'
 export XPU_TYPE='CPU'
 export XPU_MAX_CORES='20'
 export XPU_WORKERS='18'
-export NUMA_NODE=0
+export NUMA_NODE=1
 export WORK_LOAD=1
 ${bin} ${arg} &
 
 
 export DMLC_ROLE='worker'
 export HEAPPROFILE=./W${i}
-export XPU_NAME='W-2155'
-export XPU_TYPE='CPU'
-export XPU_MAX_CORES='20'
-export XPU_WORKERS='20'
-export NUMA_NODE=1
-export WORK_LOAD=1
+export XPU_NAME='Tesla V100'
+export XPU_TYPE='GPU'
+export XPU_MAX_CORES='5120'
+export XPU_WORKERS='2440'
+export NUMA_NODE=0
+export WORK_LOAD=3
 ${bin} ${arg} &
 
 wait
