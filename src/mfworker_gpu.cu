@@ -12,7 +12,7 @@ void MFWorker::PrepareGPUResources()
 
 #ifdef CAL_PORTION_RMSE
 	cudaMalloc(&feature, (size_p + size_q + 1) * sizeof(float));
-	cudaMalloc(&gpu_loss, size * sizeof(float));
+	cudaMalloc(&gpu_loss, size * sizeof(float) * 32);
 #else
 	cudaMalloc(&feature, (size_p + size_q) * sizeof(float));
 #endif

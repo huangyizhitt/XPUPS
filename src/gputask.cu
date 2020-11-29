@@ -1,4 +1,5 @@
 #include "task.h"
+#include "utils.h"
 #include <cuda_runtime.h>
 #include <curand.h>
 #include <curand_kernel.h>
@@ -97,7 +98,7 @@ __global__ void sgd_k128_kernel_hogwild_warp32_loss(
 			tmp_product = __shfl_sync(__activemask(), tmp_product, 0);
 
 			float ruv = r - tmp_product;
-			loss[offset] = ruv;
+			loss[offset] = ruv * ruv;
 
 				//update
 				//only works for k=blockDim.x=128
@@ -211,8 +212,8 @@ void *sgd_update_k128_gpu(void *args)
 	MatrixNode *R = (MatrixNode *)para->data;
 	int gpu_workers = para->workers;
 	size_t size = para->size;
-
-	if(current_epoch == 1) {
+	debugp("current_epoch: %d, R: %p\n", global::current_epoch, R);
+	if(global::current_epoch == 1) {
 		cudaMalloc(&rand_state, sizeof(curandState)*gpu_workers);
 		gpuErr(cudaPeekAtLastError());
 		init_rand_state<<<((gpu_workers+255)/256),256>>>(rand_state,gpu_workers);
@@ -233,7 +234,7 @@ void *sgd_update_k128_gpu(void *args)
 	gpuErr(cudaPeekAtLastError());
 	cudaDeviceSynchronize();
 
-	if(current_epoch == target_epoch) {
+	if(global::current_epoch == global::target_epoch) {
 		cudaFree(rand_state);
 	}
 	return NULL;

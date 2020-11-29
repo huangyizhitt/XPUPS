@@ -138,7 +138,7 @@ void *fpsgd_kernel(void *args)
 
 #ifdef CAL_PORTION_RMSE	
 	*loss = 0.0;
-#endif	
+#endif
 	debugp("Entry %d fpsgd_kernel!\n", cpu_args->tid);	
 	while((blockId = dm->GetFreeBlock()) != -1) {
 		if(blockId == -2) continue;

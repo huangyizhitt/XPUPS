@@ -4,16 +4,20 @@
 #include <stdio.h>
 #include "xpu.h"
 
-namespace MF {
+namespace global {
 
 int current_epoch = 0;
 int target_epoch = 0;
+
+}
+
+namespace MF {
 
 void GPU::Init()
 {
 	xpu_type = XPU_TYPE::GPU;
 	XPU::Init();
-	target_epoch = XPU::target_epoch;
+	global::target_epoch = XPU::target_epoch;
 }
 
 bool GPU::Bind()
@@ -43,7 +47,7 @@ void GPU::CreateTasks(int task_index, pFunc func, void * args)
 
 void GPU::RunTasks()
 {
-	current_epoch = XPU::current_epoch;
+	global::current_epoch = XPU::current_epoch;
 	task.func(task.args);
 }
 

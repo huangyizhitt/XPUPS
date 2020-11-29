@@ -6,10 +6,14 @@
 #include <pthread.h>
 #include <vector>
 
-namespace MF {
+namespace global {
 
 extern int current_epoch;
 extern int target_epoch;
+
+}
+
+namespace MF {
 
 enum class XPU_TYPE {
 		CPU = 0,
