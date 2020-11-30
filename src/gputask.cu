@@ -131,6 +131,83 @@ static float calc_rmse(MatrixNode *R, size_t size, float *p, float *q, int k)
 	return loss;	
 }
 
+__global__ void gpu_calc_rmse(
+							const MatrixNode *R,
+							size_t size,
+							curandState *state,
+							float *gpu_loss;
+							float *p,
+							float *q,
+							int k,
+							int update_count,
+							int update_vector_size,
+							float lrate,
+							float lambda_p,
+							float lambda_q
+							)
+{
+	int tid = blockIdx.x*blockDim.x + threadIdx.x;
+	gpu_loss[tid] = 0.0;
+	for(int update_ite = 0; update_ite < update_count; update_ite++)
+	{
+
+		int lane_id = threadIdx.x%32;
+		int local_wid = threadIdx.x/32;
+		int wid = 4*blockIdx.x + local_wid; 
+
+		long long start_id = 0;
+		if(lane_id == 0)
+		{
+			long long origin = (long long)(curand_uniform(&state[wid])*size);
+			start_id = origin%size;
+				//start_id == 0;
+		}
+
+		start_id = __shfl_sync(__activemask(), start_id, 0);
+			//start_id = __shfl(start_id, 0);
+			
+		for(int i = 0;i < update_vector_size;i++)
+		{
+			int offset = (start_id + i)%size;
+				
+			float r = __ldg(&R[offset].r);
+			int u = __ldg(&R[offset].row_index);
+			int v = __ldg(&R[offset].col_index);
+		
+				//read the p & q into register				   
+			int base_p = u*k;
+			int base_q = v*k;
+
+			float tmp_p1 = (p[base_p + lane_id]);
+			float tmp_q1 = (q[base_q + lane_id]);
+			
+			float tmp_p2 = (p[base_p + lane_id + 32]);
+			float tmp_q2 = (q[base_q + lane_id + 32]);
+			
+			float tmp_p3 = (p[base_p + lane_id + 64]);
+			float tmp_q3 = (q[base_q + lane_id + 64]);
+			
+			float tmp_p4 = (p[base_p + lane_id + 96]);
+			float tmp_q4 = (q[base_q + lane_id + 96]);
+
+			float tmp_product = tmp_p1*tmp_q1 + tmp_p2*tmp_q2 + tmp_p3*tmp_q3 + tmp_p4*tmp_q4;
+
+				//get dot product.
+			tmp_product += __shfl_down_sync(__activemask(), tmp_product, 16);
+			tmp_product += __shfl_down_sync(__activemask(), tmp_product, 8);
+			tmp_product += __shfl_down_sync(__activemask(), tmp_product, 4);
+			tmp_product += __shfl_down_sync(__activemask(), tmp_product, 2);
+			tmp_product += __shfl_down_sync(__activemask(), tmp_product, 1);
+
+//				  tmp_product = __shfl(tmp_product,0);
+			tmp_product = __shfl_sync(__activemask(), tmp_product, 0);
+
+			float ruv = r - tmp_product;
+			gpu_loss[tid] = ruv * ruv;
+		}
+	}
+}
+							
 void *sgd_update_k128_gpu(void *args)
 {
 	Args *para = (Args *)args;
@@ -150,12 +227,14 @@ void *sgd_update_k128_gpu(void *args)
 
 #ifdef CAL_PORTION_RMSE	
 	float *loss = para->loss;
-	MatrixNode *check_data = (MatrixNode *)para->check_data;
+	float *gpu_loss = para->gpu_loss;
+//	MatrixNode *check_data = (MatrixNode *)para->check_data;
 	sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, para->p, para->q, 128, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
 	cudaDeviceSynchronize();
-	cudaMemcpy(para->check_p, para->p, (para->size_p+para->size_q) * sizeof(float), cudaMemcpyDeviceToHost);
-	loss[0] = calc_rmse(check_data, size, para->check_p, para->check_p+para->size_p, 128);
+	cudaMemcpy(loss, gpu_loss, (gpu_workers * 32) * sizeof(float), cudaMemcpyDeviceToHost);
+//	cudaMemcpy(para->check_p, para->p, (para->size_p+para->size_q) * sizeof(float), cudaMemcpyDeviceToHost);
+//	loss[0] = calc_rmse(check_data, size, para->check_p, para->check_p+para->size_p, 128);
 #else
 	sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, para->p, para->q, 128, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);

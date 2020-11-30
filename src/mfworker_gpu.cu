@@ -12,7 +12,7 @@ void MFWorker::PrepareGPUResources()
 
 #ifdef CAL_PORTION_RMSE
 	cudaMalloc(&feature, (size_p + size_q + 1) * sizeof(float));
-//	cudaMalloc(&gpu_loss, size * sizeof(float) * 32);
+	cudaMalloc(&gpu_loss, workers * sizeof(float) * 32);
 	check_p = (float *)malloc((size_p+size_q) * sizeof(float));
 #else
 	cudaMalloc(&feature, (size_p + size_q) * sizeof(float));
@@ -29,7 +29,7 @@ void MFWorker::ReleaseGPUResources()
 	cudaFree(gpuR);
 
 #ifdef CAL_PORTION_RMSE
-	//cudaFree(gpu_loss);
+	cudaFree(gpu_loss);
 	free(check_p);
 #endif
 }
