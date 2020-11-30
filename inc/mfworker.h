@@ -88,7 +88,8 @@ private:
 	std::vector<Args> args;	
 #ifdef CAL_PORTION_RMSE
 	std::vector<float> loss;
-	float *gpu_loss;
+	float *check_p;
+//	float *gpu_loss;
 #endif	
 };
 

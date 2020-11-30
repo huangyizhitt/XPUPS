@@ -43,7 +43,10 @@ struct Args {
 	
 #ifdef CAL_PORTION_RMSE	
 	float *loss;
-	float *gpu_loss;
+	float *check_p;
+	void *check_data;
+	size_t size_p;
+	size_t size_q;
 #endif
 	void *data;
 
