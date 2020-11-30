@@ -4,6 +4,7 @@
 #include <curand.h>
 #include <curand_kernel.h>
 #include <stdio.h>
+#include <numeric>
 
 namespace MF {
 
@@ -116,18 +117,18 @@ __global__ void sgd_k128_kernel_hogwild_warp32(
 
 static float calc_rmse(MatrixNode *R, size_t size, float *p, float *q, int k)
 {
-	float loss;
+	float loss = 0.0;
 #if defined USEOMP
-#pragma omp parallel for schedule(static) reduction(+:loss)
+#pragma omp parallel for num_threads(20) schedule(static) reduction(+:loss)
 #endif	
 	for(size_t i = 0; i < size; i++) {
 		MatrixNode &N = R[i];
 		float *_p = &p[N.row_index * k];
 		float *_q = &q[N.col_index * k];
-		float e = N.r - inner_product(_p, _p+k, _q, ((float)0.0f));
+		float e = N.r - std::inner_product(_p, _p+k, _q, ((float)0.0f));
 		loss += e*e;
 	}
-	return sqrt(loss / nnz);	
+	return loss;	
 }
 
 void *sgd_update_k128_gpu(void *args)
@@ -149,10 +150,12 @@ void *sgd_update_k128_gpu(void *args)
 
 #ifdef CAL_PORTION_RMSE	
 	float *loss = para->loss;
+	MatrixNode *check_data = (MatrixNode *)para->check_data;
 	sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, para->p, para->q, 128, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
+	cudaDeviceSynchronize();
 	cudaMemcpy(para->check_p, para->p, (para->size_p+para->size_q) * sizeof(float), cudaMemcpyDeviceToHost);
-	loss[0] = calc_rmse(para->check_data, size, para->check_p, para->check_p+para->size_q, 128);
+	loss[0] = calc_rmse(check_data, size, para->check_p, para->check_p+para->size_p, 128);
 #else
 	sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, para->p, para->q, 128, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
