@@ -719,10 +719,6 @@ void MFWorker::CreateWorkers(pFunc func)
 #ifdef CAL_PORTION_RMSE
 		loss.resize(32*workers);	
 		args[0].loss = &loss[0];
-		args[0].check_p = check_p;
-		args[0].size_p = m*k;
-		args[0].size_q = n*k;
-		args[0].check_data = &dm.data.r_matrix[0];
 		args[0].gpu_loss = gpu_loss;
 #endif
 		args[0].data = gpuR;

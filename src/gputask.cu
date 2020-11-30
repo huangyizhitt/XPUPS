@@ -115,27 +115,11 @@ __global__ void sgd_k128_kernel_hogwild_warp32(
 	}
 }
 
-static float calc_rmse(MatrixNode *R, size_t size, float *p, float *q, int k)
-{
-	float loss = 0.0;
-#if defined USEOMP
-#pragma omp parallel for num_threads(20) schedule(static) reduction(+:loss)
-#endif	
-	for(size_t i = 0; i < size; i++) {
-		MatrixNode &N = R[i];
-		float *_p = &p[N.row_index * k];
-		float *_q = &q[N.col_index * k];
-		float e = N.r - std::inner_product(_p, _p+k, _q, ((float)0.0f));
-		loss += e*e;
-	}
-	return loss;	
-}
-
 __global__ void gpu_calc_rmse(
 							const MatrixNode *R,
 							size_t size,
 							curandState *state,
-							float *gpu_loss;
+							float *gpu_loss,
 							float *p,
 							float *q,
 							int k,
@@ -203,7 +187,9 @@ __global__ void gpu_calc_rmse(
 			tmp_product = __shfl_sync(__activemask(), tmp_product, 0);
 
 			float ruv = r - tmp_product;
-			gpu_loss[tid] = ruv * ruv;
+			//only lane_id = 0 will record
+			if(lane_id == 0)
+				gpu_loss[tid] += ruv * ruv;
 		}
 	}
 }
@@ -228,20 +214,22 @@ void *sgd_update_k128_gpu(void *args)
 #ifdef CAL_PORTION_RMSE	
 	float *loss = para->loss;
 	float *gpu_loss = para->gpu_loss;
-//	MatrixNode *check_data = (MatrixNode *)para->check_data;
 	sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, para->p, para->q, 128, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
+	gpuErr(cudaPeekAtLastError());
+	cudaDeviceSynchronize();
+	
+	gpu_calc_rmse<<<gpu_workers/4, 128>>>(R, size, rand_state, gpu_loss, para->p, para->q, 128, update_count,
+									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
+	gpuErr(cudaPeekAtLastError());
 	cudaDeviceSynchronize();
 	cudaMemcpy(loss, gpu_loss, (gpu_workers * 32) * sizeof(float), cudaMemcpyDeviceToHost);
-//	cudaMemcpy(para->check_p, para->p, (para->size_p+para->size_q) * sizeof(float), cudaMemcpyDeviceToHost);
-//	loss[0] = calc_rmse(check_data, size, para->check_p, para->check_p+para->size_p, 128);
 #else
 	sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, para->p, para->q, 128, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
-#endif
-
 	gpuErr(cudaPeekAtLastError());
 	cudaDeviceSynchronize();
+#endif
 
 	if(global::current_epoch == global::target_epoch) {
 		cudaFree(rand_state);
