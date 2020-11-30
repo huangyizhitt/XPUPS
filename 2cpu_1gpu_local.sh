@@ -28,7 +28,7 @@ export XPU_NAME='W-2155'
 export XPU_TYPE='CPU'
 export XPU_MAX_CORES='20'
 export XPU_WORKERS='2'
-export NUMA_NODE=0
+export NUMA_NODE=1
 ${bin} ${arg} &
 
 # start workers
@@ -39,8 +39,8 @@ export XPU_NAME='W-2155'
 export XPU_TYPE='CPU'
 export XPU_MAX_CORES='20'
 export XPU_WORKERS='18'
-export NUMA_NODE=1
-export WORK_LOAD=1
+export NUMA_NODE=0
+export WORK_LOAD=10
 ${bin} ${arg} &
 
 
@@ -50,8 +50,8 @@ export XPU_NAME='Tesla V100'
 export XPU_TYPE='GPU'
 export XPU_MAX_CORES='5120'
 export XPU_WORKERS='2440'
-export NUMA_NODE=0
-export WORK_LOAD=3
+export NUMA_NODE=1
+export WORK_LOAD=30
 ${bin} ${arg} &
 
 wait

@@ -40,19 +40,18 @@ int main(int argc, char **argv)
 //			elapse += cpu_second() - start;
 //                        printf("Pull cost time: %.3f\n", elapse);
 
-//			start = cpu_second();
+			start = cpu_second();
 			worker->Computing();
 //			printf("Computing success!\n");
-//			elapse += cpu_second() - start;
+			elapse += cpu_second() - start;
 //                        printf("Compute cost time: %.3f\n", elapse);
 
-			start = cpu_second();
+//			start = cpu_second();
 			worker->Push();
 //			printf("Push success!\n");
-                        elapse += cpu_second() - start;
+//                        elapse += cpu_second() - start;
 //                        printf("Push cost time: %.3f\n", elapse);
-
-			ps::Postoffice::Get()->Barrier(0, ps::kWorkerGroup);
+//			worker->Barrier();
 //			elapse = cpu_second() - start;
   //                      printf("Push cost time: %.3f\n", elapse);
 			if(worker->GetCurrentEpoch() == worker->GetTargetEpoch()) break;
@@ -60,8 +59,8 @@ int main(int argc, char **argv)
 //		elapse = cpu_second() - start;
 //		printf("[Worker %d] 20 epoch cost time: %.3f\n", worker->GetWorkerID(), elapse);
 //		printf("20 epoch pull cost time: %.3f\n", elapse);
-		printf("20 epoch push cost time: %.3f\n", elapse);
-//		printf("20 epoch compute cost time: %.3f\n", elapse);
+//		printf("20 epoch push cost time: %.3f\n", elapse);
+		printf("[Worker %d] 20 epoch compute cost time: %.3f\n", worker->GetWorkerID(), elapse);
 //		printf("20 epoch communication cost time %.3f\n", elapse);
 		worker->JoinWorkers();
 		ps::RegisterExitCallback([worker](){ delete worker;});

@@ -21,6 +21,7 @@ public:
 	void Computing();
 	void CreateWorkers(pFunc func);
 	void JoinWorkers();
+	void Barrier();
 	inline int GetCurrentEpoch() const {return xpu->current_epoch;}
 	inline int GetTargetEpoch() const {return xpu->target_epoch;}
 	inline int GetWorkerID() const {return rank;}

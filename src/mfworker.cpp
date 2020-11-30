@@ -10,10 +10,15 @@
 #include "dmlc/logging.h"
 #include "mfworker.h"
 #include "task.h"
+#include "ps/internal/postoffice.h"
 
 using namespace ps;
 
 namespace MF {
+void MFWorker::Barrier()
+{
+	ps::Postoffice::Get()->Barrier(0, ps::kWorkerGroup);
+}
 
 void MFWorker::Init()
 {
@@ -244,6 +249,7 @@ void MFWorker::PreProcess()
 {
 	Init();
 	PushXPUInfo();
+	Barrier();
 	InitTrainingData();
 	PrepareResources();
 	PullTrainingData();
@@ -253,6 +259,7 @@ void MFWorker::PreProcess()
 	} else if(xpu->xpu_type == XPU_TYPE::GPU) {
 		CreateWorkers(sgd_update_k128_gpu);
 	}	
+	Barrier();
 }
 
 void MFWorker::PostProcess()
@@ -734,7 +741,8 @@ void MFWorker::CreateWorkers(pFunc func)
 void MFWorker::Computing()
 {
 	xpu->RunTasks();
-	dm.ClearBlockFlags();
+	if(xpu->xpu_type == XPU_TYPE::CPU)
+		dm.ClearBlockFlags();
 }
 
 void MFWorker::JoinWorkers()
