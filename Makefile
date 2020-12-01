@@ -75,6 +75,9 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cu
 	$(NVCC) -c $< -o $@ $(CU_CFLAGS) $(CU_FLAGS) $(PS_INC)
+
+$(OBJ_DIR):
+	test -d $(OBJ_DIR) || mkdir -p $(OBJ_DIR)
 .PHONY:
 clean:
 	$(RM) $(OBJS) $(CU_OBJS) mf
