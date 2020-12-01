@@ -67,7 +67,7 @@ void MFServer::Init()
 	total_work_ratio = 0;
 	prepare_data_threads = xpu->max_cores;
 	quantify_data_threads = xpu->workers;
-
+	received = 0;
 #ifdef CAL_PORTION_RMSE	
 	loss = 0.0;
 #endif

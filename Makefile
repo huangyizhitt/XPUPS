@@ -1,8 +1,9 @@
 NVCC = nvcc
 CXX = g++
 RM = rm -rf
-CU_FLAGS = -gencode arch=compute_70,code=compute_70 -Xcompiler -fopenmp
-CU_CFLAGS = -std=c++11 -g -O3 -lrt -lpthread -lcuda -lcudart
+CU_FLAGS = -gencode arch=compute_70,code=compute_70 -gencode arch=compute_75,code=compute_75 -Xcompiler -fopenmp
+CU_CFLAGS = -std=c++11 -g -O3 -lrt -lpthread 
+CU_LIB = -L/usr/local/cuda/lib64 -lcuda -lcudart
 CFLAGS = -std=c++11 -g -O3 -lrt -lpthread -DUSEOMP -fopenmp -lnuma 
 ARCH_FLAGS = -march=native
 AVX2_FLAGS = -mavx2 -DUSE_AVX2
@@ -15,6 +16,7 @@ SRC_DIR = ./src
 INC_DIR = ./inc
 OBJ_DIR = ./obj
 LIB_DIR = ./lib
+IPC_DIR = /tmp/XPU
 LIB = $(LIB_DIR)/libxpu.so
 PS_LIB = ./ps-lite/build/libps.a -Wl,-rpath,./ps-lite/deps/lib -L./ps-lite/deps/lib -lprotobuf-lite -lzmq
 PS_INC = -I./ps-lite/include -I./ps-lite/src -I./ps-lite/deps/include 
@@ -65,20 +67,21 @@ else ifeq ($(comm_op), 2)
 	CFLAGS += -DSEND_COMPRESS_Q_FEATURE -fpermissive
 endif
 
-
-
+all: $(OBJ_DIR) mf
 mf: main.cpp $(OBJS) $(CU_OBJS)
-	$(CXX) $^ -o $@ $(CFLAGS) $(ARCH_FLAGS) $(PS_INC) $(PS_LIB) -lcuda -lcudart
-
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp 
-	$(CXX) -c $< -o $@ $(CFLAGS) $(ARCH_FLAGS) $(PS_INC)
-
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cu
-	$(NVCC) -c $< -o $@ $(CU_CFLAGS) $(CU_FLAGS) $(PS_INC)
+	$(CXX) $^ -o $@ $(CFLAGS) $(ARCH_FLAGS) $(PS_INC) $(PS_LIB) $(CU_LIB) 
+	test -d $(IPC_DIR) || mkdir -p $(IPC_DIR)
 
 $(OBJ_DIR):
 	test -d $(OBJ_DIR) || mkdir -p $(OBJ_DIR)
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp $(OBJ_DIR)
+	$(CXX) -c $< -o $@ $(CFLAGS) $(ARCH_FLAGS) $(PS_INC)
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cu $(OBJ_DIR)
+	$(NVCC) -c $< -o $@ $(CU_CFLAGS) $(CU_FLAGS) $(PS_INC) $(CU_LIB)
+
 .PHONY:
 clean:
-	$(RM) $(OBJS) $(CU_OBJS) mf
+	$(RM) $(OBJS) $(CU_OBJS) $(IPC_DIR)/* mf
 
