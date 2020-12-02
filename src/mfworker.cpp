@@ -163,6 +163,8 @@ void MFWorker::PullTrainingData()
 		data.r_matrix[i].col_index = (int)vals[i * len + 1];
 		data.r_matrix[i].r = (float)vals[i * len + 2];
 	}
+	dm.start_rows = data.r_matrix[0].row_index;
+	dm.end_rows = data.r_matrix[size-1].row_index;
 
 	if(xpu->xpu_type == XPU_TYPE::GPU) PullGPUData();
 	debugp("Recive data count: %ld\n", size);

@@ -388,7 +388,7 @@ void DataManager::PrintHead(int start, int head)
 
 int WorkerDM::GetBlockId(Grid& grid, MatrixNode& n)
 {
-	return (n.row_index/grid.blockDim.y) * grid.gridDim.x + n.col_index/grid.blockDim.x;
+	return ((n.row_index-start_rows)/grid.blockDim.y) * grid.gridDim.x + (n.col_index-0)/grid.blockDim.x;
 }
 
 int WorkerDM::GetBlockId(Grid& grid, int row, int col)
@@ -405,8 +405,7 @@ void WorkerDM::SetGrid(const Dim2& grid_dim)
 	
 	block_size = nr_bins_x * nr_bins_y;
 	grid.blockDim.x = (int)ceil((double)cols / nr_bins_x);
-	grid.blockDim.y = (int)ceil((double)rows / nr_bins_y);
-
+	grid.blockDim.y = (int)ceil((double)(end_rows - start_rows + 1) / nr_bins_y);
 
 	//init the block scheduler
 	busy_x.resize(nr_bins_x, false);

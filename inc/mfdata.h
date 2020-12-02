@@ -149,6 +149,8 @@ public:
 	size_t nnz = 0;
 	size_t rows = 0;
 	size_t cols = 0;
+	size_t start_rows;
+	size_t end_rows;
 	int k = 128;
 	int block_size;
 	
