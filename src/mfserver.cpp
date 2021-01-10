@@ -582,7 +582,7 @@ void MFServer::ProcessPushAll(const ps::KVMeta& req_meta,
 	
 #ifdef CAL_RMSE
 		if(xpu->current_epoch < xpu->target_epoch) {
-			printf("Epoch %d\n", current_epoch);
+			printf("Epoch %d\n", xpu->current_epoch);
 		} else {
 			printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
 		}

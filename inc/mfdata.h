@@ -97,8 +97,8 @@ public:
 	int *inv_p_map;
 	int *inv_q_map;
 	size_t nnz = 0;								//total element size
-	size_t rows = 0;							//row size
-	size_t cols = 0;							//col size
+	long long rows = 0;							//row size
+	long long cols = 0;							//col size
 	int k;										//rows * cols -> rows * k and k * cols
 	int block_size;
 	int epoch;

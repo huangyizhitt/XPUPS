@@ -49,7 +49,7 @@ bool DataManager::LoadData()
     nnz = ftell(fp) / 12;
 	data.r_matrix.resize(nnz);
 	rewind(fp);
-
+	
 	size_t idx = 0;
 	while(true) {
 		int flag = 0;
@@ -74,7 +74,7 @@ bool DataManager::LoadData()
 	fclose(fp);
 	
 	elapse = cpu_second() - start;
-	printf("rows:%lu, cols:%lu, nnz:%lu, idx:%lu, cost time: %f\n",rows, cols, nnz, idx, elapse);
+	printf("rows:%lld, cols:%lld, nnz:%lu, idx:%lu, cost time: %f\n",rows, cols, nnz, idx, elapse);
 	return true;
 }
 
