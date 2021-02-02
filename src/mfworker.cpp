@@ -123,10 +123,10 @@ void MFWorker::InitTrainingData()
 	
 	start = (size_t)vals[0];
 //	size = (size_t)vals[1];
-    singles2int(&vals[1], size);
-	m = dm.rows = (size_t)vals[4];
-	n = dm.cols = (size_t)vals[5];
-	scale = vals[4];
+        size = singles2int(&vals[1]);
+	m = dm.rows = (size_t)vals[3];
+	n = dm.cols = (size_t)vals[4];
+	scale = vals[5];
 
 	lambda_p = lambda_p / scale;
 	lambda_q = lambda_q / scale;

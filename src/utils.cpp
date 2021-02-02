@@ -394,10 +394,10 @@ void int2singles(int src, float *dst)
 	dst[0] = src_l;
 }
 
-void singles2int(float *src, int& dst)
+int singles2int(float *src)
 {
 	int src_h = (int)src[1];
 	int src_l = (int)src[0];
-	dst = (src_h << 16) | (src_l);
+	return ((src_h << 16) | (src_l));
 }
 

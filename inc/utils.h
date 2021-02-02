@@ -67,7 +67,7 @@ int cpu_singles2halfp(void *target, const void *source, ptrdiff_t numel, int rou
 int cpu_halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads);
 void BindNumaNode(int node_id);
 void int2singles(int src, float *dst);
-void singles2int(float *src, int& dst);
+int singles2int(float *src);
 
 #if defined(USE_AVX2) || defined(USE_AVX512)
 inline void half2singles_madd(void *dst, const void *src, float scale);
