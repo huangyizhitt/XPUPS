@@ -137,7 +137,7 @@ class WorkerDM {
 public:
 	void PrintHead(int rank, int head = 5);
 	void SetGrid(const Dim2& grid_dim);
-	void GridData(int rank);
+	void GridData(int rank, int nr_thread);
 	int GetBlockId(Grid& grid, MatrixNode& r);					//by matrix node's row and col index;
 	int GetBlockId(Grid& grid, int row, int col);					//by block's row and col index; 
 	int GetFreeBlock(int epoch);

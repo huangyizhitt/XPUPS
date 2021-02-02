@@ -244,7 +244,7 @@ void MFWorker::GridProblem()
 	gridDim.y = 2*workers + 1;
 	
 	dm.SetGrid(gridDim);
-	dm.GridData(rank);
+	dm.GridData(rank, xpu->max_cores);
 }
 
 

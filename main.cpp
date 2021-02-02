@@ -30,26 +30,26 @@ int main(int argc, char **argv)
 		worker = new MF::MFWorker();
 		worker->PreProcess();
 
-		double start, elapse = 0;
+		double start, elapse = 0, pull_start, pull_elapse = 0, push_start, push_elapse = 0, compute_start, compute_elapse = 0;
 		start = cpu_second();
 		while(true) {
 //			printf("Begin epoch\n");
-//			start = cpu_second();
+			pull_start = cpu_second();
 			worker->Pull();
 //			printf("pull success!\n");
-//			elapse += cpu_second() - start;
+			pull_elapse += cpu_second() - pull_start;
 //                        printf("Pull cost time: %.3f\n", elapse);
 
-//			start = cpu_second();
+			compute_start = cpu_second();
 			worker->Computing();
 //			printf("Computing success!\n");
-//			elapse += cpu_second() - start;
+			compute_elapse += cpu_second() - compute_start;
 //                        printf("Compute cost time: %.3f\n", elapse);
 
-//			start = cpu_second();
+			push_start = cpu_second();
 			worker->Push();
 //			printf("Push success!\n");
-//                        elapse += cpu_second() - start;
+                        push_elapse += cpu_second() - push_start;
 //                        printf("Push cost time: %.3f\n", elapse);
 			worker->Barrier();
 //			elapse = cpu_second() - start;
@@ -60,7 +60,7 @@ int main(int argc, char **argv)
 //		printf("[Worker %d] 20 epoch cost time: %.3f\n", worker->GetWorkerID(), elapse);
 //		printf("20 epoch pull cost time: %.3f\n", elapse);
 //		printf("20 epoch push cost time: %.3f\n", elapse);
-		printf("[Worker %d] 20 epoch compute cost time: %.3f\n", worker->GetWorkerID(), elapse);
+		printf("[Worker %d] 20 epoch total cost time: %.3f, pull cost time: %.3f, compute cost time: %.3f, push cost time: %.3f\n", worker->GetWorkerID(), elapse, pull_elapse, compute_elapse, push_elapse);
 //		printf("20 epoch communication cost time %.3f\n", elapse);
 		worker->JoinWorkers();
 		ps::RegisterExitCallback([worker](){ delete worker;});

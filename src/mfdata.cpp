@@ -427,7 +427,7 @@ void WorkerDM::SetGrid(const Dim2& grid_dim)
 	pthread_spin_init(&lock, PTHREAD_PROCESS_PRIVATE);
 }
 
-void WorkerDM::GridData(int rank)
+void WorkerDM::GridData(int rank, int nr_threads)
 {
 	printf("Grid Problem in Worker %d...\n", rank);
 	double start, elapse;
@@ -464,6 +464,18 @@ void WorkerDM::GridData(int rank)
             		pivots[curr_block] += 1;
         	}
     	}
+
+
+#if defined USEOMP
+#pragma omp parallel for num_threads(nr_threads) schedule(dynamic)
+#endif
+    for(int block = 0; block < block_size; ++block)
+    {
+        if(rows > cols)
+            std::sort(ptrs[block], ptrs[block+1], sort_node_by_p());
+        else
+            std::sort(ptrs[block], ptrs[block+1], sort_node_by_q());
+    }
 	
     elapse = cpu_second() - start;
     printf("Grid Problem to all XPU complete, cost: %.8f\n", elapse);
