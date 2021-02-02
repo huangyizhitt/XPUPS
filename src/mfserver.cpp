@@ -275,12 +275,17 @@ void MFServer::ProcessInitTrainingData(const ps::KVMeta& req_meta,
 	dm.SplitData(start, size, worker_xpu_info[rank].work_ratio);
 	worker_xpu_info[rank].start = start;
 	worker_xpu_info[rank].size = size;
+	float trans_size[2];
+	int2singles(size, trans_size);
+	
 	res.vals.push_back((float)start);
-	res.vals.push_back((float)size);
+//	res.vals.push_back((float)size);
+	res.vals.push_back(trans_size[0]);
+	res.vals.push_back(trans_size[1]);
 	res.vals.push_back((float)dm.rows);
 	res.vals.push_back((float)dm.cols);
 	res.vals.push_back(dm.scale);
-	res.lens[0] = 5;
+	res.lens[0] = 6;
 	server->Response(req_meta, res);	
 }
 
@@ -406,7 +411,7 @@ void MFServer::ProcessPushQ(const ps::KVMeta& req_meta,
 //		current_epoch++;
 
 #ifdef CAL_PORTION_RMSE
-		printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz));
+		printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz)*dm.scale);
 		loss = 0;
 #endif
 
@@ -414,7 +419,7 @@ void MFServer::ProcessPushQ(const ps::KVMeta& req_meta,
 		if(xpu->current_epoch < xpu->target_epoch)
 			printf("Epoch %d\n", xpu->current_epoch);
 		else
-			printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
+			printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model)*dm.scale);		
 #endif
 		xpu->current_epoch++;
 		received = 0;
@@ -505,7 +510,7 @@ void MFServer::ProcessPushQShm(const ps::KVMeta& req_meta,
 	//	  current_epoch++;
 
 #ifdef CAL_PORTION_RMSE
-	  printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz));
+	  printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz)*dm.scale);
 	  loss = 0;
 #endif
 
@@ -513,7 +518,7 @@ void MFServer::ProcessPushQShm(const ps::KVMeta& req_meta,
 	  if(xpu->current_epoch < xpu->target_epoch)
 		  printf("Epoch %d\n", xpu->current_epoch);
 	  else
-		  printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		  
+		  printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model)*dm.scale);		  
 #endif
 	  xpu->current_epoch++;
 	  received = 0;
@@ -576,7 +581,7 @@ void MFServer::ProcessPushAll(const ps::KVMeta& req_meta,
 	if(received == xpus) {
 	
 #ifdef CAL_PORTION_RMSE
-		printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz));
+		printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz)*dm.scale);
 		loss = 0;
 #endif
 	
@@ -584,7 +589,7 @@ void MFServer::ProcessPushAll(const ps::KVMeta& req_meta,
 		if(xpu->current_epoch < xpu->target_epoch) {
 			printf("Epoch %d\n", xpu->current_epoch);
 		} else {
-			printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		
+			printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model)*dm.scale);		
 		}
 #endif
 		xpu->current_epoch++;
@@ -701,7 +706,7 @@ void MFServer::ProcessPushHalfQ(const ps::KVMeta& req_meta,
 //	  current_epoch++;
 
 #ifdef CAL_PORTION_RMSE
-	  	printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz));
+	  	printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz)*dm.scale);
 	  	loss = 0;
 #endif
 
@@ -709,7 +714,7 @@ void MFServer::ProcessPushHalfQ(const ps::KVMeta& req_meta,
 	  	if(xpu->current_epoch < xpu->target_epoch)
 		  	printf("Epoch %d\n", xpu->current_epoch);
 	  	else
-		  	printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		  
+		  	printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model)*dm.scale);		  
 #endif
 	  	xpu->current_epoch++;
 	  	received = 0;
@@ -827,7 +832,7 @@ void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 //	  current_epoch++;
 
 #ifdef CAL_PORTION_RMSE
-		printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz));
+		printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz)*dm.scale);
 		loss = 0;
 #endif
 
@@ -835,7 +840,7 @@ void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 		if(xpu->current_epoch < xpu->target_epoch)
 			printf("Epoch %d\n",  xpu->current_epoch);
 		else
-			printf("Epoch %d global loss %.4f\n",  xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		  
+			printf("Epoch %d global loss %.4f\n",  xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model)*dm.scale);		  
 #endif
 		xpu->current_epoch++;
 		received = 0;
@@ -905,7 +910,7 @@ void MFServer::ProcessPushAllShm(const ps::KVMeta& req_meta,
 	//	  current_epoch++;
 
 #ifdef CAL_PORTION_RMSE
-	  printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz));
+	  printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz)*dm.scale);
 	  loss = 0;
 #endif
 
@@ -913,7 +918,7 @@ void MFServer::ProcessPushAllShm(const ps::KVMeta& req_meta,
 	  if(xpu->current_epoch < xpu->target_epoch)
 		  printf("Epoch %d\n", xpu->current_epoch);
 	  else
-		  printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model));		  
+		  printf("Epoch %d global loss %.4f\n", xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model)*dm.scale);		  
 #endif
 	  xpu->current_epoch++;
 	  received = 0;

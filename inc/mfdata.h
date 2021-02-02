@@ -97,8 +97,8 @@ public:
 	int *inv_p_map;
 	int *inv_q_map;
 	size_t nnz = 0;								//total element size
-	long long rows = 0;							//row size
-	long long cols = 0;							//col size
+	int rows = 0;								//row size
+	int cols = 0;								//col size
 	int k;										//rows * cols -> rows * k and k * cols
 	int block_size;
 	int epoch;
@@ -147,10 +147,10 @@ public:
 	void ClearBlockFlags();
 
 	size_t nnz = 0;
-	size_t rows = 0;
-	size_t cols = 0;
-	size_t start_rows;
-	size_t end_rows;
+	int rows = 0;
+	int cols = 0;
+	int start_rows;
+	int end_rows;
 	int k = 128;
 	int block_size;
 	

@@ -117,14 +117,15 @@ void MFWorker::InitTrainingData()
 	keys.push_back(rank);
 	lens.push_back(0);
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-	if(lens[0] != 5) {
+	if(lens[0] != 6) {
 		printf("[Worker %d] InitTestData: receive data fail!\n", rank);
 	}
 	
 	start = (size_t)vals[0];
-	size = (size_t)vals[1];
-	m = dm.rows = (size_t)vals[2];
-	n = dm.cols = (size_t)vals[3];
+//	size = (size_t)vals[1];
+    singles2int(&vals[1], size);
+	m = dm.rows = (size_t)vals[4];
+	n = dm.cols = (size_t)vals[5];
 	scale = vals[4];
 
 	lambda_p = lambda_p / scale;

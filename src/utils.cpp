@@ -384,3 +384,20 @@ void BindNumaNode(int node_id)
     }
 }
 
+//big int convert to 2 singles
+void int2singles(int src, float *dst)
+{
+	int mask = 0xffff;
+	int src_h = (src >> 16) & mask;
+	dst[1] = src_h; 
+	int src_l = src & mask;
+	dst[0] = src_l;
+}
+
+void singles2int(float *src, int& dst)
+{
+	int src_h = (int)src[1];
+	int src_l = (int)src[0];
+	dst = (src_h << 16) | (src_l);
+}
+

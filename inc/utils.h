@@ -66,6 +66,8 @@ void print_feature_tail(const float *p, const float *q, size_t size_p, size_t si
 int cpu_singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads);
 int cpu_halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads);
 void BindNumaNode(int node_id);
+void int2singles(int src, float *dst);
+void singles2int(float *src, int& dst);
 
 #if defined(USE_AVX2) || defined(USE_AVX512)
 inline void half2singles_madd(void *dst, const void *src, float scale);
