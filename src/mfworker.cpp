@@ -398,7 +398,8 @@ void MFWorker::PullHalfQShm()
 	std::vector<int> lens;
 	CMD cmd = PULL_HALF_FEATURE_SHM;
 
-	short *h_p, *h_q;
+	short *src = (short *)shm_buf;
+	float *dst;
 	
 	xpu->current_epoch++;
 
@@ -407,14 +408,19 @@ void MFWorker::PullHalfQShm()
 
 	size_t size_p = m * k;
 	size_t size_q = n * k;
+	size_t trans_size;
 
 	if(xpu->current_epoch == 1) {
-		h_p = (short *)shm_buf;
-		xpu->halfp2singles(p, h_p, size_p+size_q, max_cores, true);
+		dst = p;
+		trans_size = size_p + size_q;
+//		xpu->halfp2singles(p, h_p, size_p+size_q, max_cores, true);
 	} else {
-		h_q = (short *)shm_buf;
-		xpu->halfp2singles(q, h_q, size_q, max_cores, true);
+		dst = q;
+		trans_size = size_q;
+//		xpu->halfp2singles(q, h_q, size_q, max_cores, true);
 	}
+
+	xpu->halfp2singles(dst, src, trans_size, max_cores, true);
 }
 
 void MFWorker::PushAll()
@@ -611,7 +617,7 @@ void MFWorker::PushHalfQShm()
 	keys.push_back(rank);
 	vals.push_back(trans_size);
 	lens.push_back(1);				//compress half point
-	
+
 	xpu->singles2halfp(shm_buf, src, trans_size, FE_TONEAREST, 0, max_cores, true);
 
 #ifdef CAL_PORTION_RMSE

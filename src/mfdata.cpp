@@ -74,7 +74,7 @@ bool DataManager::LoadData()
 	fclose(fp);
 	
 	elapse = cpu_second() - start;
-	printf("rows:%lld, cols:%lld, nnz:%lu, idx:%lu, cost time: %f\n",rows, cols, nnz, idx, elapse);
+	printf("rows:%d, cols:%d, nnz:%ld, idx:%ld, cost time: %f\n",rows, cols, nnz, idx, elapse);
 	return true;
 }
 
@@ -478,7 +478,7 @@ void WorkerDM::GridData(int rank, int nr_threads)
     }
 	
     elapse = cpu_second() - start;
-    printf("Grid Problem to all XPU complete, cost: %.8f\n", elapse);
+    printf("Grid Problem complete, cost: %.8f\n", elapse);
 }
 
 int WorkerDM::GetFreeBlock()
