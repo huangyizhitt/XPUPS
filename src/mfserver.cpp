@@ -275,17 +275,19 @@ void MFServer::ProcessInitTrainingData(const ps::KVMeta& req_meta,
 	dm.SplitData(start, size, worker_xpu_info[rank].work_ratio);
 	worker_xpu_info[rank].start = start;
 	worker_xpu_info[rank].size = size;
-	float trans_size[2];
+	float trans_size[2], trans_start[2];
 	int2singles(size, trans_size);
-	
-	res.vals.push_back((float)start);
+	int2singles(start, trans_start);
+
+	res.vals.push_back(trans_start[0]);
+	res.vals.push_back(trans_start[1]);
 //	res.vals.push_back((float)size);
 	res.vals.push_back(trans_size[0]);
 	res.vals.push_back(trans_size[1]);
 	res.vals.push_back((float)dm.rows);
 	res.vals.push_back((float)dm.cols);
 	res.vals.push_back(dm.scale);
-	res.lens[0] = 6;
+	res.lens[0] = 7;
 	server->Response(req_meta, res);	
 }
 

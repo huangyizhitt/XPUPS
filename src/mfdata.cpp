@@ -429,7 +429,7 @@ void WorkerDM::SetGrid(const Dim2& grid_dim)
 
 void WorkerDM::GridData(int rank, int nr_threads)
 {
-	printf("Grid Problem in Worker %d...\n", rank);
+	printf("[Work %d]Grid Problem...\n", rank);
 	double start, elapse;
 	start = cpu_second();
 	counts.resize(block_size, 0);
@@ -478,7 +478,7 @@ void WorkerDM::GridData(int rank, int nr_threads)
     }
 	
     elapse = cpu_second() - start;
-    printf("Grid Problem complete, cost: %.8f\n", elapse);
+    printf("[Work %d]Grid Problem complete, cost: %.8f\n", rank, elapse);
 }
 
 int WorkerDM::GetFreeBlock()

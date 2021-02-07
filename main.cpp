@@ -45,18 +45,19 @@ int main(int argc, char **argv)
 		start = cpu_second();
 #endif
 		while(true) {
-//			printf("Begin epoch\n");
+//			printf("[Work %d]Begin epoch\n", worker->GetWorkerID());
 #ifdef TEST
 			pull_start = cpu_second();
 #endif
 
 			worker->Pull();
-//			printf("pull success!\n");
+//			printf("[Work %d]Pull success!\n", worker->GetWorkerID());
 #ifdef TEST
 			pull_elapse += cpu_second() - pull_start;
 			compute_start = cpu_second();
 #endif
 			worker->Computing();
+//			printf("[Work %d]Compute success!\n", worker->GetWorkerID());
 #ifdef TEST
 			compute_elapse += cpu_second() - compute_start;
 
@@ -64,6 +65,7 @@ int main(int argc, char **argv)
 #endif
 
 			worker->Push();
+//			printf("[Work %d]Push success!\n", worker->GetWorkerID());
 #ifdef TEST                        
 			push_elapse += cpu_second() - push_start;
 #endif
