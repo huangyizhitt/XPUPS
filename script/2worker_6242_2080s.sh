@@ -19,37 +19,39 @@ ${bin} ${arg} &
 
 
 export EPOCH='20'
+export TRANSMODE=5
 # start servers
 export DMLC_ROLE='server'
 i=0
 export HEAPPROFILE=./S${i}
-export SERVER_XPU_NAME='W-2155'
-export SERVER_XPU_TYPE='CPU'
-export SERVER_XPU_MAX_CORE='20'
-export SERVER_XPU_THREADS='2'
+export XPU_NAME='Gold 6242'
+export XPU_TYPE='CPU'
+export XPU_MAX_CORES=32
+export XPU_WORKERS=2
 export NUMA_NODE=0
 ${bin} ${arg} &
 
 # start workers
-i=0
-export DMLC_ROLE='worker'
-export HEAPPROFILE=./W${i}
-export WORKER_XPU_NAME='W-2155'
-export WORKER_XPU_TYPE='CPU'
-export WORKER_XPU_MAX_CORE='20'
-export WORKER_XPU_THREADS='18'
-export NUMA_NODE=${i}
-${bin} ${arg} &
-
 i=1
 export DMLC_ROLE='worker'
 export HEAPPROFILE=./W${i}
-export WORKER_XPU_NAME='W-2155'
-export WORKER_XPU_TYPE='CPU'
-export WORKER_XPU_MAX_CORE='20'
-export WORKER_XPU_THREADS='18'
+export XPU_NAME='Gold 6242'
+export XPU_TYPE='CPU'
+export XPU_MAX_CORES=32
+export XPU_WORKERS=24
 export NUMA_NODE=${i}
+export WORK_LOAD=19
 ${bin} ${arg} &
 
+export DMLC_ROLE='worker'
+export HEAPPROFILE=./W${i}
+export XPU_NAME='GeForce RTX 2080s'
+export XPU_TYPE='GPU'
+export XPU_MAX_CORES=32
+export XPU_WORKERS=1344
+export NUMA_NODE=0
+export DEVICE_ID=0
+export WORK_LOAD=55
+${bin} ${arg} &
 
 wait

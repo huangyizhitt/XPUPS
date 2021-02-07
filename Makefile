@@ -55,7 +55,8 @@ else ifeq ($(check), 2)
 endif
 
 ifeq ($(test), 1)
-	CFLAGS += -DEXPLORE
+#	CFLAGS += -DEXPLORE
+	CFLAGS += -DTEST
 endif
 
 comm_op=0
@@ -66,6 +67,8 @@ else ifeq ($(comm_op), 1)
 else ifeq ($(comm_op), 2)
 	CFLAGS += -DSEND_COMPRESS_Q_FEATURE -fpermissive
 endif
+
+
 
 all: $(OBJ_DIR) mf
 mf: main.cpp $(OBJS) $(CU_OBJS)

@@ -7,6 +7,11 @@
 #include "mfworker.h"
 #include "utils.h"
 
+#ifdef TEST
+#include <fstream>
+#endif
+
+
 int main(int argc, char **argv)
 {
 	MF::MFServer* server;
@@ -30,38 +35,58 @@ int main(int argc, char **argv)
 		worker = new MF::MFWorker();
 		worker->PreProcess();
 
+#ifdef TEST
+		bool record = true;
+		if(argc != 2) {
+			printf("parameter error, cannot record test result!\n");
+			record = false;
+		}
 		double start, elapse = 0, pull_start, pull_elapse = 0, push_start, push_elapse = 0, compute_start, compute_elapse = 0;
 		start = cpu_second();
+#endif
 		while(true) {
 //			printf("Begin epoch\n");
+#ifdef TEST
 			pull_start = cpu_second();
+#endif
+
 			worker->Pull();
 //			printf("pull success!\n");
+#ifdef TEST
 			pull_elapse += cpu_second() - pull_start;
-//                        printf("Pull cost time: %.3f\n", elapse);
-
 			compute_start = cpu_second();
+#endif
 			worker->Computing();
-//			printf("Computing success!\n");
+#ifdef TEST
 			compute_elapse += cpu_second() - compute_start;
-//                        printf("Compute cost time: %.3f\n", elapse);
 
 			push_start = cpu_second();
+#endif
+
 			worker->Push();
-//			printf("Push success!\n");
-                        push_elapse += cpu_second() - push_start;
-//                        printf("Push cost time: %.3f\n", elapse);
+#ifdef TEST                        
+			push_elapse += cpu_second() - push_start;
+#endif
+			//                        printf("Push cost time: %.3f\n", elapse);
 			worker->Barrier();
 //			elapse = cpu_second() - start;
   //                      printf("Push cost time: %.3f\n", elapse);
 			if(worker->GetCurrentEpoch() == worker->GetTargetEpoch()) break;
 		}
+#ifdef TEST
 		elapse = cpu_second() - start;
+		if(record) {
+			std::ofstream out(argv[1], std::ios_base::out | std::ios_base::app);
+			out << worker->GetWorkerID() << "," << pull_elapse << "," << compute_elapse << "," << push_elapse << "," << elapse << std::endl;
+			out.close();
+		}
 //		printf("[Worker %d] 20 epoch cost time: %.3f\n", worker->GetWorkerID(), elapse);
 //		printf("20 epoch pull cost time: %.3f\n", elapse);
 //		printf("20 epoch push cost time: %.3f\n", elapse);
 		printf("[Worker %d] 20 epoch total cost time: %.3f, pull cost time: %.3f, compute cost time: %.3f, push cost time: %.3f\n", worker->GetWorkerID(), elapse, pull_elapse, compute_elapse, push_elapse);
 //		printf("20 epoch communication cost time %.3f\n", elapse);
+#endif
+
 		worker->JoinWorkers();
 		ps::RegisterExitCallback([worker](){ delete worker;});
 	}
