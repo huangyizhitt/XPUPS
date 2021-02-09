@@ -87,6 +87,11 @@ private:
 	int CreateShmbuf();
 	void DestroyShmbuf();
 
+#ifdef TEST
+	double record_start;
+	double record_elapse = 0;
+#endif
+
 private:
 	int cpus;
 	int gpus;

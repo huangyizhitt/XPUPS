@@ -74,5 +74,22 @@ inline void half2singles_madd(void *dst, const void *src, float scale);
 int halfp2singles_madd(void *target, void *source, ptrdiff_t numel, int nr_threads, float scale);
 #endif
 
+#ifdef TEST
+#define RECORD_START(start) {	\
+	start=cpu_second();    \
+}
+
+#define RECORD_ELAPSE(elapse,start) {	\
+	elapse+=cpu_second()-start;	\
+}
+
+#else
+
+#define RECORD_START(start)
+#define RECORD_ELAPSE(elapse,start)
+
+#endif
+
+
 #endif
 

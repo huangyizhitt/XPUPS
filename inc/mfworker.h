@@ -57,6 +57,16 @@ private:
 	void PushXPUInfo();
 	
 	void PullGPUData();
+
+
+public:
+#ifdef TEST
+	double record1_start = 0;
+	double record1_elapse = 0;
+	double record2_start = 0;
+	double record2_elapse = 0;
+#endif
+
 private:
 	int rank;
 	int workers;

@@ -739,24 +739,29 @@ void MFServer::ProcessPullHalfQShm(const ps::KVMeta& req_meta,
 
 	if(xpu->current_epoch != 1) {
 		//encode
-		cpu_singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, quantify_data_threads);
+		//cpu_singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, quantify_data_threads);
 
 		//prepare transmission data
 		res.vals[0] = size_q * sizeof(uint16_t);					//compress
 		res.lens[0] = 1;
 		uint16_t *_buf = (uint16_t *)shm_buf[rank].second;
 		
-		memcpy(_buf, dm.halfq, res.vals[0]);
-		  
+		//memcpy(_buf, dm.halfq, res.vals[0]);
+		RECORD_START(record_start);
+		cpu_singles2halfp(_buf, &dm.model.q[0], size_q, FE_TONEAREST, 0, 16);
+		RECORD_ELAPSE(record_elapse,record_start);
 		server->Response(req_meta, res);
 	} else {
 		//encode
-		cpu_singles2halfp(dm.halfp, &dm.model.p[0], size_p+size_q, FE_TONEAREST, 0, quantify_data_threads);
+		//cpu_singles2halfp(dm.halfp, &dm.model.p[0], size_p+size_q, FE_TONEAREST, 0, quantify_data_threads);
 		//prepare transmission data
 		res.vals[0] = (size_p+size_q) * sizeof(uint16_t);
 		res.lens[0] = 1;
 		uint16_t *_buf = (uint16_t *)shm_buf[rank].second;
-		memcpy(_buf, dm.halfp, res.vals[0]);
+//		memcpy(_buf, dm.halfp, res.vals[0]);
+		RECORD_START(record_start);
+		cpu_singles2halfp(_buf, &dm.model.p[0], size_p+size_q, FE_TONEAREST, 0, 16);
+		RECORD_ELAPSE(record_elapse,record_start);
 		server->Response(req_meta, res);
 	}
 	//  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
@@ -843,6 +848,11 @@ void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 			printf("Epoch %d\n",  xpu->current_epoch);
 		else
 			printf("Epoch %d global loss %.4f\n",  xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model)*dm.scale);		  
+#endif
+
+#ifdef TEST
+		if(xpu->current_epoch == xpu->target_epoch)
+			printf("[Server]Process pull cost: %.3f\n", record_elapse);
 #endif
 		xpu->current_epoch++;
 		received = 0;
