@@ -293,6 +293,7 @@ void *sgd_update_k128_gpu(void *args)
 
 	MatrixNode *R = (MatrixNode *)para->data;
 	int gpu_workers = para->workers;
+	printf("gpu_workers: %d\n", gpu_workers);
 	size_t size = para->size;
 	debugp("current_epoch: %d, R: %p\n", global::current_epoch, R);
 	if(global::current_epoch == 1) {

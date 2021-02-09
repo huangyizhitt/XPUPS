@@ -1,5 +1,6 @@
 #include <sys/time.h>
 #include <cstdio>
+#include <cstdlib>
 #include <fenv.h>
 #include <omp.h>
 #include <immintrin.h>
@@ -382,6 +383,19 @@ void BindNumaNode(int node_id)
     } else {
             debugp("Bind task to node %d fail!\n", node_id);
     }
+    
+    switch(node_id) {
+    	case 0:
+		setenv("GOMP_CPU_AFFINITY", "0-15 32-47", 0);
+		break;
+
+	case 1: 
+		setenv("GOMP_CPU_AFFINITY", "16-31 48-63", 0);
+		break;
+
+	default:
+		break;
+    } 
 }
 
 //big int convert to 2 singles
