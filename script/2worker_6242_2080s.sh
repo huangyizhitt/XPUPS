@@ -39,7 +39,7 @@ export XPU_NAME='Gold 6242'
 export XPU_TYPE='CPU'
 export XPU_MAX_CORES=32
 export XPU_WORKERS=24
-export NUMA_NODE=${i}
+export NUMA_NODE=1
 export WORK_LOAD=19
 ${bin} ${arg} &
 
@@ -48,7 +48,7 @@ export HEAPPROFILE=./W${i}
 export XPU_NAME='GeForce RTX 2080s'
 export XPU_TYPE='GPU'
 export XPU_MAX_CORES=32
-export XPU_WORKERS=1344
+export XPU_WORKERS=43008
 export NUMA_NODE=0
 export DEVICE_ID=0
 export WORK_LOAD=55
