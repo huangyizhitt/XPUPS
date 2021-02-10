@@ -86,6 +86,10 @@ private:
 		      const ps::KVPairs<float>& req_data,
 		      ps::KVServer<float>* server);
 
+	void ProcessPushHalfQShmEX(const ps::KVMeta& req_meta,
+                      const ps::KVPairs<float>& req_data,
+                      ps::KVServer<float>* server);
+
 	void SetCurServer();
 	void PrepareData();
 	int CreateShmbuf();

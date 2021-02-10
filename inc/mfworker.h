@@ -56,6 +56,8 @@ private:
 	void PushQShm();
 	void PushHalfQ();
 	void PushHalfQShm();
+	void PushHalfQShmEX();
+
 	void PushXPUInfo();
 	
 	void PullGPUData();
