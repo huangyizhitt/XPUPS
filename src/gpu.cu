@@ -13,6 +13,11 @@ int target_epoch = 0;
 
 namespace MF {
 
+GPU::~GPU()
+{
+	cudaFree(transfer_buf);
+}
+
 void GPU::Init()
 {
 	xpu_type = XPU_TYPE::GPU;
@@ -43,6 +48,11 @@ void GPU::CreateTasks(int task_index, pFunc func, void * args)
 {
 	task.func = func;
 	task.args = args;
+}
+
+void GPU::PrepareTransferBuf(size_t size)
+{
+	cudaMalloc(&transfer_buf, size * sizeof(half));
 }
 
 void GPU::RunTasks()
@@ -80,7 +90,7 @@ int GPU::singles2halfp(void *target, const void *source, ptrdiff_t numel, int ro
 	size_t bytes = sizeof(half)*numel;
 	//cross device: target in cpu, source in gpu
 	if(cross_device) {
-		cudaMalloc(&mid, bytes);
+		mid = (half *)transfer_buf;
 	} else {
 		mid = (half *)target;
 	}
@@ -95,7 +105,6 @@ int GPU::singles2halfp(void *target, const void *source, ptrdiff_t numel, int ro
 	cudaDeviceSynchronize();
 	if(cross_device) {
 		Transfer(target, mid, bytes, TransferDirect::C2S);
-		cudaFree(mid);
 	}
 	return 0;
 }
@@ -117,7 +126,8 @@ int GPU::halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threa
 	float *dst = (float *)target;
 	//cross device: source in cpu, target in gpu
 	if(cross_device) {
-		cudaMalloc(&mid, bytes);
+	//	cudaMalloc(&mid, bytes);
+		mid = (half *)transfer_buf;
 		Transfer(mid, source, bytes, TransferDirect::S2C);
 	} else {
 		mid = (half *)source;
@@ -134,9 +144,6 @@ int GPU::halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threa
 
 	cudaDeviceSynchronize();
 
-	if(cross_device) {
-		cudaFree(mid);
-	}
 	return 0;
 }
 

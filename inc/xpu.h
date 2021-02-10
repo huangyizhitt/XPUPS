@@ -63,6 +63,7 @@ struct XPU {
 	virtual bool Bind(){return true;}				//xpu bind to device;  
 	virtual void CreateTasks(int task_index, pFunc func, void *args){}								
 	virtual void RunTasks(){}							
+	virtual void PrepareTransferBuf(size_t size){}
 	virtual void JoinTasks(){}
 	virtual void DestroyTasks(){}
 	virtual void Transfer(void *dst, void *src, size_t size, TransferDirect direct){}
@@ -127,8 +128,7 @@ struct CPU : public XPU {
 
 struct GPU : public XPU {
 	GPU() {}
-	~GPU() {}
-
+	~GPU();
 	virtual void Init();
 	virtual bool Bind();
 	virtual void CreateTasks(int task_index, pFunc func, void *args);
@@ -137,7 +137,9 @@ struct GPU : public XPU {
 	virtual void Transfer(void *dst, void *src, size_t size, TransferDirect direct);
 	virtual int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads, bool cross_device);
 	virtual int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads, bool cross_device);
+	virtual void PrepareTransferBuf(size_t size);
 
+	short *transfer_buf;
 	GPUTask task;
 };
 

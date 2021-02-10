@@ -133,6 +133,7 @@ void MFWorker::InitTrainingData()
 	lambda_q = lambda_q / scale;
 	dm.nnz = size;
 
+	xpu->PrepareTransferBuf((m+n)*k);
 	debugp("[Worker %d] start: %ld, size: %ld, rows: %d, cols: %d\n", rank, start, size, dm.rows, dm.cols);
 }
 
