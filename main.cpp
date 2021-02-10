@@ -87,7 +87,7 @@ int main(int argc, char **argv)
 //		printf("20 epoch push cost time: %.3f\n", elapse);
 		printf("[Worker %d] 20 epoch total cost time: %.3f, pull cost time: %.3f, compute cost time: %.3f, push cost time: %.3f\n", worker->GetWorkerID(), elapse, pull_elapse, compute_elapse, push_elapse);
 //		printf("20 epoch communication cost time %.3f\n", elapse);
-		printf("pull: transmission:%.3f + half2single:%.3f\n", worker->record1_elapse, worker->record2_elapse);
+//		printf("pull: transmission:%.3f + half2single:%.3f\n", worker->record1_elapse, worker->record2_elapse);
 #endif
 
 		worker->JoinWorkers();

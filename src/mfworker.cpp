@@ -402,12 +402,10 @@ void MFWorker::PullHalfQShm()
 	short *src = (short *)shm_buf;
 	float *dst;
 
-	RECORD_START(record1_start);
 	xpu->current_epoch++;
 
 	keys.push_back(rank);
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-	RECORD_ELAPSE(record1_elapse, record1_start);
 
 	size_t size_p = m * k;
 	size_t size_q = n * k;
@@ -423,9 +421,7 @@ void MFWorker::PullHalfQShm()
 //		xpu->halfp2singles(q, h_q, size_q, max_cores, true);
 	}
 
-	RECORD_START(record2_start);
 	xpu->halfp2singles(dst, src, trans_size, max_cores, true);
-	RECORD_ELAPSE(record2_elapse, record2_start);
 }
 
 void MFWorker::PushAll()
