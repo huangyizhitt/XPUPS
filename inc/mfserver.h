@@ -82,9 +82,9 @@ private:
                       const ps::KVPairs<float>& req_data,
                       ps::KVServer<float>* server);	
 
-	void MFServer::ProcessPullHalfQShmEX(const ps::KVMeta& req_meta,
-						const ps::KVPairs<float>& req_data,
-						ps::KVServer<float>* server);
+	void ProcessPullHalfQShmEX(const ps::KVMeta& req_meta,
+		      const ps::KVPairs<float>& req_data,
+		      ps::KVServer<float>* server);
 
 	void SetCurServer();
 	void PrepareData();

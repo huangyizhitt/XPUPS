@@ -48,7 +48,7 @@ private:
 	void PullQShm();
 	void PullHalfQ();
 	void PullHalfQShm();
-	void MFWorker::PullHalfQShmEX();
+	void PullHalfQShmEX();
 	
 	void PushAll();
 	void PushAllShm();

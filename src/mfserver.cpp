@@ -293,7 +293,7 @@ void MFServer::ProcessInitTrainingData(const ps::KVMeta& req_meta,
 	
 	PrepareData();
 
-	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM)
+	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX)
 		CreateShmbuf();
 	
 	int rank = req_data.keys[0];
@@ -821,8 +821,8 @@ void MFServer::ProcessPullHalfQShmEX(const ps::KVMeta& req_meta,
 	res.lens[0] = 1;
 
 	if(pull_counts == 1) {
-		uint16_t *_buf = (uint16_t *)pull_buf
-		cpu_singles2halfp(_buf, src, size, FE_TONEAREST, 0, 6);
+		uint16_t *_buf = (uint16_t *)pull_buf;
+	        cpu_singles2halfp(_buf, src, size, FE_TONEAREST, 0, 6);
 	}
 
 	server->Response(req_meta, res);

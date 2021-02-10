@@ -223,7 +223,7 @@ int MFWorker::PrepareShmbuf()
 
 		pull_buf = (unsigned char *)shmat(shmid, NULL, 0);
 		if(!shm_buf) {
-			perror("[Worker %d] pull_buf create fail!\n", rank);
+			perror("pull_buf create fail!\n");
 			return -1;
 		}
 	}
@@ -240,7 +240,7 @@ void MFWorker::PrepareResources()
 
 	ps_vals.resize(m * k + n * k + 1);
 
-	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM)
+	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX)
 		PrepareShmbuf();					//Share memory is create by server
 }
 
