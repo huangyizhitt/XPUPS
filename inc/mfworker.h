@@ -48,6 +48,8 @@ private:
 	void PullQShm();
 	void PullHalfQ();
 	void PullHalfQShm();
+	void MFWorker::PullHalfQShmEX();
+	
 	void PushAll();
 	void PushAllShm();
 	void PushQ();
@@ -90,6 +92,7 @@ private:
 	float *feature;
 	MatrixNode *gpuR;
 	unsigned char *shm_buf;
+	unsigned char *pull_buf;
 
 	XPU *xpu;
 	WorkerDM dm;

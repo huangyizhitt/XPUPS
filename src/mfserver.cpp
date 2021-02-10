@@ -68,6 +68,7 @@ void MFServer::Init()
 	prepare_data_threads = xpu->max_cores;
 	quantify_data_threads = xpu->workers;
 	received = 0;
+	pull_counts=0;
 #ifdef CAL_PORTION_RMSE	
 	loss = 0.0;
 #endif
@@ -157,6 +158,10 @@ void MFServer::ProcessHandle(const ps::KVMeta& req_meta,
 			cur_server->ProcessPushHalfQShm(req_meta, req_data, server);
 			break;
 
+		case PULL_HALF_FEATURE_SHMEX:
+			cur_server->ProcessPullHalfQShmEX(req_meta, req_data, server);
+			break;
+
 		default:
 			break;
 	}
@@ -229,15 +234,38 @@ void MFServer::PrepareData()
 
 int MFServer::CreateShmbuf()
 {
+	size_t size = (size_t)sizeof(float)*(dm.rows * dm.k + dm.cols * dm.k);
+	int key, shmid;
+
+	if(trans_mode == HALFQ_SHM_EX) {
+		key = ftok("/home", 9999);
+		if(key == -1) {
+	    	perror("ftok fail!\n");
+	    	return -1;
+		}
+		
+		shmid = shmget(key, size, IPC_CREAT | 0777);
+			if(shmid == -1) {
+				perror("shmget fail!\n");
+				return -1;
+		}
+
+		pull_buf = (unsigned char *)shmat(shmid, NULL, 0);
+		if(!pull_buf) {
+			perror("create pull buf fail!\n");
+			return -1;
+		}
+	}
+
 	for(const auto& n : worker_xpu_info) {
 		int worker_rank = n.first;
-		int key = ftok("/home", worker_rank);
+		key = ftok("/home", worker_rank);
 		if(key == -1) {
         	perror("ftok fail!\n");
         	return -1;
 		}
-		size_t size = (size_t)sizeof(float)*(dm.rows * dm.k + dm.cols * dm.k);
-		int shmid = shmget(key, size, IPC_CREAT | 0777);
+		
+		shmid = shmget(key, size, IPC_CREAT | 0777);
 		if(shmid == -1) {
 			perror("shmget fail!\n");
 			return -1;
@@ -246,7 +274,7 @@ int MFServer::CreateShmbuf()
 		unsigned char *buf = 
 			(unsigned char *)shmat(shmid, NULL, 0);
 		if(!buf) {
-			perror("shmat fail!\n");
+			perror("create buf fail!\n");
 			return -1;
 		}
 		shm_buf[worker_rank] = std::make_pair(shmid, buf);
@@ -763,6 +791,43 @@ void MFServer::ProcessPullHalfQShm(const ps::KVMeta& req_meta,
 	//  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
 
 }
+
+void MFServer::ProcessPullHalfQShmEX(const ps::KVMeta& req_meta,
+				const ps::KVPairs<float>& req_data,
+				ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t size;
+	float *src;
+
+	ps::KVPairs<float> res; 
+	res.keys = req_data.keys;
+	int rank = req_data.keys[0];
+	res.lens.resize(keys_size);
+	res.vals.resize(1);
+
+	pull_counts++;
+	
+	if(xpu->current_epoch != 1) {
+		size = size_q;	
+		src = &dm.model.q[0];
+	} else {
+		size = size_p + size_q;
+		src = &dm.model.p[0];
+	}
+	res.vals[0] = size * sizeof(uint16_t);					
+	res.lens[0] = 1;
+
+	if(pull_counts == 1) {
+		uint16_t *_buf = (uint16_t *)pull_buf
+		cpu_singles2halfp(_buf, src, size, FE_TONEAREST, 0, 6);
+	}
+
+	server->Response(req_meta, res);
+}
+
 
 void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 				  const ps::KVPairs<float>& req_data,

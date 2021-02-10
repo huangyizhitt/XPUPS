@@ -206,6 +206,27 @@ int MFWorker::PrepareShmbuf()
 		perror("shmat fail!\n");
 		return -1;
 	}
+
+	if(trans_mode == HALFQ_SHM_EX) {
+		key = ftok("/home", 9999);
+		if(key == -1) {
+	    	perror("ftok fail!\n");
+	    	return -1;
+		}
+
+		
+		shmid = shmget(key, shm_size, IPC_CREAT | 0777);
+		if(shmid == -1) {
+			perror("shmget fail!\n");
+			return -1;
+		}
+
+		pull_buf = (unsigned char *)shmat(shmid, NULL, 0);
+		if(!shm_buf) {
+			perror("[Worker %d] pull_buf create fail!\n", rank);
+			return -1;
+		}
+	}
 	return 0;
 }
 
@@ -423,6 +444,36 @@ void MFWorker::PullHalfQShm()
 
 	xpu->halfp2singles(dst, src, trans_size, max_cores, true);
 }
+
+void MFWorker::PullHalfQShmEX()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_HALF_FEATURE_SHMEX;
+
+	short *src = (short *)pull_buf;
+	float *dst;
+
+	xpu->current_epoch++;
+	keys.push_back(rank);
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+	
+	size_t size_p = m * k;
+	size_t size_q = n * k;
+	size_t trans_size;
+
+	if(xpu->current_epoch == 1) {
+		dst = p;
+		trans_size = size_p + size_q;
+	} else {
+		dst = q;
+		trans_size = size_q;
+	}
+
+	xpu->halfp2singles(dst, src, trans_size, max_cores, true);
+}
+
 
 void MFWorker::PushAll()
 {
@@ -656,6 +707,10 @@ void MFWorker::Pull()
 			PullHalfQShm();
 			break;
 
+		case HALFQ_SHM_EX:
+			PullHalfQShmEX();
+			break;
+
 		default:
 			printf("Unkown trans_mode, exit!\n");
 			exit(-1);
@@ -686,6 +741,10 @@ void MFWorker::Push()
 			break;
 
 		case HALFQ_SHM:
+			PushHalfQShm();
+			break;
+
+		case HALFQ_SHM_EX:
 			PushHalfQShm();
 			break;
 

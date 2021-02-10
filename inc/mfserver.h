@@ -82,6 +82,10 @@ private:
                       const ps::KVPairs<float>& req_data,
                       ps::KVServer<float>* server);	
 
+	void MFServer::ProcessPullHalfQShmEX(const ps::KVMeta& req_meta,
+						const ps::KVPairs<float>& req_data,
+						ps::KVServer<float>* server);
+
 	void SetCurServer();
 	void PrepareData();
 	int CreateShmbuf();
@@ -106,7 +110,10 @@ private:
 	int quantify_data_threads;
 	int prepare_data_threads;
 	int received;							//received times from workers
+	int pull_counts;
 	TransMode trans_mode;
+
+	unsigned char *pull_buf;
 
 #ifdef CAL_PORTION_RMSE	
 	float loss;
