@@ -34,7 +34,9 @@ int main(int argc, char **argv)
 		std::cout << "start worker, pid: " << getpid() << std::endl;
 		worker = new MF::MFWorker();
 		worker->PreProcess();
-
+		worker->Pull();
+		int target_epoch=worker->GetTargetEpoch();
+		int current_epoch=0;
 #ifdef TEST
 		bool record = true;
 		if(argc != 2) {
@@ -44,16 +46,11 @@ int main(int argc, char **argv)
 		double start, elapse = 0, pull_start, pull_elapse = 0, push_start, push_elapse = 0, compute_start, compute_elapse = 0;
 		start = cpu_second();
 #endif
-		while(true) {
+		while(current_epoch < target_epoch) {
 //			printf("[Work %d]Begin epoch\n", worker->GetWorkerID());
-#ifdef TEST
-			pull_start = cpu_second();
-#endif
 
-			worker->Pull();
 //			printf("[Work %d]Pull success!\n", worker->GetWorkerID());
 #ifdef TEST
-			pull_elapse += cpu_second() - pull_start;
 			compute_start = cpu_second();
 #endif
 			worker->Computing();
@@ -73,7 +70,17 @@ int main(int argc, char **argv)
 			worker->Barrier();
 //			elapse = cpu_second() - start;
   //                      printf("Push cost time: %.3f\n", elapse);
-			if(worker->GetCurrentEpoch() == worker->GetTargetEpoch()) break;
+			if(++current_epoch == target_epoch) break;
+
+#ifdef TEST
+                        pull_start = cpu_second();
+#endif
+
+                        worker->Pull();
+//                      printf("[Work %d]Pull success!\n", worker->GetWorkerID());
+#ifdef TEST
+                        pull_elapse += cpu_second() - pull_start;
+#endif
 		}
 #ifdef TEST
 		elapse = cpu_second() - start;
@@ -89,7 +96,6 @@ int main(int argc, char **argv)
 //		printf("20 epoch communication cost time %.3f\n", elapse);
 //		printf("pull: transmission:%.3f + half2single:%.3f\n", worker->record1_elapse, worker->record2_elapse);
 #endif
-
 		worker->JoinWorkers();
 		ps::RegisterExitCallback([worker](){ delete worker;});
 	}

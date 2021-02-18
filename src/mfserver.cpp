@@ -248,13 +248,13 @@ int MFServer::CreateShmbuf()
 	    	return -1;
 		}
 		
-		shmid = shmget(key, size, IPC_CREAT | 0777);
-			if(shmid == -1) {
+		pull_shmid = shmget(key, size, IPC_CREAT | 0777);
+			if(pull_shmid == -1) {
 				perror("shmget fail!\n");
 				return -1;
 		}
 
-		pull_buf = (unsigned char *)shmat(shmid, NULL, 0);
+		pull_buf = (unsigned char *)shmat(pull_shmid, NULL, 0);
 		if(!pull_buf) {
 			perror("create pull buf fail!\n");
 			return -1;
@@ -328,6 +328,10 @@ void MFServer::DestroyShmbuf()
 	for(const auto& n : shm_buf) {
 		shmdt(n.second.second);
 		shmctl(n.second.first, IPC_RMID, NULL);
+	}
+	if(trans_mode == HALFQ_SHM_EX) {
+		shmdt(pull_buf);
+		shmctl(pull_shmid, IPC_RMID, NULL);
 	}
 }
 
