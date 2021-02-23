@@ -95,6 +95,8 @@ private:
 	int CreateShmbuf();
 	void DestroyShmbuf();
 
+	void PinnedBuf(void* buf, size_t size);
+	void UnpinnedBuf(void *buf);
 /*
 #ifdef TEST
 	double record_start;

@@ -61,7 +61,8 @@ private:
 	void PushXPUInfo();
 	
 	void PullGPUData();
-
+	void PinnedBuf(void* buf, size_t size);
+        void UnpinnedBuf(void *buf);
 /*
 public:
 #ifdef TEST

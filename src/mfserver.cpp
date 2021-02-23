@@ -250,15 +250,17 @@ int MFServer::CreateShmbuf()
 		
 		pull_shmid = shmget(key, size, IPC_CREAT | 0777);
 			if(pull_shmid == -1) {
-				perror("shmget fail!\n");
+				perror("Server pull_shmid shmget fail!\n");
 				return -1;
 		}
 
 		pull_buf = (unsigned char *)shmat(pull_shmid, NULL, 0);
 		if(!pull_buf) {
-			perror("create pull buf fail!\n");
+			perror("Server create pull buf fail!\n");
 			return -1;
 		}
+
+		PinnedBuf(pull_buf, size);
 	}
 
 	for(const auto& n : worker_xpu_info) {
@@ -271,16 +273,19 @@ int MFServer::CreateShmbuf()
 		
 		shmid = shmget(key, size, IPC_CREAT | 0777);
 		if(shmid == -1) {
-			perror("shmget fail!\n");
+			perror("Server shmid shmget fail!\n");
 			return -1;
 		}
 
 		unsigned char *buf = 
 			(unsigned char *)shmat(shmid, NULL, 0);
 		if(!buf) {
-			perror("create buf fail!\n");
+			perror("Server create buf fail!\n");
 			return -1;
 		}
+		if(worker_xpu_info[worker_rank].type == XPU_TYPE::GPU)
+			PinnedBuf(buf, size);
+
 		shm_buf[worker_rank] = std::make_pair(shmid, buf);
 	}
 	return 0;
@@ -326,10 +331,16 @@ void MFServer::ProcessInitTrainingData(const ps::KVMeta& req_meta,
 void MFServer::DestroyShmbuf()
 {
 	for(const auto& n : shm_buf) {
+		if(worker_xpu_info[n.first].type == XPU_TYPE::GPU) {
+			UnpinnedBuf(n.second.second);	
+		}
+
 		shmdt(n.second.second);
 		shmctl(n.second.first, IPC_RMID, NULL);
 	}
 	if(trans_mode == HALFQ_SHM_EX) {
+                UnpinnedBuf(pull_buf);
+
 		shmdt(pull_buf);
 		shmctl(pull_shmid, IPC_RMID, NULL);
 	}

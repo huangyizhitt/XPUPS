@@ -198,14 +198,18 @@ int MFWorker::PrepareShmbuf()
 	size_t shm_size = sizeof(float)*(m * k + n * k);
 	int shmid = shmget(key, shm_size, IPC_CREAT | 0777);
 	if(shmid == -1) {
-		perror("shmget fail!\n");
+		perror("Worker shmid shmget fail!\n");
 		return -1;
 	}
 
 	shm_buf = (unsigned char *)shmat(shmid, NULL, 0);
 	if(!shm_buf) {
-		perror("shmat fail!\n");
+		perror("Worker shm_buf shmat fail!\n");
 		return -1;
+	}
+
+	if(xpu->xpu_type==XPU_TYPE::GPU) {
+		PinnedBuf(shm_buf, shm_size);
 	}
 
 	if(trans_mode == HALFQ_SHM_EX) {
@@ -218,15 +222,17 @@ int MFWorker::PrepareShmbuf()
 		
 		shmid = shmget(key, shm_size, IPC_CREAT | 0777);
 		if(shmid == -1) {
-			perror("shmget fail!\n");
+			perror("Worker pull_shmid shmget fail!\n");
 			return -1;
 		}
 
 		pull_buf = (unsigned char *)shmat(shmid, NULL, 0);
-		if(!shm_buf) {
-			perror("pull_buf create fail!\n");
+		if(!pull_buf) {
+			perror("Worker pull_buf create fail!\n");
 			return -1;
 		}
+
+                PinnedBuf(pull_buf, shm_size);
 	}
 	return 0;
 }
@@ -291,6 +297,10 @@ void MFWorker::PreProcess()
 void MFWorker::PostProcess()
 {
 	ReleaseResources();
+	UnpinnedBuf(shm_buf);
+	if(trans_mode == HALFQ_SHM_EX) {
+		UnpinnedBuf(pull_buf);
+	}
 	DeInit();
 }
 

@@ -3,6 +3,7 @@
 #include <cuda_fp16.h>
 #include <stdio.h>
 #include "xpu.h"
+#include "utils.h"
 
 namespace global {
 
@@ -124,11 +125,17 @@ int GPU::halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threa
 	half *mid;
 	size_t bytes = sizeof(half)*numel;
 	float *dst = (float *)target;
+
+//	long long start, elapse;
+
 	//cross device: source in cpu, target in gpu
 	if(cross_device) {
 	//	cudaMalloc(&mid, bytes);
+//		start = cpu_microsecond();
 		mid = (half *)transfer_buf;
 		Transfer(mid, source, bytes, TransferDirect::S2C);
+//		elapse = cpu_microsecond() - start;
+//		printf("GPU PCIE transfer time: %.7fs, bytes: %ld, bandwidth: %.7fGB/s, numel: %ld\n", (float)elapse / 1000000, bytes, (float)bytes / (elapse * 1000), numel);
 	} else {
 		mid = (half *)source;
 	}

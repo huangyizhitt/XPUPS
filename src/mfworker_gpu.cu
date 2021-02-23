@@ -38,5 +38,13 @@ void MFWorker::PullGPUData()
 	cudaMemcpy(gpuR, cpuR, sizeof(MatrixNode) * size, cudaMemcpyHostToDevice);
 }
 
+void MFWorker::PinnedBuf(void* buf, size_t size)
+{
+        cudaHostRegister(buf, size, cudaHostRegisterDefault);
+}
 
+void MFWorker::UnpinnedBuf(void *buf)
+{
+        cuMemHostUnregister(buf);
+}
 }
