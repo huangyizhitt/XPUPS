@@ -76,6 +76,7 @@ public:
 	int *GenerateRandomMap(size_t size);
 	int *GenerateInvMap(int *map, size_t size);
 	void InitModel();
+	void InitModelShm(void *shm_buf);
 //	void GridProblem();
 	void DestroyMap(int *map);
 	void ScaleModel();

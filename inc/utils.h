@@ -29,6 +29,8 @@
 #endif
 #define     FE_TONEARESTINF 0xFFFF  /* Round to nearest, ties away from zero (apparently no standard C name for this) */
 
+#define ALIGN(x,a)        __ALIGN_MASK((x),(typeof(x))(a)-1)
+#define __ALIGN_MASK(x,mask)    (((x)+(mask))&~(mask))
 
 enum CMD {
 	PUSH_INFO,

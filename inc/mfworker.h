@@ -62,7 +62,9 @@ private:
 	
 	void PullGPUData();
 	void PinnedBuf(void* buf, size_t size);
-        void UnpinnedBuf(void *buf);
+	void UnpinnedBuf(void *buf);
+	int CreateShmbuf();
+	int LinkPullbuf();
 /*
 public:
 #ifdef TEST
@@ -74,9 +76,11 @@ public:
 */
 private:
 	int rank;
+	int server_rank;
 	int workers;
 	int max_cores;
 	int numa_node;
+	int shm_id;
 	TransMode trans_mode;
 	size_t start;
 	size_t size;

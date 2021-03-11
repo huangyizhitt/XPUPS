@@ -94,6 +94,8 @@ private:
 	void PrepareData();
 	int CreateShmbuf();
 	void DestroyShmbuf();
+	int PrepareShmbuf();
+	int LinkShmbuf();
 
 	void PinnedBuf(void* buf, size_t size);
 	void UnpinnedBuf(void *buf);
@@ -118,6 +120,7 @@ private:
 	int received;							//received times from workers
 	int pull_counts;
 	int pull_shmid;
+	int my_rank;
 	TransMode trans_mode;
 
 	unsigned char *pull_buf;

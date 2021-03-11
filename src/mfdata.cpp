@@ -311,6 +311,46 @@ void DataManager::InitModel()
 	printf("init model success!\n");
 }
 
+void DataManager::InitModelShm(void *shm_buf)
+{
+	float *tmp = (float *)shm_buf; 
+	model.m = rows;
+	model.n = cols;
+	model.k = k;
+	model.scale = means / scale;
+
+	std::default_random_engine generator;
+    std::uniform_real_distribution<float> distribution(0.0, 1.0);
+	float s = (float)sqrt(1.0/k);
+
+	model.p = tmp;
+	model.q = tmp + rows*k;
+
+	auto init1 = [&](float *feature, size_t size, std::vector<int>& counts)
+	{
+		for(size_t i = 0; i < size; ++i)
+        	{
+            		if(counts[i] > 0) {
+				for(size_t j = 0; j < k; j++)
+                    			feature[i * k + j] = (float)(distribution(generator)*s);
+			} else {
+                		for(size_t j = 0; j < k; j++)
+                    			feature[i * k + j] = std::numeric_limits<float>::quiet_NaN();
+            		}
+        	}
+	};
+
+	init1(model.p, rows, counts_p);
+	init1(model.q, cols, counts_q);
+
+	if(use_half) {
+		halfp = (short *)malloc(sizeof(short) * (rows + cols) * k);
+		halfq = halfp + (rows * k);
+	}
+
+	printf("init model success!\n");
+}
+
 //Find the free orthogonal block
 int DataManager::FindFreeBlock()
 {

@@ -69,6 +69,7 @@ void MFServer::Init()
 	quantify_data_threads = xpu->workers;
 	received = 0;
 	pull_counts=0;
+	my_rank = ps::MyRank();
 #ifdef CAL_PORTION_RMSE	
 	loss = 0.0;
 #endif
@@ -230,13 +231,84 @@ void MFServer::PrepareData()
 		gridDim.y = total_work_ratio;
 		dm.SetGrid(gridDim);
 		dm.GridData(prepare_data_threads);
-		dm.InitModel();
+
+		if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX)
+			dm.InitModelShm(pull_buf);
+		else
+			dm.InitModel();
 
 		data_init_stage = true;
 	}
 }
 
 int MFServer::CreateShmbuf()
+{
+	size_t size = (size_t)sizeof(float)*(dm.rows * dm.k + dm.cols * dm.k);
+	int key;
+
+	key = ftok("/home", my_rank);
+	if(key == -1) {
+    	perror("ftok fail!\n");
+    	return -1;
+	}
+	
+	pull_shmid = shmget(key, size, IPC_CREAT | 0777);
+		if(pull_shmid == -1) {
+			perror("Server pull_shmid shmget fail!\n");
+			return -1;
+	}
+
+	pull_buf = (unsigned char *)shmat(pull_shmid, NULL, 0);
+	if(!pull_buf) {
+		perror("Server create pull buf fail!\n");
+		return -1;
+	}
+
+	PinnedBuf(pull_buf, size);
+	return 0;
+}
+
+int MFServer::LinkShmbuf()
+{
+	size_t size = (size_t)sizeof(float)*(dm.rows * dm.k + dm.cols * dm.k);
+	int key, shmid;
+
+	for(const auto& n : worker_xpu_info) {
+		int worker_rank = n.first;
+		key = ftok("/home", worker_rank);
+		if(key == -1) {
+        	perror("ftok fail!\n");
+        	return -1;
+		}
+		
+		shmid = shmget(key, size, IPC_CREAT | 0777);
+		if(shmid == -1) {
+			perror("Server shmid shmget fail!\n");
+			return -1;
+		}
+
+		unsigned char *buf = 
+			(unsigned char *)shmat(shmid, NULL, 0);
+		if(!buf) {
+			perror("Server create buf fail!\n");
+			return -1;
+		}
+	
+		PinnedBuf(buf, size);
+
+		shm_buf[worker_rank] = std::make_pair(shmid, buf);
+	}
+	return 0;
+}
+
+void MFServer::DestroyShmbuf()
+{
+	UnpinnedBuf(pull_buf);
+	shmdt((pull_buf));
+	shmctl(pull_shmid, IPC_RMID, NULL);
+}
+
+int MFServer::PrepareShmbuf()
 {
 	size_t size = (size_t)sizeof(float)*(dm.rows * dm.k + dm.cols * dm.k);
 	int key, shmid;
@@ -299,11 +371,11 @@ void MFServer::ProcessInitTrainingData(const ps::KVMeta& req_meta,
 	size_t n = req_data.keys.size();
 	res.keys = req_data.keys;
 	res.lens.resize(n);
-	
-	PrepareData();
 
 	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX)
 		CreateShmbuf();
+	
+	PrepareData();
 	
 	int rank = req_data.keys[0];
 	int start = 0;

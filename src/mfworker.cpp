@@ -179,13 +179,78 @@ void MFWorker::PrepareCPUResources()
 	size_t size_p = m * k;
 	size_t size_q = n * k;
 
+	if(trans_mode >= ALL && trans_mode <= HALFQ) {
 #ifdef CAL_PORTION_RMSE
-	feature = (float *)aligned_alloc(64, (size_p + size_q + 1) * sizeof(float));
+		feature = (float *)aligned_alloc(64, (size_p + size_q + 1) * sizeof(float));
 #else
-	feature = (float *)aligned_alloc(64, (size_p + size_q) * sizeof(float));
+		feature = (float *)aligned_alloc(64, (size_p + size_q) * sizeof(float));
 #endif
+	} else {
+		intptr_t addr = (intptr_t)shm_buf;
+		feature = (float *)ALIGN(addr, 64);
+		printf("share memory feature: %p\n", feature);
+	}
 	p = feature;
 	q = feature + size_p;
+}
+
+//Create share memory in worker CPU, which will be mapped to server and linked to p and q;
+int MFWorker::CreateShmbuf()
+{
+	int key = ftok("/home", rank);
+	if(key == -1) {
+    	perror("ftok fail!\n");
+    	return -1;
+	}
+	size_t shm_size = sizeof(float)*(m * k + n * k) + 128;					//to ensure p and q alian 64
+	shm_id = shmget(key, shm_size, IPC_CREAT | 0777);
+	if(shm_id == -1) {
+		perror("Worker shmid shmget fail!\n");
+		return -1;
+	}	
+
+	shm_buf = (unsigned char *)shmat(shm_id, NULL, 0);
+	if(!shm_buf) {
+		perror("Worker shm_buf shmat fail!\n");
+		return -1;
+	}
+
+	PinnedBuf(shm_buf, shm_size);
+	return 0;
+}
+
+void MFWorker::DestroyShmbuf()
+{
+	UnpinnedBuf(shm_buf);
+	shmdt(shm_buf);
+	shmctl(shm_id, IPC_RMID, NULL);
+}
+
+//Pull buf is a share memory create by server, this function will link the shm;
+int MFWorker::LinkPullbuf()
+{
+	int key = key = ftok("/home", server_rank);
+	if(key == -1) {
+    	perror("ftok fail!\n");
+    	return -1;
+	}
+
+	size_t shm_size = sizeof(float)*(m * k + n * k);
+	int shmid = shmget(key, shm_size, IPC_CREAT | 0777);
+
+	shmid = shmget(key, shm_size, IPC_CREAT | 0777);
+	if(shmid == -1) {
+		perror("Worker pull_shmid shmget fail!\n");
+		return -1;
+	}
+
+	pull_buf = (unsigned char *)shmat(shmid, NULL, 0);
+	if(!pull_buf) {
+		perror("Worker pull_buf create fail!\n");
+		return -1;
+	}
+	PinnedBuf(pull_buf, shm_size);
+	return 0;
 }
 
 int MFWorker::PrepareShmbuf()
@@ -237,7 +302,7 @@ int MFWorker::PrepareShmbuf()
 	return 0;
 }
 
-void MFWorker::PrepareResources()
+/*void MFWorker::PrepareResources()
 {
 	if(xpu->xpu_type == XPU_TYPE::CPU) {
 		PrepareCPUResources();
@@ -249,15 +314,33 @@ void MFWorker::PrepareResources()
 
 	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX)
 		PrepareShmbuf();					//Share memory is create by server
+}*/
+
+void MFWorker::PrepareResources()
+{
+	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX)
+		CreateShmbuf();					//Share memory is create by worker
+	else 
+		ps_vals.resize(m * k + n * k + 1);
+
+	if(xpu->xpu_type == XPU_TYPE::CPU) {
+		PrepareCPUResources();
+	} else if(xpu->xpu_type == XPU_TYPE::GPU) {
+		PrepareGPUResources();
+	}	
 }
+
 
 void MFWorker::ReleaseCPUResources()
 {
-	free(feature);
+	if(trans_mode >= ALL && trans_mode <= HALFQ)
+		free(feature);
 }
 
 void MFWorker::ReleaseResources()
 {
+	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX)
+		DestroyShmbuf();
 	if(xpu->xpu_type == XPU_TYPE::CPU) {
 		ReleaseCPUResources();
 	} else if(xpu->xpu_type == XPU_TYPE::GPU) {
@@ -297,10 +380,10 @@ void MFWorker::PreProcess()
 void MFWorker::PostProcess()
 {
 	ReleaseResources();
-	UnpinnedBuf(shm_buf);
+/*	UnpinnedBuf(shm_buf);
 	if(trans_mode == HALFQ_SHM_EX) {
 		UnpinnedBuf(pull_buf);
-	}
+	}*/
 	DeInit();
 }
 
