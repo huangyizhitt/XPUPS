@@ -104,6 +104,12 @@ void MFWorker::PushXPUInfo()
 	vals.push_back(xpu->worker_ratio);
 	lens.push_back(3);
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+	if(lens[0] != 1) {
+		printf("Cannot get server rank!\n");
+		return;
+	}
+	server_rank = vals[0];
+	printf("[Worker %d] Get server, server node id: %d\n", rank, server_rank);
 }
 
 //Send Init Training Data CMD to Server
@@ -186,8 +192,7 @@ void MFWorker::PrepareCPUResources()
 		feature = (float *)aligned_alloc(64, (size_p + size_q) * sizeof(float));
 #endif
 	} else {
-		intptr_t addr = (intptr_t)shm_buf;
-		feature = (float *)ALIGN(addr, 64);
+		feature = (float *)shm_buf;
 		printf("share memory feature: %p\n", feature);
 	}
 	p = feature;
@@ -316,10 +321,23 @@ int MFWorker::PrepareShmbuf()
 		PrepareShmbuf();					//Share memory is create by server
 }*/
 
+void MFWorker::LinkShmbuf()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = LINK_SHM;
+
+	keys.push_back(rank);
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));		
+}
+
 void MFWorker::PrepareResources()
 {
-	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX)
+	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX) {
 		CreateShmbuf();					//Share memory is create by worker
+		LinkShmbuf();					//push cmd to server to link the shmbuf; 
+	}
 	else 
 		ps_vals.resize(m * k + n * k + 1);
 
@@ -407,18 +425,9 @@ void MFWorker::PullAll()
 
 void MFWorker::PullAllShm()
 {
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = PULL_ALL_FEATURE_SHM;
-
 	xpu->current_epoch++;
-	//Only request the server to copy data to share memory;
-	keys.push_back(rank);
-	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-
 	size_t transfer_size = (n+m)*k*sizeof(float);
-	xpu->Transfer(p, shm_buf, transfer_size, TransferDirect::S2C);
+	xpu->Transfer(p, pull_buf, transfer_size, TransferDirect::S2C);	
 }
 
 //This function pulls P and Q in the first epoch 
@@ -454,25 +463,17 @@ void MFWorker::PullQ()
 //Use share memory 
 void MFWorker::PullQShm()
 {
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = PULL_Q_FEATURE_SHM;
-
 	xpu->current_epoch++;
-	//Only request the server to copy data to share memory;
-	keys.push_back(rank);
-	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-
 	size_t size_p = m * k;
 	size_t size_q = n * k;
 
 	if(xpu->current_epoch == 1) {
-		xpu->Transfer(p, shm_buf, (size_p+size_q)*sizeof(float), TransferDirect::S2C);
+		xpu->Transfer(p, pull_buf, (size_p+size_q)*sizeof(float), TransferDirect::S2C);
 	} else {
-		xpu->Transfer(q, shm_buf, (size_q)*sizeof(float), TransferDirect::S2C);
+		xpu->Transfer(q, pull_buf, (size_q)*sizeof(float), TransferDirect::S2C);
 	}
 }
+
 
 void MFWorker::PullHalfQ()
 {
@@ -509,49 +510,10 @@ void MFWorker::PullHalfQ()
 
 void MFWorker::PullHalfQShm()
 {
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = PULL_HALF_FEATURE_SHM;
-
-	short *src = (short *)shm_buf;
-	float *dst;
-
-	xpu->current_epoch++;
-
-	keys.push_back(rank);
-	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-
-	size_t size_p = m * k;
-	size_t size_q = n * k;
-	size_t trans_size;
-
-	if(xpu->current_epoch == 1) {
-		dst = p;
-		trans_size = size_p + size_q;
-//		xpu->halfp2singles(p, h_p, size_p+size_q, max_cores, true);
-	} else {
-		dst = q;
-		trans_size = size_q;
-//		xpu->halfp2singles(q, h_q, size_q, max_cores, true);
-	}
-
-	xpu->halfp2singles(dst, src, trans_size, max_cores, true);
-}
-
-void MFWorker::PullHalfQShmEX()
-{
-	std::vector<ps::Key> keys;
-	std::vector<float> vals;
-	std::vector<int> lens;
-	CMD cmd = PULL_HALF_FEATURE_SHMEX;
-
 	short *src = (short *)pull_buf;
 	float *dst;
 
 	xpu->current_epoch++;
-	keys.push_back(rank);
-	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
 	
 	size_t size_p = m * k;
 	size_t size_q = n * k;
@@ -774,40 +736,6 @@ void MFWorker::PushHalfQShm()
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));	
 }
 
-void MFWorker::PushHalfQShmEX()
-{
-        std::vector<ps::Key> keys;
-        std::vector<float> vals;
-        std::vector<int> lens;
-        CMD cmd = PUSH_HALF_FEATURE_SHMEX;
-
-        size_t size_p = m * k;
-        size_t size_q = n * k;
-        size_t trans_size;
-        float *src;
-
-        if(xpu->current_epoch < xpu->target_epoch) {
-                trans_size = size_q;
-                src = q;
-        } else {
-                trans_size = size_p+size_q;
-                src = p;
-        }
-
-        keys.push_back(rank);
-        vals.push_back(trans_size);
-        lens.push_back(1);                              //compress half point
-
-        xpu->singles2halfp(shm_buf, src, trans_size, FE_TONEAREST, 0, max_cores, true);
-
-#ifdef CAL_PORTION_RMSE
-        keys.push_back(rank+1);
-        lens.push_back(1);
-        vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
-#endif
-        kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
-}
-
 void MFWorker::Pull()
 {
 	switch(trans_mode) {
@@ -833,10 +761,6 @@ void MFWorker::Pull()
 
 		case HALFQ_SHM:
 			PullHalfQShm();
-			break;
-
-		case HALFQ_SHM_EX:
-			PullHalfQShmEX();
 			break;
 
 		default:
@@ -870,10 +794,6 @@ void MFWorker::Push()
 
 		case HALFQ_SHM:
 			PushHalfQShm();
-			break;
-
-		case HALFQ_SHM_EX:
-			PushHalfQShmEX();
 			break;
 
 		default:

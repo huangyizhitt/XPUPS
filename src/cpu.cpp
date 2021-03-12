@@ -85,6 +85,7 @@ void CPU::DeInit()
 
 void CPU::Transfer(void *dst, void *src, size_t size, TransferDirect direct)
 {
+	if(src == dst)	return;
 	memcpy(dst, src, size);
 }
 

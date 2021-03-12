@@ -48,7 +48,6 @@ private:
 	void PullQShm();
 	void PullHalfQ();
 	void PullHalfQShm();
-	void PullHalfQShmEX();
 	
 	void PushAll();
 	void PushAllShm();
@@ -65,6 +64,7 @@ private:
 	void UnpinnedBuf(void *buf);
 	int CreateShmbuf();
 	int LinkPullbuf();
+	int LinkShmbuf();
 /*
 public:
 #ifdef TEST

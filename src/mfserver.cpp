@@ -163,8 +163,8 @@ void MFServer::ProcessHandle(const ps::KVMeta& req_meta,
 			cur_server->ProcessPullHalfQShmEX(req_meta, req_data, server);
 			break;
 
-		case PUSH_HALF_FEATURE_SHMEX:
-			cur_server->ProcessPushHalfQShmEX(req_meta, req_data, server);
+		case LINK_SHM:
+			cur_server->ProcessLinkShm(req_meta, req_data, server);
 			break;
 
 		default:
@@ -215,6 +215,9 @@ void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
 	}
 	xpus++;
 	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.lens.push_back(1);
+	res.vals.push_back(my_rank);
 	server->Response(req_meta, res);
 }
 
@@ -234,8 +237,10 @@ void MFServer::PrepareData()
 
 		if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX)
 			dm.InitModelShm(pull_buf);
-		else
+		else {
+			CreateShmbuf();
 			dm.InitModel();
+		}
 
 		data_init_stage = true;
 	}
@@ -268,36 +273,34 @@ int MFServer::CreateShmbuf()
 	return 0;
 }
 
-int MFServer::LinkShmbuf()
+int MFServer::LinkShmbuf(int worker_rank)
 {
 	size_t size = (size_t)sizeof(float)*(dm.rows * dm.k + dm.cols * dm.k);
 	int key, shmid;
 
-	for(const auto& n : worker_xpu_info) {
-		int worker_rank = n.first;
-		key = ftok("/home", worker_rank);
-		if(key == -1) {
-        	perror("ftok fail!\n");
-        	return -1;
-		}
-		
-		shmid = shmget(key, size, IPC_CREAT | 0777);
-		if(shmid == -1) {
-			perror("Server shmid shmget fail!\n");
-			return -1;
-		}
-
-		unsigned char *buf = 
-			(unsigned char *)shmat(shmid, NULL, 0);
-		if(!buf) {
-			perror("Server create buf fail!\n");
-			return -1;
-		}
-	
-		PinnedBuf(buf, size);
-
-		shm_buf[worker_rank] = std::make_pair(shmid, buf);
+	key = ftok("/home", worker_rank);
+	if(key == -1) {
+    	perror("ftok fail!\n");
+    	return -1;
 	}
+	
+	shmid = shmget(key, size, IPC_CREAT | 0777);
+	if(shmid == -1) {
+		perror("Server shmid shmget fail!\n");
+		return -1;
+	}
+
+	unsigned char *buf = 
+		(unsigned char *)shmat(shmid, NULL, 0);
+	if(!buf) {
+		perror("Server create buf fail!\n");
+		return -1;
+	}
+
+	PinnedBuf(buf, size);
+
+	shm_buf[worker_rank] = std::make_pair(shmid, buf);
+
 	return 0;
 }
 
@@ -363,6 +366,20 @@ int MFServer::PrepareShmbuf()
 	return 0;
 }
 
+void MFServer::ProcessLinkShm(const ps::KVMeta& req_meta,
+					  const ps::KVPairs<float>& req_data,
+					  ps::KVServer<float>* server)
+{
+	ps::KVPairs<float> res;
+	size_t n = req_data.keys.size();
+	int worker_rank = req_data.keys[0];
+	res.lens.resize(n);
+	
+	LinkShmbuf(worker_rank);
+	server->Response(req_meta, res);
+}
+
+
 void MFServer::ProcessInitTrainingData(const ps::KVMeta& req_meta,
 					  const ps::KVPairs<float>& req_data,
 					  ps::KVServer<float>* server)
@@ -371,9 +388,6 @@ void MFServer::ProcessInitTrainingData(const ps::KVMeta& req_meta,
 	size_t n = req_data.keys.size();
 	res.keys = req_data.keys;
 	res.lens.resize(n);
-
-	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX)
-		CreateShmbuf();
 	
 	PrepareData();
 	
@@ -399,25 +413,6 @@ void MFServer::ProcessInitTrainingData(const ps::KVMeta& req_meta,
 	res.lens[0] = 7;
 	server->Response(req_meta, res);	
 }
-
-void MFServer::DestroyShmbuf()
-{
-	for(const auto& n : shm_buf) {
-		if(worker_xpu_info[n.first].type == XPU_TYPE::GPU) {
-			UnpinnedBuf(n.second.second);	
-		}
-
-		shmdt(n.second.second);
-		shmctl(n.second.first, IPC_RMID, NULL);
-	}
-	if(trans_mode == HALFQ_SHM_EX) {
-                UnpinnedBuf(pull_buf);
-
-		shmdt(pull_buf);
-		shmctl(pull_shmid, IPC_RMID, NULL);
-	}
-}
-
 
 void MFServer::ProcessPullTrainingData(const ps::KVMeta& req_meta,
                       const ps::KVPairs<float>& req_data,
@@ -961,7 +956,7 @@ void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 		int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
 //		printf("start: %d, start_p: %d, size_p: %d\n", start, worker_start_p, worker_size_p);
 //		memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
-		h_p = (uint16_t *)shm_buf[rank].second;
+		h_p = (uint16_t *)shm_buf[rank].second;;
 		h_q = h_p + size_p;
 		cpu_halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, quantify_data_threads);
 		if(received == 0) {
@@ -1006,93 +1001,6 @@ void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 	}	
 }
 
-void MFServer::ProcessPushHalfQShmEX(const ps::KVMeta& req_meta,
-				  const ps::KVPairs<float>& req_data,
-				  ps::KVServer<float>* server)
-{
-	size_t keys_size = req_data.keys.size();
-	size_t size_p = dm.rows * dm.k;
-	size_t size_q = dm.cols * dm.k;
-	size_t vals_size = req_data.vals.size();
-	uint16_t *h_p;
-	uint16_t *h_q;
-	ps::KVPairs<float> res;
-	res.keys = req_data.keys;
-	res.lens.resize(keys_size);
-
-	int rank = req_data.keys[0];
-	//printf("current_epoch: %d\n", current_epoch); 
-	if(xpu->current_epoch != xpu->target_epoch) {
-		h_q = (uint16_t *)shm_buf[rank].second;
-		if(received == 0) {
-//			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
-			cpu_halfp2singles(&dm.model.q[0], h_q, size_q, 16);
-		} else {
-#if defined(USE_AVX2) || defined(USE_AVX512)
-			halfp2singles_madd(&dm.model.q[0], h_q, size_q, 16, 0.5);
-#else
-			for(int i = 0; i < size_q; i++) {
-				float tmp;
-				cpu_halfp2singles(&tmp, h_q+i, 1, 16);
-				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
-			}
-#endif
-		}
-	} else {
-		int start = worker_xpu_info[rank].start;
-		int size = worker_xpu_info[rank].size;
-
-		//Get feature p in the last epoch	
-		int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
-		int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
-//		printf("start: %d, start_p: %d, size_p: %d\n", start, worker_start_p, worker_size_p);
-//		memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
-		h_p = (uint16_t *)shm_buf[rank].second;
-		h_q = h_p + size_p;
-		cpu_halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, 16);
-		if(received == 0) {
-//			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
-			cpu_halfp2singles(&dm.model.q[0], h_q, size_q, 16);
-		} else {
-#if defined(USE_AVX2) || defined(USE_AVX512)
-			halfp2singles_madd(&dm.model.q[0], h_q, size_q, 16, 0.5);
-#else
-			for(int i = 0; i < size_q; i++) {
-//				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
-				float tmp;
-				cpu_halfp2singles(&tmp, h_q+i, 1, 16);
-				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
-			}
-#endif
-		}
-	}
-
-	server->Response(req_meta, res);
-#ifdef CAL_PORTION_RMSE	
-	loss += req_data.vals.back();
-#endif
-
-	received++;
-	if(received == xpus) {
-//	  current_epoch++;
-
-#ifdef CAL_PORTION_RMSE
-		printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz)*dm.scale);
-		loss = 0;
-#endif
-
-#ifdef CAL_RMSE
-		if(xpu->current_epoch < xpu->target_epoch)
-			printf("Epoch %d\n",  xpu->current_epoch);
-		else
-			printf("Epoch %d global loss %.4f\n",  xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model)*dm.scale);		  
-#endif
-		xpu->current_epoch++;
-		received = 0;
-	}	
-}
-
-
 void MFServer::ProcessPullAllShm(const ps::KVMeta& req_meta,
 					const ps::KVPairs<float>& req_data,
 					ps::KVServer<float>* server)
@@ -1130,7 +1038,7 @@ void MFServer::ProcessPushAllShm(const ps::KVMeta& req_meta,
 	res.lens.resize(keys_size);
 
 	int rank = req_data.keys[0];
-	float *buf = (float *)shm_buf[rank].second;
+	float *buf = (float *)shm_buf[rank].second;;
 
 	//printf("current_epoch: %d\n", current_epoch); 
 
