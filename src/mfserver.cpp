@@ -215,9 +215,6 @@ void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
 	}
 	xpus++;
 	ps::KVPairs<float> res;
-	res.keys = req_data.keys;
-	res.lens.push_back(1);
-	res.vals.push_back(my_rank);
 	server->Response(req_meta, res);
 }
 
@@ -410,7 +407,8 @@ void MFServer::ProcessInitTrainingData(const ps::KVMeta& req_meta,
 	res.vals.push_back((float)dm.rows);
 	res.vals.push_back((float)dm.cols);
 	res.vals.push_back(dm.scale);
-	res.lens[0] = 7;
+	res.vals.push_back(my_rank);
+	res.lens[0] = 8;
 	server->Response(req_meta, res);	
 }
 

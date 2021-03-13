@@ -104,12 +104,6 @@ void MFWorker::PushXPUInfo()
 	vals.push_back(xpu->worker_ratio);
 	lens.push_back(3);
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
-	if(lens[0] != 1) {
-		printf("Cannot get server rank!\n");
-		return;
-	}
-	server_rank = vals[0];
-	printf("[Worker %d] Get server, server node id: %d\n", rank, server_rank);
 }
 
 //Send Init Training Data CMD to Server
@@ -123,7 +117,7 @@ void MFWorker::InitTrainingData()
 	keys.push_back(rank);
 	lens.push_back(0);
 	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
-	if(lens[0] != 7) {
+	if(lens[0] != 8) {
 		printf("[Worker %d] InitTestData: receive data fail!\n", rank);
 	}
 	
@@ -134,12 +128,14 @@ void MFWorker::InitTrainingData()
 	m = dm.rows = (size_t)vals[4];
 	n = dm.cols = (size_t)vals[5];
 	scale = vals[6];
+	server_rank = (int)vals[7];
 
 	lambda_p = lambda_p / scale;
 	lambda_q = lambda_q / scale;
 	dm.nnz = size;
 
 	xpu->PrepareTransferBuf((m+n)*k);
+	printf("[Worker %d] Get server, server node id: %d\n", rank, server_rank);
 	debugp("[Worker %d] start: %ld, size: %ld, rows: %d, cols: %d\n", rank, start, size, dm.rows, dm.cols);
 }
 

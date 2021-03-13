@@ -64,7 +64,8 @@ private:
 	void UnpinnedBuf(void *buf);
 	int CreateShmbuf();
 	int LinkPullbuf();
-	int LinkShmbuf();
+	void LinkShmbuf();
+	void DestroyShmbuf();
 /*
 public:
 #ifdef TEST
