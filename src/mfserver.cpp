@@ -15,6 +15,8 @@ using namespace ps;
 
 namespace MF {
 
+#define WORKER_NUM	128
+
 #ifdef CAL_RMSE	
 static double calc_rmse(std::vector<MatrixNode>& R, Model& model)
 {
@@ -69,7 +71,7 @@ void MFServer::Init()
 	quantify_data_threads = xpu->workers;
 	received = 0;
 	pull_counts=0;
-	my_rank = ps::MyRank();
+	my_rank = ps::MyRank() + WORKER_NUM;
 #ifdef CAL_PORTION_RMSE	
 	loss = 0.0;
 #endif
@@ -232,10 +234,10 @@ void MFServer::PrepareData()
 		dm.SetGrid(gridDim);
 		dm.GridData(prepare_data_threads);
 
-		if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX)
-			dm.InitModelShm(pull_buf);
-		else {
+		if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX) {
 			CreateShmbuf();
+			dm.InitModelShm(pull_buf);
+		} else {
 			dm.InitModel();
 		}
 
@@ -277,8 +279,8 @@ int MFServer::LinkShmbuf(int worker_rank)
 
 	key = ftok("/home", worker_rank);
 	if(key == -1) {
-    	perror("ftok fail!\n");
-    	return -1;
+    		perror("ftok fail!\n");
+    		return -1;
 	}
 	
 	shmid = shmget(key, size, IPC_CREAT | 0777);
@@ -367,12 +369,14 @@ void MFServer::ProcessLinkShm(const ps::KVMeta& req_meta,
 					  const ps::KVPairs<float>& req_data,
 					  ps::KVServer<float>* server)
 {
-	ps::KVPairs<float> res;
-	size_t n = req_data.keys.size();
 	int worker_rank = req_data.keys[0];
-	res.lens.resize(n);
-	
-	LinkShmbuf(worker_rank);
+	if(LinkShmbuf(worker_rank)) {
+		printf("[Server] Link %d share memory fail!\n", worker_rank);
+	}
+	printf("[Server] Link %d share memory!\n", worker_rank);	
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.lens.resize(req_data.keys.size());
 	server->Response(req_meta, res);
 }
 
