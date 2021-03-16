@@ -185,8 +185,10 @@ void MFWorker::PrepareCPUResources()
 	if(trans_mode >= ALL && trans_mode <= HALFQ) {
 #ifdef CAL_PORTION_RMSE
 		feature = (float *)aligned_alloc(64, (size_p + size_q + 1) * sizeof(float));
+		PinnedBuf(feature, (size_p+size_q+1)*sizeof(float));
 #else
 		feature = (float *)aligned_alloc(64, (size_p + size_q) * sizeof(float));
+		PinnedBuf(feature, (size_p+size_q)*sizeof(float));
 #endif
 	} else {
 		feature = (float *)shm_buf;
@@ -352,8 +354,10 @@ void MFWorker::PrepareResources()
 
 void MFWorker::ReleaseCPUResources()
 {
-	if(trans_mode >= ALL && trans_mode <= HALFQ)
+	if(trans_mode >= ALL && trans_mode <= HALFQ) {
+		UnpinnedBuf(feature);
 		free(feature);
+	}
 }
 
 void MFWorker::ReleaseResources()
@@ -540,7 +544,6 @@ void MFWorker::PullHalfQShm()
 	xpu->halfp2singles(dst, src, trans_size, max_cores, true);
 }
 
-
 void MFWorker::PushAll()
 {
 	std::vector<ps::Key> keys;
@@ -726,14 +729,16 @@ void MFWorker::PushHalfQShm()
 	size_t size_q = n * k; 
 	size_t trans_size;
 	float *src;
-	short *dst = (short *)shm_buf;
+	short *dst;
 
 	if(xpu->current_epoch < xpu->target_epoch) {
 		trans_size = size_q;
 		src = q;
+		dst = (short *)q;
 	} else {
 		trans_size = size_p+size_q;
 		src = p;
+		dst = (short *)p;
 	}
 
 	keys.push_back(rank);
