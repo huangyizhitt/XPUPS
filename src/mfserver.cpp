@@ -603,7 +603,9 @@ void MFServer::ProcessPushQShm(const ps::KVMeta& req_meta,
 		  memcpy(&dm.model.q[0], buf, sizeof(float) * size_q); 
 	//		 printf("[Process push] dm.model.q[0]: %.3f, dm.model.q[1]: %.3f, dm.model.q[2]: %.3f\n", dm.model.q[0], dm.model.q[1], dm.model.q[2]); 
 	  } else {
+#if defined USEOMP
 #pragma omp parallel for schedule(static) num_threads(24)
+#endif
 		  for(int i = 0; i < size_q; i++) {
 			  dm.model.q[i] = (dm.model.q[i] + buf[i]) / 2;
 		  }
@@ -620,7 +622,9 @@ void MFServer::ProcessPushQShm(const ps::KVMeta& req_meta,
 	  if(received == 0) {
 		  memcpy(&dm.model.q[0], &buf[size_p], sizeof(float) * size_q);
 	  } else {
+#if defined USEOMP
 #pragma omp parallel for schedule(static) num_threads(24)
+#endif
 		  for(int i = size_p; i < size_p + size_q; i++) {
 			  dm.model.q[i-size_p] = (dm.model.q[i-size_p] + buf[i]) / 2;
 		  }
@@ -1155,10 +1159,16 @@ void MFServer::ProcessPushAllShm(const ps::KVMeta& req_meta,
 	if(received == 0) {
 		memcpy(&dm.model.p[0], buf, (size_p+size_q)*sizeof(float));
 	} else {
+#if defined USEOMP
+#pragma omp parallel for schedule(static) num_threads(24)
+#endif
 			for(int i = 0; i < size_p; i++) {
 				dm.model.p[i] = (dm.model.p[i] + buf[i]) / 2;
 			}
 
+#if defined USEOMP
+#pragma omp parallel for schedule(static) num_threads(24)
+#endif
 			for(int i = size_p; i < size_p + size_q; i++) {
 				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + buf[i]) / 2;
 			}
