@@ -134,6 +134,7 @@ void MFWorker::InitTrainingData()
 	lambda_q = lambda_q / scale;
 	dm.nnz = size;
 
+	LinkPullbuf();
 	xpu->PrepareTransferBuf((m+n)*k);
 	printf("[Worker %d] Get server, server node id: %d\n", rank, server_rank);
 	debugp("[Worker %d] start: %ld, size: %ld, rows: %d, cols: %d\n", rank, start, size, dm.rows, dm.cols);
@@ -466,11 +467,12 @@ void MFWorker::PullQShm()
 	xpu->current_epoch++;
 	size_t size_p = m * k;
 	size_t size_q = n * k;
+	float *addr = (float *)pull_buf;
 
 	if(xpu->current_epoch == 1) {
-		xpu->Transfer(p, pull_buf, (size_p+size_q)*sizeof(float), TransferDirect::S2C);
+		xpu->Transfer(p, addr, (size_p+size_q)*sizeof(float), TransferDirect::S2C);
 	} else {
-		xpu->Transfer(q, pull_buf, (size_q)*sizeof(float), TransferDirect::S2C);
+		xpu->Transfer(q, addr+size_p, (size_q)*sizeof(float), TransferDirect::S2C);
 	}
 }
 
@@ -510,11 +512,19 @@ void MFWorker::PullHalfQ()
 
 void MFWorker::PullHalfQShm()
 {
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_HALF_FEATURE_SHM;
+
 	short *src = (short *)pull_buf;
 	float *dst;
 
 	xpu->current_epoch++;
 	
+	keys.push_back(rank);
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+
 	size_t size_p = m * k;
 	size_t size_q = n * k;
 	size_t trans_size;
@@ -636,18 +646,20 @@ void MFWorker::PushQShm()
 	size_t size_p = m * k;
 	size_t size_q = n * k; 
 	size_t trans_size;
-	float *src;
+	float *src, *dst, *tmp = (float *)shm_buf;
 
 	//current_epoch < target_epoch, only push q	
 	if(xpu->current_epoch < xpu->target_epoch) {
 		trans_size = size_q;
 		src = q;
+		dst = tmp + size_p;
 	} else {
 		trans_size = size_p+size_q;
 		src = p;
+		dst = tmp;
 	}
 
-	xpu->Transfer(shm_buf, src, trans_size * sizeof(float), TransferDirect::C2S);
+	xpu->Transfer(dst, src, trans_size * sizeof(float), TransferDirect::C2S);
 
 	keys.push_back(rank);
 	vals.push_back(trans_size);
@@ -656,7 +668,8 @@ void MFWorker::PushQShm()
 #ifdef CAL_PORTION_RMSE
 	keys.push_back(rank+1);
 	lens.push_back(1);
-	vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
+	float my_loss = std::accumulate(loss.begin(), loss.end(), 0.0);
+	vals.push_back(my_loss);
 #endif
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));		
 }
@@ -713,6 +726,7 @@ void MFWorker::PushHalfQShm()
 	size_t size_q = n * k; 
 	size_t trans_size;
 	float *src;
+	short *dst = (short *)shm_buf;
 
 	if(xpu->current_epoch < xpu->target_epoch) {
 		trans_size = size_q;
@@ -726,7 +740,7 @@ void MFWorker::PushHalfQShm()
 	vals.push_back(trans_size);
 	lens.push_back(1);				//compress half point
 
-	xpu->singles2halfp(shm_buf, src, trans_size, FE_TONEAREST, 0, max_cores, true);
+	xpu->singles2halfp(dst, src, trans_size, FE_TONEAREST, 0, max_cores, true);
 
 #ifdef CAL_PORTION_RMSE
 	keys.push_back(rank+1);
@@ -828,7 +842,6 @@ void MFWorker::CreateWorkers(pFunc func)
 #ifdef DEBUG
 			args[i].tid = i;
 #endif
-
 			xpu->CreateTasks(i, func, &args[i]);
 		}
 	}else if(xpu->xpu_type == XPU_TYPE::GPU) {

@@ -274,7 +274,7 @@ int MFServer::CreateShmbuf()
 
 int MFServer::LinkShmbuf(int worker_rank)
 {
-	size_t size = (size_t)sizeof(float)*(dm.rows * dm.k + dm.cols * dm.k);
+	size_t size = (size_t)sizeof(float)*(dm.rows * dm.k + dm.cols * dm.k) + 128;
 	int key, shmid;
 
 	key = ftok("/home", worker_rank);
@@ -374,9 +374,8 @@ void MFServer::ProcessLinkShm(const ps::KVMeta& req_meta,
 		printf("[Server] Link %d share memory fail!\n", worker_rank);
 	}
 	printf("[Server] Link %d share memory!\n", worker_rank);	
+	
 	ps::KVPairs<float> res;
-	res.keys = req_data.keys;
-	res.lens.resize(req_data.keys.size());
 	server->Response(req_meta, res);
 }
 
@@ -592,10 +591,12 @@ void MFServer::ProcessPushQShm(const ps::KVMeta& req_meta,
 
 	//printf("current_epoch: %d\n", current_epoch); 
 	if(xpu->current_epoch != xpu->target_epoch) {
+		buf = buf + size_p;
 	  if(received == 0) {
 		  memcpy(&dm.model.q[0], buf, sizeof(float) * size_q); 
 	//		 printf("[Process push] dm.model.q[0]: %.3f, dm.model.q[1]: %.3f, dm.model.q[2]: %.3f\n", dm.model.q[0], dm.model.q[1], dm.model.q[2]); 
 	  } else {
+#pragma omp parallel for schedule(static) num_threads(24)
 		  for(int i = 0; i < size_q; i++) {
 			  dm.model.q[i] = (dm.model.q[i] + buf[i]) / 2;
 		  }
@@ -612,6 +613,7 @@ void MFServer::ProcessPushQShm(const ps::KVMeta& req_meta,
 	  if(received == 0) {
 		  memcpy(&dm.model.q[0], &buf[size_p], sizeof(float) * size_q);
 	  } else {
+#pragma omp parallel for schedule(static) num_threads(24)
 		  for(int i = size_p; i < size_p + size_q; i++) {
 			  dm.model.q[i-size_p] = (dm.model.q[i-size_p] + buf[i]) / 2;
 		  }
@@ -839,7 +841,7 @@ void MFServer::ProcessPushHalfQ(const ps::KVMeta& req_meta,
   	}	
 }
 
-void MFServer::ProcessPullHalfQShm(const ps::KVMeta& req_meta,
+void MFServer::ProcessPullHalfQShmEX(const ps::KVMeta& req_meta,
 				const ps::KVPairs<float>& req_data,
 				ps::KVServer<float>* server)
 {
@@ -860,7 +862,7 @@ void MFServer::ProcessPullHalfQShm(const ps::KVMeta& req_meta,
 		//prepare transmission data
 		res.vals[0] = size_q * sizeof(uint16_t);					//compress
 		res.lens[0] = 1;
-		uint16_t *_buf = (uint16_t *)shm_buf[rank].second;
+		uint16_t *_buf = (uint16_t *)pull_buf;
 		
 		//memcpy(_buf, dm.halfq, res.vals[0]);
 		cpu_singles2halfp(_buf, &dm.model.q[0], size_q, FE_TONEAREST, 0, 6);
@@ -871,7 +873,7 @@ void MFServer::ProcessPullHalfQShm(const ps::KVMeta& req_meta,
 		//prepare transmission data
 		res.vals[0] = (size_p+size_q) * sizeof(uint16_t);
 		res.lens[0] = 1;
-		uint16_t *_buf = (uint16_t *)shm_buf[rank].second;
+		uint16_t *_buf = (uint16_t *)pull_buf;
 //		memcpy(_buf, dm.halfp, res.vals[0]);
 		cpu_singles2halfp(_buf, &dm.model.p[0], size_p+size_q, FE_TONEAREST, 0, 6);
 		server->Response(req_meta, res);
@@ -880,7 +882,7 @@ void MFServer::ProcessPullHalfQShm(const ps::KVMeta& req_meta,
 
 }
 
-void MFServer::ProcessPullHalfQShmEX(const ps::KVMeta& req_meta,
+void MFServer::ProcessPullHalfQShm(const ps::KVMeta& req_meta,
 				const ps::KVPairs<float>& req_data,
 				ps::KVServer<float>* server)
 {
@@ -911,7 +913,7 @@ void MFServer::ProcessPullHalfQShmEX(const ps::KVMeta& req_meta,
 	if(pull_counts == 1) {
 		uint16_t *_buf = (uint16_t *)pull_buf;
 	        cpu_singles2halfp(_buf, src, size, FE_TONEAREST, 0, 16);
-	}
+	} 
 
 	server->Response(req_meta, res);
 }
@@ -949,6 +951,7 @@ void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 			}
 #endif
 		}
+	
 	} else {
 		int start = worker_xpu_info[rank].start;
 		int size = worker_xpu_info[rank].size;
