@@ -165,6 +165,10 @@ void MFServer::ProcessHandle(const ps::KVMeta& req_meta,
 			cur_server->ProcessPullHalfQShmEX(req_meta, req_data, server);
 			break;
 
+		case PUSH_HALF_FEATURE_SHMEX:
+			cur_server->ProcessPushHalfQShmEX(req_meta, req_data, server);
+			break;
+
 		case LINK_SHM:
 			cur_server->ProcessLinkShm(req_meta, req_data, server);
 			break;
@@ -236,6 +240,9 @@ void MFServer::PrepareData()
 
 		if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX) {
 			CreateShmbuf();
+		}
+
+		if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM) {
 			dm.InitModelShm(pull_buf);
 		} else {
 			dm.InitModel();
@@ -846,40 +853,44 @@ void MFServer::ProcessPullHalfQShmEX(const ps::KVMeta& req_meta,
 				ps::KVServer<float>* server)
 {
 	size_t keys_size = req_data.keys.size();
-	size_t size_p = dm.rows * dm.k;
-	size_t size_q = dm.cols * dm.k;
+        size_t size_p = dm.rows * dm.k;
+        size_t size_q = dm.cols * dm.k;
+        size_t size;
+        float *src;
+//      double record1 = cpu_second();
 
-	ps::KVPairs<float> res; 
-	res.keys = req_data.keys;
-	int rank = req_data.keys[0];
-	res.lens.resize(keys_size);
-	res.vals.resize(1);
+        ps::KVPairs<float> res;
+        res.keys = req_data.keys;
+        int rank = req_data.keys[0];
+        res.lens.resize(keys_size);
+        res.vals.resize(1);
+        
+	pull_counts++;
 
-	if(xpu->current_epoch != 1) {
-		//encode
-		//cpu_singles2halfp(dm.halfq, &dm.model.q[0], size_q, FE_TONEAREST, 0, quantify_data_threads);
+        if(xpu->current_epoch != 1) {
+                size = size_q;
+                src = &dm.model.q[0];
+        } else {
+                size = size_p + size_q;
+                src = &dm.model.p[0];
+        }
+        res.vals[0] = size * sizeof(uint16_t);
+        res.lens[0] = 1;
 
-		//prepare transmission data
-		res.vals[0] = size_q * sizeof(uint16_t);					//compress
-		res.lens[0] = 1;
-		uint16_t *_buf = (uint16_t *)pull_buf;
-		
-		//memcpy(_buf, dm.halfq, res.vals[0]);
-		cpu_singles2halfp(_buf, &dm.model.q[0], size_q, FE_TONEAREST, 0, 6);
-		server->Response(req_meta, res);
-	} else {
-		//encode
-		//cpu_singles2halfp(dm.halfp, &dm.model.p[0], size_p+size_q, FE_TONEAREST, 0, quantify_data_threads);
-		//prepare transmission data
-		res.vals[0] = (size_p+size_q) * sizeof(uint16_t);
-		res.lens[0] = 1;
-		uint16_t *_buf = (uint16_t *)pull_buf;
-//		memcpy(_buf, dm.halfp, res.vals[0]);
-		cpu_singles2halfp(_buf, &dm.model.p[0], size_p+size_q, FE_TONEAREST, 0, 6);
-		server->Response(req_meta, res);
-	}
-	//  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
+//      double record2 = cpu_second();
+        if(pull_counts == 1) {
+                short *_buf = (short *)pull_buf;
+                cpu_singles2halfp(_buf, src, size, FE_TONEAREST, 0, 16);
+        }
 
+        if(pull_counts == xpus) {
+                pull_counts = 0;
+        }
+
+        server->Response(req_meta, res);
+
+//      double record3 = cpu_second();
+//        printf("Server record1: %.7f, record2: %.7f, record3: %.7f\n", record1, record2, record3);
 }
 
 void MFServer::ProcessPullHalfQShm(const ps::KVMeta& req_meta,
@@ -891,7 +902,6 @@ void MFServer::ProcessPullHalfQShm(const ps::KVMeta& req_meta,
 	size_t size_q = dm.cols * dm.k;
 	size_t size;
 	float *src;
-
 	ps::KVPairs<float> res; 
 	res.keys = req_data.keys;
 	int rank = req_data.keys[0];
@@ -912,7 +922,7 @@ void MFServer::ProcessPullHalfQShm(const ps::KVMeta& req_meta,
 
 	if(pull_counts == 1) {
 		uint16_t *_buf = (uint16_t *)pull_buf;
-	        cpu_singles2halfp(_buf, src, size, FE_TONEAREST, 0, 16);
+		cpu_singles2halfp(_buf, src, size, FE_TONEAREST, 0, 16);
 	}
 
 	if(pull_counts == xpus) {
@@ -984,6 +994,92 @@ void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 //				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
 				float tmp;
 				cpu_halfp2singles(&tmp, h_q+i, 1, quantify_data_threads);
+				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
+			}
+#endif
+		}
+	}
+
+	server->Response(req_meta, res);
+#ifdef CAL_PORTION_RMSE	
+	loss += req_data.vals.back();
+#endif
+
+	received++;
+	if(received == xpus) {
+//	  current_epoch++;
+
+#ifdef CAL_PORTION_RMSE
+		printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz)*dm.scale);
+		loss = 0;
+#endif
+
+#ifdef CAL_RMSE
+		if(xpu->current_epoch < xpu->target_epoch)
+			printf("Epoch %d\n",  xpu->current_epoch);
+		else
+			printf("Epoch %d global loss %.4f\n",  xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model)*dm.scale);		  
+#endif
+		xpu->current_epoch++;
+		received = 0;
+	}	
+}
+
+void MFServer::ProcessPushHalfQShmEX(const ps::KVMeta& req_meta,
+				  const ps::KVPairs<float>& req_data,
+				  ps::KVServer<float>* server)
+{
+	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t vals_size = req_data.vals.size();
+	uint16_t *h_p;
+	uint16_t *h_q;
+	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+	res.lens.resize(keys_size);
+
+	int rank = req_data.keys[0];
+	//printf("current_epoch: %d\n", current_epoch); 
+	if(xpu->current_epoch != xpu->target_epoch) {
+		h_q = (uint16_t *)shm_buf[rank].second;
+		if(received == 0) {
+//			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
+			cpu_halfp2singles(&dm.model.q[0], h_q, size_q, 16);
+		} else {
+#if defined(USE_AVX2) || defined(USE_AVX512)
+			halfp2singles_madd(&dm.model.q[0], h_q, size_q, 16, 0.5);
+#else
+			for(int i = 0; i < size_q; i++) {
+				float tmp;
+				cpu_halfp2singles(&tmp, h_q+i, 1, 16);
+				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
+			}
+#endif
+		}
+	} else {
+		int start = worker_xpu_info[rank].start;
+		int size = worker_xpu_info[rank].size;
+
+		//Get feature p in the last epoch	
+		int worker_start_p = dm.data.r_matrix[start].row_index * dm.k;
+		int worker_size_p = (dm.data.r_matrix[start+size-1].row_index - dm.data.r_matrix[start].row_index + 1) * dm.k;
+//		printf("start: %d, start_p: %d, size_p: %d\n", start, worker_start_p, worker_size_p);
+//		memcpy(&dm.model.p[worker_start_p], &req_data.vals[worker_start_p], sizeof(float) * worker_size_p);
+		h_p = (uint16_t *)shm_buf[rank].second;
+		h_q = h_p + size_p;
+		cpu_halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, 16);
+		if(received == 0) {
+//			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
+			cpu_halfp2singles(&dm.model.q[0], h_q, size_q, 16);
+		} else {
+#if defined(USE_AVX2) || defined(USE_AVX512)
+			halfp2singles_madd(&dm.model.q[0], h_q, size_q, 16, 0.5);
+#else
+			for(int i = 0; i < size_q; i++) {
+//				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
+				float tmp;
+				cpu_halfp2singles(&tmp, h_q+i, 1, 16);
 				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
 			}
 #endif

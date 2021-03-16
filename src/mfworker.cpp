@@ -182,7 +182,7 @@ void MFWorker::PrepareCPUResources()
 	size_t size_p = m * k;
 	size_t size_q = n * k;
 
-	if(trans_mode >= ALL && trans_mode <= HALFQ) {
+	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode == HALFQ_SHM_EX)) {
 #ifdef CAL_PORTION_RMSE
 		feature = (float *)aligned_alloc(64, (size_p + size_q + 1) * sizeof(float));
 		PinnedBuf(feature, (size_p+size_q+1)*sizeof(float));
@@ -354,7 +354,7 @@ void MFWorker::PrepareResources()
 
 void MFWorker::ReleaseCPUResources()
 {
-	if(trans_mode >= ALL && trans_mode <= HALFQ) {
+	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode == HALFQ_SHM_EX)) {
 		UnpinnedBuf(feature);
 		free(feature);
 	}
@@ -523,7 +523,6 @@ void MFWorker::PullHalfQShm()
 
 	short *src = (short *)pull_buf;
 	float *dst;
-
 	xpu->current_epoch++;
 	
 	keys.push_back(rank);
@@ -540,7 +539,6 @@ void MFWorker::PullHalfQShm()
 		dst = q;
 		trans_size = size_q;
 	}
-
 	xpu->halfp2singles(dst, src, trans_size, max_cores, true);
 }
 
@@ -755,6 +753,70 @@ void MFWorker::PushHalfQShm()
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));	
 }
 
+void MFWorker::PullHalfQShmEX()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_HALF_FEATURE_SHMEX;
+
+	short *src = (short *)pull_buf;
+	float *dst;
+	
+	xpu->current_epoch++;
+	
+	keys.push_back(rank);
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+	
+	size_t size_p = m * k;
+	size_t size_q = n * k;
+	size_t trans_size;
+
+	if(xpu->current_epoch == 1) {
+		dst = p;
+		trans_size = size_p + size_q;
+	} else {
+		dst = q;
+		trans_size = size_q;
+	}
+
+	xpu->halfp2singles(dst, src, trans_size, max_cores, true);
+}
+
+void MFWorker::PushHalfQShmEX()
+{
+        std::vector<ps::Key> keys;
+        std::vector<float> vals;
+        std::vector<int> lens;
+        CMD cmd = PUSH_HALF_FEATURE_SHMEX;
+
+        size_t size_p = m * k;
+        size_t size_q = n * k;
+        size_t trans_size;
+        float *src;
+
+        if(xpu->current_epoch < xpu->target_epoch) {
+                trans_size = size_q;
+                src = q;
+        } else {
+                trans_size = size_p+size_q;
+                src = p;
+        }
+
+        keys.push_back(rank);
+        vals.push_back(trans_size);
+        lens.push_back(1);                              //compress half point
+
+        xpu->singles2halfp(shm_buf, src, trans_size, FE_TONEAREST, 0, max_cores, true);
+
+#ifdef CAL_PORTION_RMSE
+        keys.push_back(rank+1);
+        lens.push_back(1);
+        vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
+#endif
+        kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+}
+
 void MFWorker::Pull()
 {
 	switch(trans_mode) {
@@ -780,6 +842,10 @@ void MFWorker::Pull()
 
 		case HALFQ_SHM:
 			PullHalfQShm();
+			break;
+
+		case HALFQ_SHM_EX:
+			PullHalfQShmEX();
 			break;
 
 		default:
@@ -813,6 +879,10 @@ void MFWorker::Push()
 
 		case HALFQ_SHM:
 			PushHalfQShm();
+			break;
+
+		case HALFQ_SHM_EX:
+			PushHalfQShmEX();
 			break;
 
 		default:

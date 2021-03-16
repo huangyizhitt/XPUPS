@@ -48,7 +48,8 @@ private:
 	void PullQShm();
 	void PullHalfQ();
 	void PullHalfQShm();
-	
+	void PullHalfQShmEX();
+
 	void PushAll();
 	void PushAllShm();
 	void PushQ();
