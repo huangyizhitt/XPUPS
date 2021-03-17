@@ -380,7 +380,6 @@ void MFServer::ProcessLinkShm(const ps::KVMeta& req_meta,
 	if(LinkShmbuf(worker_rank)) {
 		printf("[Server] Link %d share memory fail!\n", worker_rank);
 	}
-	printf("[Server] Link %d share memory!\n", worker_rank);	
 	
 	ps::KVPairs<float> res;
 	server->Response(req_meta, res);

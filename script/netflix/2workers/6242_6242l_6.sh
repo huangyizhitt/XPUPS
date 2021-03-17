@@ -39,7 +39,7 @@ export XPU_TYPE='CPU'
 export XPU_MAX_CORES=10
 export XPU_WORKERS=10
 export NUMA_NODE=0
-export WORK_LOAD=55
+export WORK_LOAD=41
 ${bin} ${arg} &
 
 
@@ -52,7 +52,7 @@ export XPU_TYPE='CPU'
 export XPU_MAX_CORES=32
 export XPU_WORKERS=24
 export NUMA_NODE=${i}
-export WORK_LOAD=78
+export WORK_LOAD=59
 ${bin} ${arg} &
 
 wait

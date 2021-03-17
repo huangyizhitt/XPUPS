@@ -37,8 +37,8 @@ export DMLC_ROLE='worker'
 export HEAPPROFILE=./W${i}
 export XPU_NAME='W-2155'
 export XPU_TYPE='CPU'
-export XPU_MAX_CORES=10
-export XPU_WORKERS=10
+export XPU_MAX_CORES=6
+export XPU_WORKERS=16
 export NUMA_NODE=${i}
 export WORK_LOAD=1
 ${bin} ${arg} &

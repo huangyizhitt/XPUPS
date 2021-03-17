@@ -330,9 +330,7 @@ void MFWorker::LinkShmbuf()
 	keys.push_back(rank);
 	lens.push_back(1);
 	vals.push_back(0);
-	printf("[Worker %d] LINK_SHM\n", rank);
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
-	printf("[Worker %d] Server linked the share memory!", rank);	
 }
 
 void MFWorker::PrepareResources()
