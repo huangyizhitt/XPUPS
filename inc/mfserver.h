@@ -3,6 +3,7 @@
 
 #include <unordered_map>
 #include <cstdint>
+#include <vector>
 #include "ps/ps.h"
 #include "xpu.h"
 #include "mfdata.h"
@@ -10,10 +11,32 @@
 
 namespace MF {
 
+#ifdef CAL_PORTION_RMSE
+struct Record{
+	float loss;
+	double cur_time;
+
+	Record() {}
+	Record(const float& l, const double& t) : loss(l), cur_time(t) {}
+};
+#endif
+
 class MFServer {
 public:
 	MFServer() : cpus(0), gpus(0), fpgas(0), tpus(0), xpus(0){}
-	~MFServer() {if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX) DestroyShmbuf(); delete server_xpu;}
+	~MFServer() 
+	{
+#ifdef CAL_PORTION_RMSE	
+		if(need_record) {
+			RecordLoss();
+		}
+#endif
+		if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX) {
+		       	DestroyShmbuf();
+		}	
+		
+		delete server_xpu;
+	}
 	
 	void Init();
 	static void ProcessHandle(const ps::KVMeta& req_meta,
@@ -130,7 +153,17 @@ private:
 	unsigned char *pull_buf;
 
 #ifdef CAL_PORTION_RMSE	
+	bool need_record = false;
+	int record_counts;
 	float loss;
+	double start;
+	double elapse;
+	std::vector<Record> record;
+
+	void RecordLoss();
+	void ProcessStartRecord(const ps::KVMeta& req_meta,
+                                          const ps::KVPairs<float>& req_data,
+                                          ps::KVServer<float>* server);	
 #endif	
 
 	static MFServer *cur_server;

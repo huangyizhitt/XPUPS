@@ -25,6 +25,7 @@ public:
 	inline int GetCurrentEpoch() const {return xpu->current_epoch;}
 	inline int GetTargetEpoch() const {return xpu->target_epoch;}
 	inline int GetWorkerID() const {return rank;}
+	inline TransMode GetTransMode() const {return trans_mode;}
 private:
 	void Init();
 	void DeInit();
@@ -112,6 +113,9 @@ private:
 #ifdef CAL_PORTION_RMSE
 	std::vector<float> loss;
 	float *gpu_loss;
+
+public:
+	void StartRecord();
 #endif	
 };
 

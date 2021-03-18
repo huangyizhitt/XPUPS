@@ -131,14 +131,12 @@ void *fpsgd_kernel(void *args)
 
 #ifdef CAL_PORTION_RMSE		
 		float *loss = cpu_args->loss;
+		float local_loss = 0.0;
 #endif
 
 	int blockId;
 	std::vector<MatrixNode *>& ptrs = grid->blocks;
 
-#ifdef CAL_PORTION_RMSE	
-	*loss = 0.0;
-#endif
 	debugp("Entry %d fpsgd_kernel!\n", cpu_args->tid);	
 	while((blockId = dm->GetFreeBlock()) != -1) {
 		if(blockId == -2) continue;
@@ -154,7 +152,7 @@ void *fpsgd_kernel(void *args)
 			float ruv = r - inner_product(p + base_p, q + base_q, k);
 //				elapse += cpu_second() - start;
 #ifdef CAL_PORTION_RMSE	
-			*loss += ruv * ruv;
+			local_loss += ruv * ruv;
 #endif
 //				start = cpu_second();
 			sgd_update(p+base_p, q+base_q, k, ruv, lrate, lambda_p, lambda_q); 
@@ -162,6 +160,9 @@ void *fpsgd_kernel(void *args)
 		}
 		dm->RecoverBlockFree(blockId);
 	}
+#ifdef CAL_PORTION_RMSE
+                        *loss = local_loss;
+#endif
 }
 
 

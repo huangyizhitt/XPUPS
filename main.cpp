@@ -37,6 +37,14 @@ int main(int argc, char **argv)
 		worker->Pull();
 		int target_epoch=worker->GetTargetEpoch();
 		int current_epoch=0;
+
+#ifdef CAL_PORTION_RMSE
+		TransMode trans_mode = worker->GetTransMode();
+		if(trans_mode >= ALL_SHM && trans_mode <= trans_mode) {
+			worker->StartRecord();
+		}
+#endif
+
 #ifdef TEST
 		bool record = true;
 		if(argc != 2) {

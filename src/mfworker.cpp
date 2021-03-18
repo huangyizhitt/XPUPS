@@ -953,4 +953,20 @@ void MFWorker::JoinWorkers()
 	xpu->JoinTasks();
 }
 
+#ifdef CAL_PORTION_RMSE
+void MFWorker::StartRecord()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = START_RECORD;
+
+	keys.push_back(rank);
+	lens.push_back(1);
+	vals.push_back(0);
+
+	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+}
+#endif
+
 }

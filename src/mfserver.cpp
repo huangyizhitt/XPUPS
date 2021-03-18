@@ -11,6 +11,10 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
+#ifdef CAL_PORTION_RMSE
+#include <fstream>
+#endif
+
 using namespace ps;
 
 namespace MF {
@@ -72,9 +76,6 @@ void MFServer::Init()
 	received = 0;
 	pull_counts=0;
 	my_rank = ps::MyRank() + WORKER_NUM;
-#ifdef CAL_PORTION_RMSE	
-	loss = 0.0;
-#endif
 
 	const char *file_path = "netflix_train.bin";
 	val = Environment::Get()->find("DATA_PATH");
@@ -90,6 +91,14 @@ void MFServer::Init()
 	}
 
 	(trans_mode == HALFQ || trans_mode == HALFQ_SHM) ? dm.Init(file_path, true) : dm.Init(file_path, false);
+
+#ifdef CAL_PORTION_RMSE	
+	loss = 0.0;
+	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX) {
+		need_record = true;
+		record_counts = 0;
+	}
+#endif
 	printf("Server XPU TYPE: %d, data threads: %d, work threads: %d\n", static_cast<int>(xpu->xpu_type), xpu->max_cores, xpu->workers);
 }
 
@@ -172,7 +181,11 @@ void MFServer::ProcessHandle(const ps::KVMeta& req_meta,
 		case LINK_SHM:
 			cur_server->ProcessLinkShm(req_meta, req_data, server);
 			break;
-
+#ifdef CAL_PORTION_RMSE
+		case START_RECORD:
+			cur_server->ProcessStartRecord(req_meta, req_data, server);
+			break;
+#endif
 		default:
 			break;
 	}
@@ -576,7 +589,7 @@ void MFServer::ProcessPullQShm(const ps::KVMeta& req_meta,
 		memcpy(buf, &dm.model.p[0], size);
   	}
 //  print_feature_tail(&dm.model.p[0], &dm.model.q[0], size_p, size_q, 3, 1);
-	server->Response(req_meta, res);	
+	server->Response(req_meta, res);
 }
 
 void MFServer::ProcessPushQShm(const ps::KVMeta& req_meta,
@@ -640,8 +653,11 @@ void MFServer::ProcessPushQShm(const ps::KVMeta& req_meta,
 	//	  current_epoch++;
 
 #ifdef CAL_PORTION_RMSE
-	  printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz)*dm.scale);
-	  loss = 0;
+		elapse = cpu_second() - start;
+		loss = std::sqrt(loss / dm.nnz)*dm.scale;
+		record.emplace_back(loss, elapse);
+	  	printf("Epoch %d loss %.4f\n", xpu->current_epoch, loss);
+	  	loss = 0;
 #endif
 
 #ifdef CAL_RMSE
@@ -1005,6 +1021,7 @@ void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 
 	server->Response(req_meta, res);
 #ifdef CAL_PORTION_RMSE	
+	elapse = cpu_second() - start;
 	loss += req_data.vals.back();
 #endif
 
@@ -1013,7 +1030,9 @@ void MFServer::ProcessPushHalfQShm(const ps::KVMeta& req_meta,
 //	  current_epoch++;
 
 #ifdef CAL_PORTION_RMSE
-		printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz)*dm.scale);
+		loss = std::sqrt(loss / dm.nnz)*dm.scale;
+		record.emplace_back(loss, elapse);
+		printf("Epoch %d loss %.4f\n", xpu->current_epoch, loss);
 		loss = 0;
 #endif
 
@@ -1090,7 +1109,7 @@ void MFServer::ProcessPushHalfQShmEX(const ps::KVMeta& req_meta,
 	}
 
 	server->Response(req_meta, res);
-#ifdef CAL_PORTION_RMSE	
+#ifdef CAL_PORTION_RMSE
 	loss += req_data.vals.back();
 #endif
 
@@ -1099,7 +1118,10 @@ void MFServer::ProcessPushHalfQShmEX(const ps::KVMeta& req_meta,
 //	  current_epoch++;
 
 #ifdef CAL_PORTION_RMSE
-		printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz)*dm.scale);
+		elapse = cpu_second() - start;	
+		loss = std::sqrt(loss / dm.nnz)*dm.scale;
+		record.emplace_back(loss, elapse);
+		printf("Epoch %d loss %.4f\n", xpu->current_epoch, loss);
 		loss = 0;
 #endif
 
@@ -1183,8 +1205,11 @@ void MFServer::ProcessPushAllShm(const ps::KVMeta& req_meta,
 	//	  current_epoch++;
 
 #ifdef CAL_PORTION_RMSE
-	  printf("Epoch %d loss %.4f\n", xpu->current_epoch, std::sqrt(loss / dm.nnz)*dm.scale);
-	  loss = 0;
+		elapse = cpu_second() - start;
+		loss = std::sqrt(loss / dm.nnz)*dm.scale;
+		record.emplace_back(loss, elapse);
+	  	printf("Epoch %d loss %.4f\n", xpu->current_epoch, loss);
+	  	loss = 0;
 #endif
 
 #ifdef CAL_RMSE
@@ -1197,5 +1222,48 @@ void MFServer::ProcessPushAllShm(const ps::KVMeta& req_meta,
 	  received = 0;
 	}	
 }
-				  
+
+#ifdef CAL_PORTION_RMSE
+void MFServer::RecordLoss()
+{
+	const char *record_file;
+	switch(trans_mode) {
+		case ALL_SHM:
+			record_file = "log/record-all.csv";
+			break;
+		case Q_SHM:
+			record_file = "log/record-halfq.csv";
+			break;
+		case HALFQ_SHM:
+			record_file = "log/record-halfqshm.csv";
+			break;
+		case HALFQ_SHM_EX:
+			record_file = "log/record-halfqshmex.csv";
+			break;
+
+		default:
+			break;
+	}
+	std::ofstream fout(record_file, std::ios_base::out | std::ios_base::app);
+	for(int i = 0; i < record.size(); i++) {
+		fout << i << "," << record[i].loss << "," << record[i].cur_time << std::endl;
+	}
+	fout.close();
+}
+
+void MFServer::ProcessStartRecord(const ps::KVMeta& req_meta,
+					  const ps::KVPairs<float>& req_data,
+					  ps::KVServer<float>* server)
+{
+	record_counts++;
+
+	ps::KVPairs<float> res;
+	server->Response(req_meta, res);
+
+	if(record_counts == xpus) {
+		start = cpu_second();
+	}
+}
+#endif
+
 }
