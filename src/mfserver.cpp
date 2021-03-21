@@ -951,6 +951,7 @@ void MFServer::ProcessPushHalfQShmAcopy(const ps::KVMeta& req_meta,
 	size_t start_q = req_data.vals[0] * dm.k;
 	size_t size_q = req_data.vals[1] * dm.k;
 	int num_streams = req_data.vals[2];
+	size_t size_p = dm.rows * dm.k;
 	uint16_t *h_q;
 	uint16_t *h_p;
 	ps::KVPairs<float> res;

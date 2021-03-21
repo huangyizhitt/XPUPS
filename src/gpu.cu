@@ -31,7 +31,7 @@ void GPU::Init()
 void GPU::InitAcopy()
 {
 	const char *val = NULL;
-	val = Environment::Get()->find("EPOCH");
+	val = ps::Environment::Get()->find("EPOCH");
 	if(val != NULL)
 		XPU::num_streams = std::atoi(val);
 	else
@@ -100,7 +100,7 @@ void GPU::Transfer(void *dst, void *src, size_t size, TransferDirect direct)
 void GPU::Transfer(void *dst, void *src, size_t size, TransferDirect direct, int stream)
 {
 	cudaMemcpyKind copy_type = static_cast<cudaMemcpyKind>(direct);
-	cudaMemcpyAsync(dst, src, size, copy_type, stream);
+	cudaMemcpyAsync(dst, src, size, copy_type, global::streams[stream]);
 }
 
 
@@ -159,7 +159,7 @@ int GPU::singles2halfp(void *target, const void *source, ptrdiff_t numel, int st
 
 	dim3 blockSize(32, 32, 1);
 	dim3 gridSize((nx + blockSize.x - 1) / blockSize.x, (ny + blockSize.y - 1) / blockSize.y, 1);
-	singles2half_kernel<<<gridSize, blockSize, 0, stream>>>(mid, src, nx, ny);
+	singles2half_kernel<<<gridSize, blockSize, 0, global::streams[stream]>>>(mid, src, nx, ny);
 
 	if(cross_device) {
 		Transfer(target, mid, bytes, TransferDirect::C2S, stream);
@@ -239,7 +239,7 @@ int GPU::halfp2singles(void *target, void *source, ptrdiff_t numel, int stream, 
 	dim3 gridSize((nx + blockSize.x - 1) / blockSize.x, (ny + blockSize.y - 1) / blockSize.y, 1);
 
 
-	halfp2singles_kernel<<<gridSize, blockSize, 0, stream>>>(dst, mid, nx, ny);
+	halfp2singles_kernel<<<gridSize, blockSize, 0, global::streams[stream]>>>(dst, mid, nx, ny);
 
 	return 0;
 }

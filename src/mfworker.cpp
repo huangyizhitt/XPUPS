@@ -93,7 +93,7 @@ void MFWorker::Init()
 void MFWorker::DeInit()
 {
 	if(trans_mode == HALFQ_SHM_ACOPY) {
-		xpu->DeInitAcopy(;)
+		xpu->DeInitAcopy();
 	}
 	delete kv_xpu;
 	delete xpu;
@@ -411,7 +411,7 @@ void MFWorker::PreProcess()
 		GridProblemFromWorkers();
 		CreateWorkers(fpsgd_kernel);
 	} else if(xpu->xpu_type == XPU_TYPE::GPU) {
-		if(trans_mode != HALFQ_SHM_ACOPY) {
+		if(trans_mode == HALFQ_SHM_ACOPY) {
 			GridProblemFromStreams(xpu->num_streams);
 		} 
 		PullGPUData();
@@ -582,7 +582,7 @@ void MFWorker::PullHalfQShmAcopy(int stream)
 	lens.push_back(1);
 	vals.push_back(xpu->num_streams);	
 
-	kv_xpu->Wait(kv_xpu->Push(keys, &vals[0], lens, cmd));
+	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 
 	xpu->halfp2singles(dst, src, size_q * k, stream, max_cores, true);
 }
@@ -617,7 +617,7 @@ void MFWorker::PushHalfQShmAcopy(int stream)
 	if(xpu->current_epoch == xpu->target_epoch) {
     	xpu->singles2halfp(shm_buf, p, trans_size_p, stream, FE_TONEAREST, 0, max_cores, true);
 		xpu->singles2halfp(shm_buf + trans_size_p, src, trans_size_q, stream, FE_TONEAREST, 0, max_cores, true);
-		xpu->AcopySync(stream)
+		xpu->AcopySync(stream);
 	} else {
 		xpu->singles2halfp(shm_buf, src, trans_size_q, stream, FE_TONEAREST, 0, max_cores, true);
 	}
@@ -1032,6 +1032,7 @@ void MFWorker::CreateWorkers(pFunc func)
 		args[0].p = p;
 		args[0].q = q;
 		args[0].workers = workers;
+		args[0].stream = -1;
 		args[0].size = size;
 #ifdef CAL_PORTION_RMSE
 		loss.resize(32*workers);	
@@ -1058,7 +1059,7 @@ void MFWorker::Computing()
 		for(int i = 0; i < xpu->num_streams; i++) {
 			int id = index[i];
 			if(xpu->xpu_type == XPU_TYPE::GPU) {		//now only gpu has acopy
-				args[0].q = q+dm.infos[id].q_start;
+				args[0].q = q+dm.infos[id].start_q;
 				args[0].data = gpuR+dm.infos[id].start_r;
 				args[0].size = dm.infos[id].size_r;
 				args[0].stream = i;
