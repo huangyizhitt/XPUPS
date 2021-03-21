@@ -52,6 +52,11 @@ void MFWorker::Init()
 	}
 
 	xpu->Init();
+
+	if(trans_mode == HALFQ_SHM_ACOPY) {
+		xpu->InitAcopy();
+	}
+	
 	xpu->current_epoch = 0;
 	xpu->Bind();
 	this->xpu = xpu;
@@ -87,6 +92,9 @@ void MFWorker::Init()
 
 void MFWorker::DeInit()
 {
+	if(trans_mode == HALFQ_SHM_ACOPY) {
+		xpu->DeInitAcopy(;)
+	}
 	delete kv_xpu;
 	delete xpu;
 }
@@ -172,7 +180,6 @@ void MFWorker::PullTrainingData()
 	dm.start_rows = data.r_matrix[0].row_index;
 	dm.end_rows = data.r_matrix[size-1].row_index;
 
-	if(xpu->xpu_type == XPU_TYPE::GPU) PullGPUData();
 	debugp("Recive data count: %ld\n", size);
 }
 
@@ -369,7 +376,7 @@ void MFWorker::ReleaseResources()
 	}
 }
 
-void MFWorker::GridProblem()
+void MFWorker::GridProblemFromWorkers()
 {
 	Dim2 gridDim;
 		
@@ -377,9 +384,20 @@ void MFWorker::GridProblem()
 	gridDim.y = 2*workers + 1;
 	
 	dm.SetGrid(gridDim);
+	dm.InitBlockScheduler();
 	dm.GridData(rank, xpu->max_cores);
 }
 
+void MFWorker::GridProblemFromStreams(int streams)
+{
+	Dim2 gridDim;
+		
+	gridDim.x = streams;
+	gridDim.y = 1;
+	
+	dm.SetGrid(gridDim);
+	dm.GridQ(rank, xpu->max_cores);
+}
 
 void MFWorker::PreProcess()
 {
@@ -390,9 +408,13 @@ void MFWorker::PreProcess()
 	PrepareResources();
 	PullTrainingData();
 	if(xpu->xpu_type == XPU_TYPE::CPU) {
-		GridProblem();
+		GridProblemFromWorkers();
 		CreateWorkers(fpsgd_kernel);
 	} else if(xpu->xpu_type == XPU_TYPE::GPU) {
+		if(trans_mode != HALFQ_SHM_ACOPY) {
+			GridProblemFromStreams(xpu->num_streams);
+		} 
+		PullGPUData();
 		CreateWorkers(sgd_update_k128_gpu);
 	}	
 	Barrier();
@@ -539,6 +561,76 @@ void MFWorker::PullHalfQShm()
 	}
 	xpu->halfp2singles(dst, src, trans_size, max_cores, true);
 }
+
+void MFWorker::PullHalfQShmAcopy(int stream)
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = PULL_HALF_FEATURE_SHM_ACOPY;
+
+	int id = index[stream];
+	int start_q = dm.infos[id].start_q;
+	int size_q = dm.infos[id].size_q;
+
+	
+	short *src = (short *)pull_buf + start_q * k;
+	float *dst = q + start_q * k;
+
+	xpu->current_epoch++;
+	keys.push_back(rank);
+	lens.push_back(1);
+	vals.push_back(xpu->num_streams);	
+
+	kv_xpu->Wait(kv_xpu->Push(keys, &vals[0], lens, cmd));
+
+	xpu->halfp2singles(dst, src, size_q * k, stream, max_cores, true);
+}
+
+void MFWorker::PushHalfQShmAcopy(int stream)
+{
+    std::vector<ps::Key> keys;
+    std::vector<float> vals;
+    std::vector<int> lens;
+    CMD cmd = PUSH_HALF_FEATURE_SHM_ACOPY;
+
+	int id = index[stream];
+	int start_q = dm.infos[id].start_q;
+	int size_q = dm.infos[id].size_q;
+
+    size_t trans_size_q = size_q * k;
+	size_t trans_size_p = m * k;
+    float *src = q + start_q * k;
+
+    keys.push_back(rank);
+    vals.push_back(start_q);
+    lens.push_back(1);  
+
+	keys.push_back(rank + 1);
+    vals.push_back(size_q);
+    lens.push_back(1);
+
+	keys.push_back(rank + 2);
+    vals.push_back(xpu->num_streams);
+    lens.push_back(1);
+
+	if(xpu->current_epoch == xpu->target_epoch) {
+    	xpu->singles2halfp(shm_buf, p, trans_size_p, stream, FE_TONEAREST, 0, max_cores, true);
+		xpu->singles2halfp(shm_buf + trans_size_p, src, trans_size_q, stream, FE_TONEAREST, 0, max_cores, true);
+		xpu->AcopySync(stream)
+	} else {
+		xpu->singles2halfp(shm_buf, src, trans_size_q, stream, FE_TONEAREST, 0, max_cores, true);
+	}
+	
+#ifdef CAL_PORTION_RMSE
+    keys.push_back(rank+1);
+    lens.push_back(1);
+    vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
+#endif
+    kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+}
+
+
 
 void MFWorker::PushAll()
 {
@@ -846,6 +938,16 @@ void MFWorker::Pull()
 			PullHalfQShmEX();
 			break;
 
+		case HALFQ_SHM_ACOPY:
+			if(xpu->current_epoch == 0)
+				PullHalfQShmEX();
+			else {
+				for(int stream = 0; stream < xpu->num_streams; stream++) {
+					PullHalfQShmAcopy(stream);
+				}				
+			}
+			break;
+
 		default:
 			printf("Unkown trans_mode, exit!\n");
 			exit(-1);
@@ -882,6 +984,11 @@ void MFWorker::Push()
 		case HALFQ_SHM_EX:
 			PushHalfQShmEX();
 			break;
+
+		case HALFQ_SHM_ACOPY:
+			for(int stream = 0; stream < xpu->num_streams; stream++) {
+				PushHalfQShmAcopy(stream);
+			}
 
 		default:
 			printf("Unkown trans_mode, exit!\n");
@@ -943,9 +1050,23 @@ void MFWorker::CreateWorkers(pFunc func)
 
 void MFWorker::Computing()
 {
-	xpu->RunTasks();
-	if(xpu->xpu_type == XPU_TYPE::CPU)
-		dm.ClearBlockFlags();
+	if(trans_mode != HALFQ_SHM_ACOPY) {
+		xpu->RunTasks();
+		if(xpu->xpu_type == XPU_TYPE::CPU)
+			dm.ClearBlockFlags();
+	} else {
+		for(int i = 0; i < xpu->num_streams; i++) {
+			int id = index[i];
+			if(xpu->xpu_type == XPU_TYPE::GPU) {		//now only gpu has acopy
+				args[0].q = q+dm.infos[id].q_start;
+				args[0].data = gpuR+dm.infos[id].start_r;
+				args[0].size = dm.infos[id].size_r;
+				args[0].stream = i;
+
+				xpu->RunTasks();
+			}
+		}
+	}
 }
 
 void MFWorker::JoinWorkers()

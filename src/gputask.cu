@@ -6,6 +6,10 @@
 #include <stdio.h>
 #include <numeric>
 
+namespace global {
+extern std::vector<cudaStream_t> streams;
+}
+
 namespace MF {
 
 #define gpuErr(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -294,6 +298,7 @@ void *sgd_update_k128_gpu(void *args)
 	MatrixNode *R = (MatrixNode *)para->data;
 	int gpu_workers = para->workers;
 	size_t size = para->size;
+	int stream = para->stream;
 	debugp("current_epoch: %d, R: %p\n", global::current_epoch, R);
 	if(global::current_epoch == 1) {
 		cudaMalloc(&rand_state, sizeof(curandState)*gpu_workers);
@@ -307,8 +312,13 @@ void *sgd_update_k128_gpu(void *args)
 #ifdef CAL_PORTION_RMSE	
 	float *loss = para->loss;
 	float *gpu_loss = para->gpu_loss;
-	sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, gpu_loss, para->p, para->q, 128, update_count,
+	if(stream == -1) {
+		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, gpu_loss, para->p, para->q, 128, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
+	} else {
+		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128, 0, stream>>>(R, size, rand_state, gpu_loss, para->p, para->q, 128, update_count,
+									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
+	}
 	gpuErr(cudaPeekAtLastError());
 	cudaDeviceSynchronize();
 	
@@ -318,8 +328,13 @@ void *sgd_update_k128_gpu(void *args)
 //	cudaDeviceSynchronize();
 	cudaMemcpy(loss, gpu_loss, (gpu_workers * 32) * sizeof(float), cudaMemcpyDeviceToHost);
 #else
-	sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, para->p, para->q, 128, update_count,
+	if(stream == -1) {
+		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, para->p, para->q, 128, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
+	} else {
+		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128, 0, stream>>>(R, size, rand_state, para->p, para->q, 128, update_count,
+									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
+	}
 	gpuErr(cudaPeekAtLastError());
 	cudaDeviceSynchronize();
 #endif

@@ -43,6 +43,15 @@ struct Grid
 	std::vector<MatrixNode *> blocks;		//blocks[i] point the head of the ith block
 };
 
+//Acopy info
+struct AcopyInfo {
+	int id;
+	int start_q;
+	int size_q;
+	long long start_r;
+	long long size_r;
+};
+
 enum EpochStatus {
 	CompleteOnece,
 	CompleteAll,
@@ -139,12 +148,13 @@ public:
 	void PrintHead(int rank, int head = 5);
 	void SetGrid(const Dim2& grid_dim);
 	void GridData(int rank, int nr_thread);
+	void GridQ(int rank, int nr_threads);						//used to acopy
 	int GetBlockId(Grid& grid, MatrixNode& r);					//by matrix node's row and col index;
 	int GetBlockId(Grid& grid, int row, int col);					//by block's row and col index; 
 	int GetFreeBlock(int epoch);
 	int GetFreeBlock();
 	void RecoverBlockFree(int blockId);
-	
+	void InitBlockScheduler();
 	void ClearBlockFlags();
 
 	size_t nnz = 0;
@@ -160,6 +170,7 @@ public:
 	Model model;
 	pthread_spinlock_t lock;
 	std::vector<int> counts;
+	std::vector<AcopyInfo> infos;
 	std::vector<bool> busy_x;
 	std::vector<bool> busy_y;
 	std::deque<Block> ready_queue;

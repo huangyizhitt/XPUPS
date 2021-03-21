@@ -446,8 +446,14 @@ void WorkerDM::SetGrid(const Dim2& grid_dim)
 	block_size = nr_bins_x * nr_bins_y;
 	grid.blockDim.x = (int)ceil((double)cols / nr_bins_x);
 	grid.blockDim.y = (int)ceil((double)(end_rows - start_rows + 1) / nr_bins_y);
+}
 
-	//init the block scheduler
+void WorkerDM::InitBlockScheduler()
+{
+	int nr_bins_x = grid.gridDim.x;
+	int nr_bins_y = grid.gridDim.y;
+
+		//init the block scheduler
 	busy_x.resize(nr_bins_x, false);
 	busy_y.resize(nr_bins_y, false);
 
@@ -519,6 +525,66 @@ void WorkerDM::GridData(int rank, int nr_threads)
 	
     elapse = cpu_second() - start;
     printf("[Work %d]Grid Problem complete, cost: %.8f\n", rank, elapse);
+}
+
+void WorkerDM::GridQ(int rank, int nr_threads)
+{
+		printf("[Work %d]Grid Problem...\n", rank);
+		double start, elapse;
+		start = cpu_second();
+		counts.resize(block_size, 0);
+		infos.resize(block_size);
+		
+		for(size_t i = 0; i < nnz; i++) {
+			MatrixNode N = data.r_matrix[i];
+			int blockIdx = GetBlockId(grid, N);
+			counts[blockIdx] += 1;
+		}
+	
+		std::vector<MatrixNode *>& ptrs = grid.blocks;
+		ptrs.resize(block_size + 1);
+		ptrs[0] = &data.r_matrix[0];
+
+		int start_r = 0;
+		for(int block = 0; block < block_size; block++) {
+			ptrs[block+1] = ptrs[block] + counts[block];
+			infos[block].start_r = start_r;
+			start_r += counts[block];
+		}
+	
+		std::vector<MatrixNode*> pivots(ptrs.begin(), ptrs.end()-1);
+			for(int block = 0; block < block_size; ++block)
+			{
+				for(MatrixNode* pivot = pivots[block]; pivot != ptrs[block+1];)
+				{
+						int curr_block = GetBlockId(grid, *pivot);
+						if(curr_block == block)
+						{
+							++pivot;
+							continue;
+						}
+	
+						MatrixNode *next = pivots[curr_block];
+						std::swap(*pivot, *next);
+						pivots[curr_block] += 1;
+				}
+			}
+	
+	
+#if defined USEOMP
+#pragma omp parallel for num_threads(nr_threads) schedule(dynamic)
+#endif
+		for(int block = 0; block < block_size; ++block)
+		{
+			std::sort(ptrs[block], ptrs[block+1], sort_node_by_q());
+			infos[block].size_r = counts[block];
+			infos[block].start_q = ptrs[block][0].col_index;
+			infos[block].size_q = (ptrs[block+1][0].col_index - infos[block].start_q);
+		}
+				
+		elapse = cpu_second() - start;
+		printf("[Work %d]Grid Problem complete, cost: %.8f\n", rank, elapse);
+
 }
 
 int WorkerDM::GetFreeBlock()

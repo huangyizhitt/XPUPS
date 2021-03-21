@@ -39,6 +39,7 @@ struct Args {
 	float *p;
 	float *q;
 	int workers;
+	int stream = -1;			// >-1 means use acopy
 	size_t size;
 	
 #ifdef CAL_PORTION_RMSE	
@@ -60,6 +61,8 @@ struct XPU {
 	//Init by env
 	//if call XPU() create XPU object, must call this function
 	virtual void Init();
+	virtual void InitAcopy() {}
+	virtual void DeInitAcopy() {}
 	virtual bool Bind(){return true;}				//xpu bind to device;  
 	virtual void CreateTasks(int task_index, pFunc func, void *args){}								
 	virtual void RunTasks(){}							
@@ -67,9 +70,14 @@ struct XPU {
 	virtual void JoinTasks(){}
 	virtual void DestroyTasks(){}
 	virtual void Transfer(void *dst, void *src, size_t size, TransferDirect direct){}
+	virtual void Transfer(void *dst, void *src, size_t size, TransferDirect direct, int stream){}
 	virtual int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads, bool cross_device){return 0;}
 	virtual int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads, bool cross_device){return 0;}
-		
+
+	virtual int singles2halfp(void *target, const void *source, ptrdiff_t numel, int stream, int rounding_mode, int is_quiet, int nr_threads, bool cross_device){return 0;}
+	virtual int halfp2singles(void *target, void *source, ptrdiff_t numel, int stream, int nr_threads, bool cross_device){return 0;}
+	virtual void AcopySync(int stream) {}
+	
 	char xpu_name[64];
 	XPU_TYPE xpu_type;
 	int dev_id;								//device id
@@ -78,6 +86,7 @@ struct XPU {
 	int worker_ratio;
 	int target_epoch;
 	int current_epoch;
+	int num_streams;							//used to acopy
 };
 
 struct XPU_INFO {
@@ -130,14 +139,23 @@ struct GPU : public XPU {
 	GPU() {}
 	~GPU();
 	virtual void Init();
+	virtual void InitAcopy();
+	virtual void DeInitAcopy();
 	virtual bool Bind();
 	virtual void CreateTasks(int task_index, pFunc func, void *args);
 	virtual void RunTasks();
 	virtual void JoinTasks();
 	virtual void Transfer(void *dst, void *src, size_t size, TransferDirect direct);
+	virtual void Transfer(void *dst, void *src, size_t size, TransferDirect direct, int stream);
+	
 	virtual int singles2halfp(void *target, const void *source, ptrdiff_t numel, int rounding_mode, int is_quiet, int nr_threads, bool cross_device);
 	virtual int halfp2singles(void *target, void *source, ptrdiff_t numel, int nr_threads, bool cross_device);
+
+	virtual int singles2halfp(void *target, const void *source, ptrdiff_t numel, int stream, int rounding_mode, int is_quiet, int nr_threads, bool cross_device);
+	virtual int halfp2singles(void *target, void *source, ptrdiff_t numel, int stream, int nr_threads, bool cross_device);
+
 	virtual void PrepareTransferBuf(size_t size);
+	virtual void AcopySync(int stream);
 
 	short *transfer_buf;
 	GPUTask task;

@@ -35,8 +35,8 @@ private:
 	void PrepareGPUResources();
 	void PrepareResources();
 	int PrepareShmbuf();
-	void GridProblem();
-	
+	void GridProblemFromWorkers();
+	void GridProblemFromStreams(int streams);
 	
 	void ReleaseCPUResources();
 	void ReleaseGPUResources();
@@ -58,6 +58,8 @@ private:
 	void PushHalfQ();
 	void PushHalfQShm();
 	void PushHalfQShmEX();
+	void PullHalfQShmAcopy(int stream);
+	void PushHalfQShmAcopy(int stream);
 
 	void PushXPUInfo();
 	
@@ -109,7 +111,8 @@ private:
 	ps::KVWorker<float>* kv_xpu;
 	std::vector<int> blocks;					//current hand blocks id
 	std::vector<float> ps_vals;
-	std::vector<Args> args;	
+	std::vector<Args> args;
+	std::vector<int> index;
 #ifdef CAL_PORTION_RMSE
 	std::vector<float> loss;
 	float *gpu_loss;

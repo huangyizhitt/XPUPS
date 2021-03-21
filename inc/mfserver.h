@@ -113,6 +113,14 @@ private:
                       const ps::KVPairs<float>& req_data,
                       ps::KVServer<float>* server);
 
+	void ProcessPullHalfQShmAcopy(const ps::KVMeta& req_meta,
+						const ps::KVPairs<float>& req_data,
+						ps::KVServer<float>* server);
+
+	void ProcessPushHalfQShmAcopy(const ps::KVMeta& req_meta,
+				  const ps::KVPairs<float>& req_data,
+				  ps::KVServer<float>* server);
+	
 	void ProcessLinkShm(const ps::KVMeta& req_meta,
 					  const ps::KVPairs<float>& req_data,
 					  ps::KVServer<float>* server);
@@ -145,7 +153,8 @@ private:
 	int quantify_data_threads;
 	int prepare_data_threads;
 	int received;							//received times from workers
-	int pull_counts;
+	int pull_count;
+	
 	int pull_shmid;
 	int my_rank;
 	TransMode trans_mode;
@@ -169,6 +178,8 @@ private:
 	static MFServer *cur_server;
 	ps::KVServer<float>* server_xpu;
 	XPU *xpu;
+	std::vector<int> pull_counts;
+	std::vector<int> push_counts;
 	std::unordered_map<int, XPU_INFO> worker_xpu_info;
 	std::unordered_map<int, std::pair<int, unsigned char *> > shm_buf;
 	DataManager dm;
