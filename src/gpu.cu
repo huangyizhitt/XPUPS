@@ -26,26 +26,28 @@ void GPU::Init()
 	xpu_type = XPU_TYPE::GPU;
 	XPU::Init();
 	global::target_epoch = XPU::target_epoch;
+	tasks.resize(1);
 }
 
 void GPU::InitAcopy()
 {
 	const char *val = NULL;
-	val = ps::Environment::Get()->find("EPOCH");
+	val = ps::Environment::Get()->find("STREAM");
 	if(val != NULL)
-		XPU::num_streams = std::atoi(val);
+		this->num_streams = std::atoi(val);
 	else
-		XPU::num_streams = 10;
+		this->num_streams = 2;
 
-	global::streams.resize(XPU::num_streams);
-	for(int stream = 0; stream < XPU::num_streams; stream++) {
+	global::streams.resize(this->num_streams);
+	for(int stream = 0; stream < this->num_streams; stream++) {
 		cudaStreamCreate(&global::streams[stream]);
 	}
+	tasks.resize(this->num_streams);
 }
 
 void GPU::DeInitAcopy()
 {
-	for (uint64_t stream = 0; stream < XPU::num_streams; stream++)
+	for (uint64_t stream = 0; stream < this->num_streams; stream++)
         // Destroy streams.
         cudaStreamDestroy(global::streams[stream]); 
 }
@@ -71,8 +73,8 @@ bool GPU::Bind()
 
 void GPU::CreateTasks(int task_index, pFunc func, void * args)
 {
-	task.func = func;
-	task.args = args;
+	tasks[task_index].func = func;
+	tasks[task_index].args = args;
 }
 
 void GPU::PrepareTransferBuf(size_t size)
@@ -83,7 +85,15 @@ void GPU::PrepareTransferBuf(size_t size)
 void GPU::RunTasks()
 {
 	global::current_epoch = XPU::current_epoch;
-	task.func(task.args);
+	for(int i = 0; i < tasks.size(); i++) {
+		tasks[i].func(tasks[i].args);
+	}
+}
+
+void GPU::RunTask(int index)
+{
+	global::current_epoch = XPU::current_epoch;
+	tasks[index].func(tasks[index].args);
 }
 
 void GPU::JoinTasks()

@@ -41,7 +41,7 @@ struct Args {
 	int workers;
 	int stream = -1;			// >-1 means use acopy
 	size_t size;
-	
+	size_t size_q;	
 #ifdef CAL_PORTION_RMSE	
 	float *loss;
 	float *gpu_loss;
@@ -65,7 +65,8 @@ struct XPU {
 	virtual void DeInitAcopy() {}
 	virtual bool Bind(){return true;}				//xpu bind to device;  
 	virtual void CreateTasks(int task_index, pFunc func, void *args){}								
-	virtual void RunTasks(){}							
+	virtual void RunTasks(){}
+	virtual void RunTask(int index) {}	
 	virtual void PrepareTransferBuf(size_t size){}
 	virtual void JoinTasks(){}
 	virtual void DestroyTasks(){}
@@ -118,6 +119,7 @@ struct CPU : public XPU {
 	virtual void Init();
 	virtual void CreateTasks(int task_index, pFunc func, void *args);
 	virtual void RunTasks();
+	virtual void RunTask(int index) {}
 	virtual void JoinTasks();
 	virtual void DeInit();
 	virtual void Transfer(void *dst, void *src, size_t size, TransferDirect direct);	
@@ -144,6 +146,7 @@ struct GPU : public XPU {
 	virtual bool Bind();
 	virtual void CreateTasks(int task_index, pFunc func, void *args);
 	virtual void RunTasks();
+	virtual void RunTask(int index);
 	virtual void JoinTasks();
 	virtual void Transfer(void *dst, void *src, size_t size, TransferDirect direct);
 	virtual void Transfer(void *dst, void *src, size_t size, TransferDirect direct, int stream);
@@ -158,7 +161,7 @@ struct GPU : public XPU {
 	virtual void AcopySync(int stream);
 
 	short *transfer_buf;
-	GPUTask task;
+	std::vector<GPUTask> tasks;
 };
 
 }

@@ -11,8 +11,16 @@ void MFWorker::PrepareGPUResources()
 	size_t size_q = n * k;
 
 #ifdef CAL_PORTION_RMSE
+	loss_size = 32 * workers;
 	cudaMalloc(&feature, (size_p + size_q + 1) * sizeof(float));
-	cudaMalloc(&gpu_loss, workers * sizeof(float) * 32);
+
+	if(trans_mode != HALFQ_SHM_ACOPY) {
+		cudaMallocHost(&loss, sizeof(float) * loss_size);
+		cudaMalloc(&gpu_loss, sizeof(float) * loss_size);
+	} else {
+		cudaMallocHost(&loss, sizeof(float) * loss_size * xpu->num_streams);
+                cudaMalloc(&gpu_loss, sizeof(float) * loss_size * xpu->num_streams);
+	}
 #else
 	cudaMalloc(&feature, (size_p + size_q) * sizeof(float));
 #endif
@@ -29,6 +37,7 @@ void MFWorker::ReleaseGPUResources()
 
 #ifdef CAL_PORTION_RMSE
 	cudaFree(gpu_loss);
+	cudaFreeHost(loss);
 #endif
 }
 

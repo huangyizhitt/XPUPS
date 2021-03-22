@@ -22,7 +22,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
    }
 }
 
-static curandState *rand_state;
+curandState *rand_state;
 static int update_vector_size = 128;
 static int update_count;
 
@@ -30,6 +30,46 @@ __global__ void init_rand_state(curandState*state, int size)
 {
 	int tid = blockIdx.x*blockDim.x + threadIdx.x;
 	if(tid < size)curand_init(clock() + tid,tid,0,&state[tid]);
+}
+
+void InitGPUTask(int gpu_workers)
+{
+	cudaMalloc(&rand_state, sizeof(curandState)*gpu_workers);
+	gpuErr(cudaPeekAtLastError());
+	init_rand_state<<<((gpu_workers+255)/256),256>>>(rand_state,gpu_workers);
+	gpuErr(cudaPeekAtLastError());
+}
+
+void DeInitGPUTask()
+{
+	cudaFree(rand_state);
+}
+
+__global__ void print_head(const MatrixNode *R, float *p, float *q)
+{
+	for(int i = 0; i < 5; i++) {
+		printf("r[%d]: %.7f, p[%d]: %.7f, q[%d]: %.7f\n", i, R[i].r, i, p[i], i, q[i]);
+	}
+}
+
+__global__ void print_tail(float *p, size_t size_p, float *q, size_t size_q)
+{
+	for(int i = 0; i < 5; i++) {
+		int p_i = size_p * 128 - i - 1;
+		int q_i = size_q * 128 - i - 1;
+		printf("p[%d]: %.7f, q[%d]: %.7f\n", p_i, p[p_i], q_i, q[q_i]);
+	}
+}
+
+__global__ void print_loss(float *gpu_loss, size_t size)
+{
+	int i = blockIdx.x*blockDim.x + threadIdx.x;
+	printf("gpu_loss[%d]: %.7f\n", i, gpu_loss[i]);
+}
+
+void g_print_tail(float *p, size_t size_p, float *q, size_t size_q)
+{
+	print_tail<<<1, 1>>>(p, size_p, q, size_q);
 }
 
 __global__ void sgd_k128_kernel_hogwild_warp32(
@@ -191,7 +231,6 @@ __global__ void sgd_k128_kernel_hogwild_warp32(
 			tmp_product = __shfl_sync(__activemask(), tmp_product, 0);
 
 			float ruv = r - tmp_product;
-
 				//update
 				//only works for k=blockDim.x=128
 			p[base_p + lane_id +  0] = (tmp_p1 + lrate*(ruv*tmp_q1 - lambda_p*tmp_p1));
@@ -298,51 +337,55 @@ void *sgd_update_k128_gpu(void *args)
 	MatrixNode *R = (MatrixNode *)para->data;
 	int gpu_workers = para->workers;
 	size_t size = para->size;
-	debugp("current_epoch: %d, R: %p, stream: %d\n", global::current_epoch, R, para->stream);
-	if(global::current_epoch == 1) {
+
+/*	if(global::current_epoch == 1) {
 		cudaMalloc(&rand_state, sizeof(curandState)*gpu_workers);
 		gpuErr(cudaPeekAtLastError());
 		init_rand_state<<<((gpu_workers+255)/256),256>>>(rand_state,gpu_workers);
 		gpuErr(cudaPeekAtLastError());
 
 		update_count = (ceil)(1.0 * size / (gpu_workers*update_vector_size));
-	}
-
+	}*/
+	update_count = (ceil)(1.0 * size / (gpu_workers*update_vector_size));
 #ifdef CAL_PORTION_RMSE	
 	float *loss = para->loss;
 	float *gpu_loss = para->gpu_loss;
+
+//	printf("current_epoch: %d, R: %p, size: %ld, p: %p, q: %p, gpu_loss: %p, rand_state: %p, stream: %d\n", global::current_epoch, R, size, para->p, para->q, gpu_loss, rand_state, para->stream);
 	if(para->stream == -1) {
 		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, gpu_loss, para->p, para->q, 128, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
+		gpuErr(cudaPeekAtLastError());
+        	cudaDeviceSynchronize();
+		cudaMemcpy(loss, gpu_loss, (gpu_workers * 32) * sizeof(float), cudaMemcpyDeviceToHost);
 	} else {
 		cudaStream_t stream = global::streams[para->stream];
 		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128, 0, stream>>>(R, size, rand_state, gpu_loss, para->p, para->q, 128, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
+		cudaMemcpyAsync(loss, gpu_loss, (gpu_workers * 32) * sizeof(float), cudaMemcpyDeviceToHost, stream);
+//		print_loss<<<gpu_workers/4, 128>>>(gpu_loss, (gpu_workers * 32));
 	}
-	gpuErr(cudaPeekAtLastError());
-	cudaDeviceSynchronize();
 	
 //	gpu_calc_rmse<<<gpu_workers/4, 128>>>(R, size, rand_state, gpu_loss, para->p, para->q, 128, update_count,
 //									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
 //	gpuErr(cudaPeekAtLastError());
 //	cudaDeviceSynchronize();
-	cudaMemcpy(loss, gpu_loss, (gpu_workers * 32) * sizeof(float), cudaMemcpyDeviceToHost);
 #else
 	if(para->stream == -1) {
 		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, para->p, para->q, 128, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
+		gpuErr(cudaPeekAtLastError());
+		cudaDeviceSynchronize();
 	} else {
 		cudaStream_t stream = global::streams[para->stream];
 		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128, 0, stream>>>(R, size, rand_state, para->p, para->q, 128, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
 	}
-	gpuErr(cudaPeekAtLastError());
-	cudaDeviceSynchronize();
 #endif
 
-	if(global::current_epoch == global::target_epoch) {
+/*	if(global::current_epoch == global::target_epoch) {
 		cudaFree(rand_state);
-	}
+	}*/
 	return NULL;
 }
 

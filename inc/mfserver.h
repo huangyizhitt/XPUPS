@@ -31,7 +31,7 @@ public:
 			RecordLoss();
 		}
 #endif
-		if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX) {
+		if(trans_mode >= ALL_SHM && trans_mode < UNKONWN_MODE) {
 		       	DestroyShmbuf();
 		}	
 		

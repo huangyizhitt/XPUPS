@@ -17,7 +17,8 @@ export DMLC_PS_ROOT_PORT=8000
 export DMLC_ROLE='scheduler'
 ${bin} ${arg} &
 
-
+export lrate=0.005
+export lambda=1
 export EPOCH='20'
 export TRANSMODE=6
 export DATA_PATH="yahoo_music.bin"

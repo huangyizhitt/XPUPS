@@ -53,10 +53,6 @@ void MFWorker::Init()
 
 	xpu->Init();
 
-	if(trans_mode == HALFQ_SHM_ACOPY) {
-		xpu->InitAcopy();
-	}
-	
 	xpu->current_epoch = 0;
 	xpu->Bind();
 	this->xpu = xpu;
@@ -82,7 +78,16 @@ void MFWorker::Init()
 	} else {
 		trans_mode = ALL;
 	}
+
+	if(trans_mode == HALFQ_SHM_ACOPY) {
+		xpu->InitAcopy();
+		index.resize(xpu->num_streams);
+		for(int i = 0; i < xpu->num_streams; i++) {
+			index[i] = i;
+		}
+	}
 	
+	push_counts = 0;	
 	workers = xpu->workers;
 	max_cores = xpu->max_cores;
 	kv_xpu = new ps::KVWorker<float>(0, 0);	
@@ -189,10 +194,12 @@ void MFWorker::PrepareCPUResources()
 	size_t size_p = m * k;
 	size_t size_q = n * k;
 
-	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode == HALFQ_SHM_EX)) {
+	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode == HALFQ_SHM_EX) || (trans_mode == HALFQ_SHM_ACOPY)) {
 #ifdef CAL_PORTION_RMSE
 		feature = (float *)aligned_alloc(64, (size_p + size_q + 1) * sizeof(float));
 		PinnedBuf(feature, (size_p+size_q+1)*sizeof(float));
+		loss_size = workers;
+                loss = (float *)malloc(sizeof(float) * loss_size);
 #else
 		feature = (float *)aligned_alloc(64, (size_p + size_q) * sizeof(float));
 		PinnedBuf(feature, (size_p+size_q)*sizeof(float));
@@ -288,7 +295,7 @@ int MFWorker::PrepareShmbuf()
 		PinnedBuf(shm_buf, shm_size);
 	}
 
-	if(trans_mode == HALFQ_SHM_EX) {
+	if(trans_mode == HALFQ_SHM_EX || trans_mode == HALFQ_SHM_ACOPY) {
 		key = ftok("/home", 9999);
 		if(key == -1) {
 	    	perror("ftok fail!\n");
@@ -342,7 +349,7 @@ void MFWorker::LinkShmbuf()
 
 void MFWorker::PrepareResources()
 {
-	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX) {
+	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_ACOPY) {
 		CreateShmbuf();					//Share memory is create by worker
 		LinkShmbuf();					//push cmd to server to link the shmbuf; 
 	}
@@ -359,20 +366,24 @@ void MFWorker::PrepareResources()
 
 void MFWorker::ReleaseCPUResources()
 {
-	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode == HALFQ_SHM_EX)) {
+	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode == HALFQ_SHM_EX) || (trans_mode == HALFQ_SHM_ACOPY)) {
 		UnpinnedBuf(feature);
 		free(feature);
+#ifdef CAL_PORTION_RMSE
+		free(loss);
+#endif
 	}
 }
 
 void MFWorker::ReleaseResources()
 {
-	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX)
+	if(trans_mode >= ALL_SHM && trans_mode < UNKONWN_MODE)
 		DestroyShmbuf();
 	if(xpu->xpu_type == XPU_TYPE::CPU) {
 		ReleaseCPUResources();
 	} else if(xpu->xpu_type == XPU_TYPE::GPU) {
 		ReleaseGPUResources();
+		DeInitGPUTask();
 	}
 }
 
@@ -577,7 +588,6 @@ void MFWorker::PullHalfQShmAcopy(int stream)
 	short *src = (short *)pull_buf + start_q * k;
 	float *dst = q + start_q * k;
 
-	xpu->current_epoch++;
 	keys.push_back(rank);
 	lens.push_back(1);
 	vals.push_back(xpu->num_streams);	
@@ -593,6 +603,8 @@ void MFWorker::PushHalfQShmAcopy(int stream)
     std::vector<float> vals;
     std::vector<int> lens;
     CMD cmd = PUSH_HALF_FEATURE_SHM_ACOPY;
+
+    push_counts++;
 
 	int id = index[stream];
 	int start_q = dm.infos[id].start_q;
@@ -614,20 +626,37 @@ void MFWorker::PushHalfQShmAcopy(int stream)
     vals.push_back(xpu->num_streams);
     lens.push_back(1);
 
-	if(xpu->current_epoch == xpu->target_epoch) {
-    	xpu->singles2halfp(shm_buf, p, trans_size_p, stream, FE_TONEAREST, 0, max_cores, true);
+/*	if(push_counts == xpu->num_streams) {
+		xpu->singles2halfp(shm_buf, p, trans_size_p, stream, FE_TONEAREST, 0, max_cores, true);
 		xpu->singles2halfp(shm_buf + trans_size_p, src, trans_size_q, stream, FE_TONEAREST, 0, max_cores, true);
-		xpu->AcopySync(stream);
 	} else {
 		xpu->singles2halfp(shm_buf, src, trans_size_q, stream, FE_TONEAREST, 0, max_cores, true);
+	}*/
+
+	short *dst = (short *)shm_buf + trans_size_p + start_q * k;
+	xpu->singles2halfp(dst, src, trans_size_q, stream, FE_TONEAREST, 0, max_cores, true);	
+//	xpu->AcopySync(stream);
+
+	if(xpu->current_epoch == xpu->target_epoch && push_counts == xpu->num_streams) {
+		xpu->singles2halfp(shm_buf, p, trans_size_p, stream, FE_TONEAREST, 0, max_cores, true);
 	}
-	
+/*	for(int i = 0; i < loss.size(); i++) {
+		printf("loss[%d]: %.7f\n", i, loss[i]);
+	}*/
+	if(push_counts == xpu->num_streams) {
+		push_counts = 0;
+	}
+
 #ifdef CAL_PORTION_RMSE
-    keys.push_back(rank+1);
-    lens.push_back(1);
-    vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
+//    		xpu->Transfer(loss, gpu_loss, loss_size, TransferDirect::C2S);
+    		keys.push_back(rank+1);
+    		lens.push_back(1);
+    		float tmp_loss = std::accumulate(loss + stream * loss_size, loss+(stream+1)*loss_size, 0.0);
+    		vals.push_back(tmp_loss);
 #endif
-    kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+    	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+	
+	xpu->AcopySync(stream);
 }
 
 
@@ -655,7 +684,7 @@ void MFWorker::PushAll()
 #ifdef CAL_PORTION_RMSE
 	keys.push_back(2);
 	lens.push_back(1);
-	ps_vals[trans_size] =  std::accumulate(loss.begin(), loss.end(), 0.0);
+	ps_vals[trans_size] =  std::accumulate(loss, loss+loss_size, 0.0);
 	trans_size += 1;
 #endif
 
@@ -680,7 +709,7 @@ void MFWorker::PushAllShm()
 #ifdef CAL_PORTION_RMSE
 	keys.push_back(rank+1);
 	lens.push_back(1);
-	vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
+	vals.push_back(std::accumulate(loss, loss+loss_size, 0.0));
 #endif
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));		
 }
@@ -720,7 +749,7 @@ void MFWorker::PushQ()
 #ifdef CAL_PORTION_RMSE
 	keys.push_back(rank+index);
 	lens.push_back(1);
-	ps_vals[trans_size] =  std::accumulate(loss.begin(), loss.end(), 0.0);
+	ps_vals[trans_size] =  std::accumulate(loss, loss+loss_size, 0.0);
 	trans_size += 1;
 #endif
 
@@ -759,7 +788,7 @@ void MFWorker::PushQShm()
 #ifdef CAL_PORTION_RMSE
 	keys.push_back(rank+1);
 	lens.push_back(1);
-	float my_loss = std::accumulate(loss.begin(), loss.end(), 0.0);
+	float my_loss = std::accumulate(loss, loss+loss_size, 0.0);
 	vals.push_back(my_loss);
 #endif
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));		
@@ -799,7 +828,7 @@ void MFWorker::PushHalfQ()
 #ifdef CAL_PORTION_RMSE
 	keys.push_back(rank+index);
 	lens.push_back(1);
-	ps_vals[trans_size] =  std::accumulate(loss.begin(), loss.end(), 0.0);
+	ps_vals[trans_size] =  std::accumulate(loss, loss+loss_size, 0.0);
 	trans_size += 1;
 #endif
 
@@ -838,7 +867,7 @@ void MFWorker::PushHalfQShm()
 #ifdef CAL_PORTION_RMSE
 	keys.push_back(rank+1);
 	lens.push_back(1);
-	vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
+	vals.push_back(std::accumulate(loss, loss+loss_size, 0.0));
 #endif
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));	
 }
@@ -902,7 +931,7 @@ void MFWorker::PushHalfQShmEX()
 #ifdef CAL_PORTION_RMSE
         keys.push_back(rank+1);
         lens.push_back(1);
-        vals.push_back(std::accumulate(loss.begin(), loss.end(), 0.0));
+        vals.push_back(std::accumulate(loss, loss+loss_size, 0.0));
 #endif
         kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 }
@@ -939,9 +968,11 @@ void MFWorker::Pull()
 			break;
 
 		case HALFQ_SHM_ACOPY:
+			random_shuffle(index.begin(), index.end());
 			if(xpu->current_epoch == 0)
 				PullHalfQShmEX();
 			else {
+				xpu->current_epoch++;
 				for(int stream = 0; stream < xpu->num_streams; stream++) {
 					PullHalfQShmAcopy(stream);
 				}				
@@ -989,6 +1020,7 @@ void MFWorker::Push()
 			for(int stream = 0; stream < xpu->num_streams; stream++) {
 				PushHalfQShmAcopy(stream);
 			}
+			break;
 
 		default:
 			printf("Unkown trans_mode, exit!\n");
@@ -1002,9 +1034,6 @@ void MFWorker::CreateWorkers(pFunc func)
 {
 	if(xpu->xpu_type == XPU_TYPE::CPU) {
 		args.resize(workers);
-#ifdef CAL_PORTION_RMSE
-		loss.resize(workers);
-#endif
 
 		for(int i = 0; i < workers; i++) {
 			args[i].lambda_p = lambda_p;
@@ -1025,46 +1054,67 @@ void MFWorker::CreateWorkers(pFunc func)
 			xpu->CreateTasks(i, func, &args[i]);
 		}
 	}else if(xpu->xpu_type == XPU_TYPE::GPU) {
-		args.resize(1);
-		args[0].lambda_p = lambda_p;
-		args[0].lambda_q = lambda_q;
-		args[0].lrate = lrate;
-		args[0].p = p;
-		args[0].q = q;
-		args[0].workers = workers;
-		args[0].stream = -1;
-		args[0].size = size;
+		if(trans_mode != HALFQ_SHM_ACOPY) {
+			args.resize(1);
+			args[0].lambda_p = lambda_p;
+			args[0].lambda_q = lambda_q;
+			args[0].lrate = lrate;
+			args[0].p = p;
+			args[0].q = q;
+			args[0].workers = workers;
+			args[0].stream = -1;
+			args[0].size = size;
 #ifdef CAL_PORTION_RMSE
-		loss.resize(32*workers);	
-		args[0].loss = &loss[0];
-		args[0].gpu_loss = gpu_loss;
+			args[0].loss = loss;
+			args[0].gpu_loss = gpu_loss;
+/*		if(trans_mode == HALFQ_SHM_ACOPY)
+			PinnedBuf(&loss[0], workers*32);*/
 #endif
-		args[0].data = gpuR;
+			args[0].data = gpuR;
 //		printf("gpuR: %p\n", gpuR);	
 #ifdef DEBUG
-		args[0].tid = 0;
+			args[0].tid = 0;
 #endif
-
-		xpu->CreateTasks(0, func, &args[0]);
+			xpu->CreateTasks(0, func, &args[0]);
+			InitGPUTask(workers);
+		} else {
+			args.resize(xpu->num_streams);
+			for(int i = 0; i < xpu->num_streams; i++) {
+				args[i].lambda_p = lambda_p;
+                        	args[i].lambda_q = lambda_q;
+                        	args[i].lrate = lrate;
+				args[i].p = p;
+				args[i].q = q;
+				args[i].workers = workers;
+				args[i].stream = i;
+#ifdef CAL_PORTION_RMSE
+				args[i].loss = loss + i * loss_size;
+				args[i].gpu_loss = gpu_loss + i * loss_size;
+#endif
+#ifdef DEBUG
+                        	args[i].tid = 0;
+#endif
+				xpu->CreateTasks(i, func, &args[i]);
+                        	InitGPUTask(workers);
+			}
+		}
 	}
 }
 
 void MFWorker::Computing()
 {
 	if(trans_mode != HALFQ_SHM_ACOPY) {
-		xpu->RunTasks();
+		xpu->RunTask(0);
 		if(xpu->xpu_type == XPU_TYPE::CPU)
 			dm.ClearBlockFlags();
 	} else {
 		for(int i = 0; i < xpu->num_streams; i++) {
 			int id = index[i];
 			if(xpu->xpu_type == XPU_TYPE::GPU) {		//now only gpu has acopy
-				args[0].q = q+dm.infos[id].start_q;
-				args[0].data = gpuR+dm.infos[id].start_r;
-				args[0].size = dm.infos[id].size_r;
-				args[0].stream = i;
-
-				xpu->RunTasks();
+				args[i].data = (unsigned char *)gpuR + dm.infos[id].start_r * sizeof(MatrixNode);
+				args[i].size = dm.infos[id].size_r;
+	//			printf("i: %d, gpuR: %p, data: %p, start_r: %lld\n", i, gpuR, args[i].data, dm.infos[id].start_r);
+				xpu->RunTask(i);
 			}
 		}
 	}

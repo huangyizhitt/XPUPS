@@ -95,7 +95,7 @@ void MFServer::Init()
 
 #ifdef CAL_PORTION_RMSE	
 	loss = 0.0;
-	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX) {
+	if(trans_mode >= ALL_SHM && trans_mode < HALFQ_SHM_ACOPY) {
 		need_record = true;
 		record_counts = 0;
 	}
@@ -179,6 +179,14 @@ void MFServer::ProcessHandle(const ps::KVMeta& req_meta,
 			cur_server->ProcessPushHalfQShmEX(req_meta, req_data, server);
 			break;
 
+		case PULL_HALF_FEATURE_SHM_ACOPY:
+			cur_server->ProcessPullHalfQShmAcopy(req_meta, req_data, server);
+			break;
+
+		case PUSH_HALF_FEATURE_SHM_ACOPY:
+			cur_server->ProcessPushHalfQShmAcopy(req_meta, req_data, server);
+			break;
+
 		case LINK_SHM:
 			cur_server->ProcessLinkShm(req_meta, req_data, server);
 			break;
@@ -252,7 +260,7 @@ void MFServer::PrepareData()
 		dm.SetGrid(gridDim);
 		dm.GridData(prepare_data_threads);
 
-		if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_EX) {
+		if(trans_mode >= ALL_SHM && trans_mode < UNKONWN_MODE) {
 			CreateShmbuf();
 		}
 
@@ -261,7 +269,6 @@ void MFServer::PrepareData()
 		} else {
 			dm.InitModel();
 		}
-
 		data_init_stage = true;
 	}
 }
@@ -336,7 +343,7 @@ int MFServer::PrepareShmbuf()
 	size_t size = (size_t)sizeof(float)*(dm.rows * dm.k + dm.cols * dm.k);
 	int key, shmid;
 
-	if(trans_mode == HALFQ_SHM_EX) {
+	if(trans_mode == HALFQ_SHM_EX && HALFQ_SHM_ACOPY) {
 		key = ftok("/home", 9999);
 		if(key == -1) {
 	    	perror("ftok fail!\n");
@@ -961,7 +968,7 @@ void MFServer::ProcessPushHalfQShmAcopy(const ps::KVMeta& req_meta,
 	//printf("current_epoch: %d\n", current_epoch); 
 	
 	if(xpu->current_epoch != xpu->target_epoch || push_counts[rank] < num_streams) {
-		h_q = (uint16_t *)shm_buf[rank].second;
+		h_q = (uint16_t *)shm_buf[rank].second+size_p;
 		if(received == 0) {
 //			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
 			cpu_halfp2singles(&dm.model.q[0] + start_q, h_q + start_q, size_q, 16);
@@ -1007,12 +1014,13 @@ void MFServer::ProcessPushHalfQShmAcopy(const ps::KVMeta& req_meta,
 
 
 	server->Response(req_meta, res);
-#ifdef CAL_PORTION_RMSE
-	loss += req_data.vals.back();
-#endif
+	
 	if(push_counts[rank] == num_streams) {
 		received++;
 		push_counts[rank] = 0;
+#ifdef CAL_PORTION_RMSE
+	loss += req_data.vals.back();
+#endif
 	}
 	
 	if(received == xpus) {
@@ -1367,7 +1375,11 @@ void MFServer::RecordLoss()
 			record_file = "log/record-halfqshmex.csv";
 			break;
 
+		case HALFQ_SHM_ACOPY:
+			record_file = "log/record-halfqshmacopy.csv";
+			break;
 		default:
+			record_file = "log/unknown";
 			break;
 	}
 	std::ofstream fout(record_file, std::ios_base::out | std::ios_base::app);

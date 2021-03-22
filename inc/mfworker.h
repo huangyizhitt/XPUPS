@@ -82,6 +82,7 @@ public:
 private:
 	int rank;
 	int server_rank;
+	int push_counts;
 	int workers;
 	int max_cores;
 	int numa_node;
@@ -114,9 +115,9 @@ private:
 	std::vector<Args> args;
 	std::vector<int> index;
 #ifdef CAL_PORTION_RMSE
-	std::vector<float> loss;
+	float *loss;
+	int loss_size;
 	float *gpu_loss;
-
 public:
 	void StartRecord();
 #endif	

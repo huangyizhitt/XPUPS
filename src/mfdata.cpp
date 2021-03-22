@@ -295,7 +295,8 @@ void DataManager::InitModel()
                     			feature[i * k + j] = (float)(distribution(generator)*s);
 			} else {
                 		for(size_t j = 0; j < k; j++)
-                    			feature[i * k + j] = std::numeric_limits<float>::quiet_NaN();
+                    		//	feature[i * k + j] = std::numeric_limits<float>::quiet_NaN();
+					feature[i * k + j] = 0;
             		}
         	}
 	};
@@ -335,7 +336,8 @@ void DataManager::InitModelShm(void *shm_buf)
                     			feature[i * k + j] = (float)(distribution(generator)*s);
 			} else {
                 		for(size_t j = 0; j < k; j++)
-                    			feature[i * k + j] = std::numeric_limits<float>::quiet_NaN();
+                    		//	feature[i * k + j] = std::numeric_limits<float>::quiet_NaN();
+					feature[i * k + j] = 0;
             		}
         	}
 	};
@@ -578,10 +580,11 @@ void WorkerDM::GridQ(int rank, int nr_threads)
 		{
 			std::sort(ptrs[block], ptrs[block+1], sort_node_by_q());
 			infos[block].size_r = counts[block];
-			infos[block].start_q = ptrs[block][0].col_index;
-			infos[block].size_q = (ptrs[block+1][0].col_index - infos[block].start_q);
+                        infos[block].start_q = ptrs[block][0].col_index;
+                        infos[block].size_q = (ptrs[block][counts[block]-1].col_index - infos[block].start_q);
+                        printf("block: %d, start_r: %ld, size_r: %ld, start_q: %d, size_q: %d\n", block, infos[block].start_r, infos[block].size_r, infos[block].start_q, infos[block].size_q);
 		}
-				
+		
 		elapse = cpu_second() - start;
 		printf("[Work %d]Grid Problem complete, cost: %.8f\n", rank, elapse);
 
