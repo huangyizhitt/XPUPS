@@ -245,7 +245,7 @@ void DataManager::GridData(int nr_threads)
             std::sort(ptrs[block], ptrs[block+1], sort_node_by_p());
         else
             std::sort(ptrs[block], ptrs[block+1], sort_node_by_q());
-    } 	
+    }	
     elapse = cpu_second() - start;
     printf("Grid Problem to all XPU complete, cost: %.8f\n", elapse);
 }
@@ -531,7 +531,7 @@ void WorkerDM::GridData(int rank, int nr_threads)
 
 void WorkerDM::GridQ(int rank, int nr_threads)
 {
-		printf("[Work %d]Grid Problem...\n", rank);
+		printf("[Work %d]GridQ Problem...\n", rank);
 		double start, elapse;
 		start = cpu_second();
 		counts.resize(block_size, 0);
@@ -548,10 +548,19 @@ void WorkerDM::GridQ(int rank, int nr_threads)
 		ptrs[0] = &data.r_matrix[0];
 
 		int start_r = 0;
+		int start_q = 0;
+		int count_q = 0;
 		for(int block = 0; block < block_size; block++) {
 			ptrs[block+1] = ptrs[block] + counts[block];
 			infos[block].start_r = start_r;
 			start_r += counts[block];
+			infos[block].size_r = counts[block];
+			infos[block].start_q = start_q;
+			infos[block].size_q = std::min(grid.blockDim.x, cols-count_q);
+                        start_q += grid.blockDim.x;
+			count_q += grid.blockDim.x;
+
+//			 printf("block: %d, start_r: %lld, size_r: %lld, start_q: %d, size_q: %d\n", block, infos[block].start_r, infos[block].size_r, infos[block].start_q, infos[block].size_q);
 		}
 	
 		std::vector<MatrixNode*> pivots(ptrs.begin(), ptrs.end()-1);
@@ -560,6 +569,7 @@ void WorkerDM::GridQ(int rank, int nr_threads)
 				for(MatrixNode* pivot = pivots[block]; pivot != ptrs[block+1];)
 				{
 						int curr_block = GetBlockId(grid, *pivot);
+//						printf("block: %d, curr_block: %d, row: %d, col: %d\n", block, curr_block, pivot->row_index, pivot->col_index);
 						if(curr_block == block)
 						{
 							++pivot;
@@ -572,15 +582,13 @@ void WorkerDM::GridQ(int rank, int nr_threads)
 				}
 			}
 	
-	
-#if defined USEOMP
+//	     printf("block_size: %d\n", block_size);	
+/*#if defined USEOMP
 #pragma omp parallel for num_threads(nr_threads) schedule(dynamic)
 #endif
 		for(int block = 0; block < block_size; ++block)
 		{
-			std::sort(ptrs[block], ptrs[block+1], sort_node_by_q());
-			
-			infos[block].size_r = counts[block];
+			std::sort(ptrs[block], ptrs[block+1], sort_node_by_q());	
 		}        
 		
 		for(int block = 0; block < block_size; ++block) {
@@ -591,7 +599,8 @@ void WorkerDM::GridQ(int rank, int nr_threads)
 			infos[block].size_q = (ptrs[block][counts[block]-1].col_index - infos[block].start_q);
                         printf("block: %d, start_r: %lld, size_r: %lld, start_q: %d, size_q: %d\n", block, infos[block].start_r, infos[block].size_r, infos[block].start_q, infos[block].size_q);
 		}
-		
+*/	
+			
 		elapse = cpu_second() - start;
 		printf("[Work %d]Grid Problem complete, cost: %.8f\n", rank, elapse);
 

@@ -178,8 +178,6 @@ private:
 	static MFServer *cur_server;
 	ps::KVServer<float>* server_xpu;
 	XPU *xpu;
-	std::vector<int> pull_counts;
-	std::vector<int> push_counts;
 	std::unordered_map<int, XPU_INFO> worker_xpu_info;
 	std::unordered_map<int, std::pair<int, unsigned char *> > shm_buf;
 	DataManager dm;

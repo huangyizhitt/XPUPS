@@ -60,7 +60,8 @@ private:
 	void PushHalfQShmEX();
 	void PullHalfQShmAcopy(int stream);
 	void PushHalfQShmAcopy(int stream);
-
+	void PullHalfQShmAcopy();
+        void PushHalfQShmAcopy();
 	void PushXPUInfo();
 	
 	void PullGPUData();

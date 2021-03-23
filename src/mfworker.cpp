@@ -597,6 +597,39 @@ void MFWorker::PullHalfQShmAcopy(int stream)
 	xpu->halfp2singles(dst, src, size_q * k, stream, max_cores, true);
 }
 
+void MFWorker::PullHalfQShmAcopy()
+{
+        std::vector<ps::Key> keys;
+        std::vector<float> vals;
+        std::vector<int> lens;
+        CMD cmd = PULL_HALF_FEATURE_SHM_ACOPY;
+	
+	xpu->current_epoch++;
+	
+        keys.push_back(rank);
+        lens.push_back(1);
+        vals.push_back(xpu->num_streams);
+
+        kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+
+	if(xpu->current_epoch > 1) {
+		for(int stream = 0; stream < xpu->num_streams; stream++) {
+        		int id = index[stream];
+        		int start_q = dm.infos[id].start_q;
+        		int size_q = dm.infos[id].size_q;
+
+        		short *src = (short *)pull_buf + start_q * k;
+        		float *dst = q + start_q * k;
+
+        		xpu->halfp2singles(dst, src, size_q * k, stream, max_cores, true);
+		}
+	} else {
+		short *src = (short *)pull_buf;
+		float *dst = p;
+		xpu->halfp2singles(dst, src, (m+n)*k, 0, max_cores, true);
+	}
+}
+
 void MFWorker::PushHalfQShmAcopy(int stream)
 {
     std::vector<ps::Key> keys;
@@ -659,6 +692,53 @@ void MFWorker::PushHalfQShmAcopy(int stream)
 	xpu->AcopySync(stream);
 }
 
+void MFWorker::PushHalfQShmAcopy()
+{
+	std::vector<ps::Key> keys;
+    	std::vector<float> vals;
+    	std::vector<int> lens;
+    	CMD cmd = PUSH_HALF_FEATURE_SHM_ACOPY;
+	size_t trans_size_p = m * k;
+	size_t trans_size;
+
+	for(int stream = 0; stream < xpu->num_streams; stream++) {
+        	int id = index[stream];
+        	int start_q = dm.infos[id].start_q;
+        	int size_q = dm.infos[id].size_q;
+
+    		size_t trans_size_q = size_q * k;
+    		float *src = q + start_q * k;
+		short *dst = (short *)shm_buf + trans_size_p + start_q * k;
+
+		xpu->singles2halfp(dst, src, trans_size_q, stream, FE_TONEAREST, 0, max_cores, true);
+	}
+
+	if(xpu->current_epoch < xpu->target_epoch){ 
+		trans_size = n * k;
+	} else {
+		trans_size = m * k;
+		xpu->singles2halfp(shm_buf, p, trans_size_p, 0, FE_TONEAREST, 0, max_cores, true);
+	}
+
+	for(int stream = 0; stream < xpu->num_streams; stream++) {
+		xpu->AcopySync(stream);
+	}
+    	keys.push_back(rank);
+    	vals.push_back(trans_size);
+    	lens.push_back(1);
+
+#ifdef CAL_PORTION_RMSE
+//              xpu->Transfer(loss, gpu_loss, loss_size, TransferDirect::C2S);
+	float push_loss = 0.0;
+	keys.push_back(rank+1);
+	lens.push_back(1);
+	for(int stream = 0; stream < xpu->num_streams; stream++) {        
+		push_loss += std::accumulate(loss + stream * loss_size, loss+(stream+1)*loss_size, 0.0);
+	}
+	vals.push_back(push_loss);
+#endif
+        kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+}
 
 
 void MFWorker::PushAll()
@@ -969,14 +1049,7 @@ void MFWorker::Pull()
 
 		case HALFQ_SHM_ACOPY:
 			random_shuffle(index.begin(), index.end());
-			if(xpu->current_epoch == 0)
-				PullHalfQShmEX();
-			else {
-				xpu->current_epoch++;
-				for(int stream = 0; stream < xpu->num_streams; stream++) {
-					PullHalfQShmAcopy(stream);
-				}				
-			}
+			PullHalfQShmAcopy();
 			break;
 
 		default:
@@ -1017,9 +1090,7 @@ void MFWorker::Push()
 			break;
 
 		case HALFQ_SHM_ACOPY:
-			for(int stream = 0; stream < xpu->num_streams; stream++) {
-				PushHalfQShmAcopy(stream);
-			}
+			PushHalfQShmAcopy();
 			break;
 
 		default:
@@ -1076,7 +1147,7 @@ void MFWorker::CreateWorkers(pFunc func)
 			args[0].tid = 0;
 #endif
 			xpu->CreateTasks(0, func, &args[0]);
-			InitGPUTask(workers);
+			InitGPUTask(workers, -1);
 		} else {
 			args.resize(xpu->num_streams);
 			for(int i = 0; i < xpu->num_streams; i++) {
@@ -1095,8 +1166,8 @@ void MFWorker::CreateWorkers(pFunc func)
                         	args[i].tid = 0;
 #endif
 				xpu->CreateTasks(i, func, &args[i]);
-                        	InitGPUTask(workers);
 			}
+                       	InitGPUTask(workers, 0);
 		}
 	}
 }

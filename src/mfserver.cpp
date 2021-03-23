@@ -415,11 +415,6 @@ void MFServer::ProcessInitTrainingData(const ps::KVMeta& req_meta,
 	size_t n = req_data.keys.size();
 	res.keys = req_data.keys;
 	res.lens.resize(n);
-
-	if(trans_mode == HALFQ_SHM_ACOPY) {
-		pull_counts.resize(xpus, 0);
-		push_counts.resize(xpus, 0);
-	}
 	
 	PrepareData();
 	
@@ -925,28 +920,64 @@ void MFServer::ProcessPullHalfQShmEX(const ps::KVMeta& req_meta,
 //        printf("Server record1: %.7f, record2: %.7f, record3: %.7f\n", record1, record2, record3);
 }
 
+/*void MFServer::ProcessPullHalfQShmAcopy(const ps::KVMeta& req_meta,
+                                const ps::KVPairs<float>& req_data,
+                                ps::KVServer<float>* server)
+{
+        size_t keys_size = req_data.keys.size();
+        size_t size_q = dm.cols * dm.k;
+        int streams = req_data.vals[0];
+
+        float *src = &dm.model.q[0];
+
+        ps::KVPairs<float> res;
+
+        pull_count++;
+
+        if(pull_count == 1) {
+                uint16_t *_buf = (uint16_t *)pull_buf;
+                cpu_singles2halfp(_buf, src, size_q, FE_TONEAREST, 0, 16);
+        }
+
+        if(pull_count == xpus * streams) {
+        pull_count = 0;
+    }
+
+        server->Response(req_meta, res);
+}*/
+
 void MFServer::ProcessPullHalfQShmAcopy(const ps::KVMeta& req_meta,
 				const ps::KVPairs<float>& req_data,
 				ps::KVServer<float>* server)
 {
 	size_t keys_size = req_data.keys.size();
+	size_t size_p = dm.rows * dm.k;
 	size_t size_q = dm.cols * dm.k;
+	size_t size;
 	int streams = req_data.vals[0];
 
-	float *src = &dm.model.q[0];
+	float *src;
 
 	ps::KVPairs<float> res;
 
 	pull_count++;
+
+	if(xpu->current_epoch != 1) {
+                size = size_q;
+                src = &dm.model.q[0];
+        } else {
+                size = size_p + size_q;
+                src = &dm.model.p[0];
+        }
 
 	if(pull_count == 1) {
 		uint16_t *_buf = (uint16_t *)pull_buf;
 		cpu_singles2halfp(_buf, src, size_q, FE_TONEAREST, 0, 16);
 	}
 
-	if(pull_count == xpus * streams) {
-        pull_count = 0;
-    }
+	if(pull_count == xpus) {
+        	pull_count = 0;
+    	}
 
 	server->Response(req_meta, res);
 }
@@ -955,28 +986,25 @@ void MFServer::ProcessPushHalfQShmAcopy(const ps::KVMeta& req_meta,
 				  const ps::KVPairs<float>& req_data,
 				  ps::KVServer<float>* server)
 {
-	size_t start_q = req_data.vals[0] * dm.k;
-	size_t size_q = req_data.vals[1] * dm.k;
-	int num_streams = req_data.vals[2];
 	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
 	uint16_t *h_q;
 	uint16_t *h_p;
 	ps::KVPairs<float> res;
 	
 	int rank = req_data.keys[0];
-	push_counts[rank]++;
 	//printf("current_epoch: %d\n", current_epoch); 
 	
-	if(xpu->current_epoch != xpu->target_epoch || push_counts[rank] < num_streams) {
+	if(xpu->current_epoch != xpu->target_epoch) {
 		h_q = (uint16_t *)shm_buf[rank].second+size_p;
 		if(received == 0) {
 //			  memcpy(&dm.model.q[0], &req_data.vals[0], sizeof(float) * size_q);  
-			cpu_halfp2singles(&dm.model.q[0] + start_q, h_q + start_q, size_q, 16);
+			cpu_halfp2singles(&dm.model.q[0], h_q, size_q, 16);
 		} else {
 #if defined(USE_AVX2) || defined(USE_AVX512)
-			halfp2singles_madd(&dm.model.q[0] + start_q, h_q + start_q, size_q, 16, 0.5);
+			halfp2singles_madd(&dm.model.q[0], h_q, size_q, 16, 0.5);
 #else
-			for(size_t i = start_q; i < size_q; i++) {
+			for(size_t i = 0; i < size_q; i++) {
 				float tmp;
 				cpu_halfp2singles(&tmp, h_q+i, 1, 16);
 				dm.model.q[i] = (dm.model.q[i] + tmp) / 2;
@@ -997,12 +1025,12 @@ void MFServer::ProcessPushHalfQShmAcopy(const ps::KVMeta& req_meta,
 		cpu_halfp2singles(&dm.model.p[worker_start_p], &h_p[worker_start_p], worker_size_p, 16);
 		if(received == 0) {
 //			memcpy(&dm.model.q[0], &req_data.vals[size_p], sizeof(float) * size_q);
-			cpu_halfp2singles(&dm.model.q[0]+start_q, h_q+start_q, size_q, 16);
+			cpu_halfp2singles(&dm.model.q[0], h_q, size_q, 16);
 		} else {
 #if defined(USE_AVX2) || defined(USE_AVX512)
-			halfp2singles_madd(&dm.model.q[0]+start_q, h_q+start_q, size_q, 16, 0.5);
+			halfp2singles_madd(&dm.model.q[0], h_q, size_q, 16, 0.5);
 #else
-			for(size_t i = start_q; i < size_q; i++) {
+			for(size_t i = 0; i < size_q; i++) {
 //				dm.model.q[i-size_p] = (dm.model.q[i-size_p] + req_data.vals[i]) / 2;
 				float tmp;
 				cpu_halfp2singles(&tmp, h_q+i, 1, 16);
@@ -1020,10 +1048,7 @@ void MFServer::ProcessPushHalfQShmAcopy(const ps::KVMeta& req_meta,
 	loss += req_data.vals.back();
 #endif
 
-	if(push_counts[rank] == num_streams) {
-		received++;
-		push_counts[rank] = 0;
-	}
+	received++;
 	
 	if(received == xpus) {
 //	  current_epoch++;
