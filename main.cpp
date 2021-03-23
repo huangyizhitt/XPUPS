@@ -58,12 +58,12 @@ int main(int argc, char **argv)
 		while(current_epoch < target_epoch) {
 //			printf("[Work %d]Begin epoch\n", worker->GetWorkerID());
 
-			printf("[Work %d]Pull success!\n", worker->GetWorkerID());
+//			printf("[Work %d]Pull success!\n", worker->GetWorkerID());
 #ifdef TEST
 			compute_start = cpu_second();
 #endif
 			worker->Computing();
-			printf("[Work %d]Compute success!\n", worker->GetWorkerID());
+//			printf("[Work %d]Compute success!\n", worker->GetWorkerID());
 #ifdef TEST
 			compute_elapse += cpu_second() - compute_start;
 
@@ -71,7 +71,7 @@ int main(int argc, char **argv)
 #endif
 
 			worker->Push();
-			printf("[Work %d]Push success!\n", worker->GetWorkerID());
+//			printf("[Work %d]Push success!\n", worker->GetWorkerID());
 #ifdef TEST                        
 			push_elapse += cpu_second() - push_start;
 #endif

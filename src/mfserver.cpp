@@ -1015,12 +1015,14 @@ void MFServer::ProcessPushHalfQShmAcopy(const ps::KVMeta& req_meta,
 
 	server->Response(req_meta, res);
 	
-	if(push_counts[rank] == num_streams) {
-		received++;
-		push_counts[rank] = 0;
+
 #ifdef CAL_PORTION_RMSE
 	loss += req_data.vals.back();
 #endif
+
+	if(push_counts[rank] == num_streams) {
+		received++;
+		push_counts[rank] = 0;
 	}
 	
 	if(received == xpus) {

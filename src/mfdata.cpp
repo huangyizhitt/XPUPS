@@ -579,10 +579,17 @@ void WorkerDM::GridQ(int rank, int nr_threads)
 		for(int block = 0; block < block_size; ++block)
 		{
 			std::sort(ptrs[block], ptrs[block+1], sort_node_by_q());
+			
 			infos[block].size_r = counts[block];
-                        infos[block].start_q = ptrs[block][0].col_index;
-                        infos[block].size_q = (ptrs[block][counts[block]-1].col_index - infos[block].start_q);
-                        printf("block: %d, start_r: %ld, size_r: %ld, start_q: %d, size_q: %d\n", block, infos[block].start_r, infos[block].size_r, infos[block].start_q, infos[block].size_q);
+		}        
+		
+		for(int block = 0; block < block_size; ++block) {
+			if(block > 0)
+				infos[block].start_q = std::min(infos[block-1].start_q+infos[block-1].size_q , ptrs[block][0].col_index);
+			else
+				infos[block].start_q = 0;
+			infos[block].size_q = (ptrs[block][counts[block]-1].col_index - infos[block].start_q);
+                        printf("block: %d, start_r: %lld, size_r: %lld, start_q: %d, size_q: %d\n", block, infos[block].start_r, infos[block].size_r, infos[block].start_q, infos[block].size_q);
 		}
 		
 		elapse = cpu_second() - start;
