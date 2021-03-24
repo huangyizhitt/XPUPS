@@ -79,7 +79,7 @@ void MFWorker::Init()
 		trans_mode = ALL;
 	}
 
-	if(trans_mode == HALFQ_SHM_ACOPY) {
+	if(trans_mode == HALFQ_SHM_ACOPY || trans_mode == HALFQ_SHM_ACOPY_EX) {
 		xpu->InitAcopy();
 		index.resize(xpu->num_streams);
 		for(int i = 0; i < xpu->num_streams; i++) {
@@ -97,7 +97,7 @@ void MFWorker::Init()
 
 void MFWorker::DeInit()
 {
-	if(trans_mode == HALFQ_SHM_ACOPY) {
+	if(trans_mode == HALFQ_SHM_ACOPY || trans_mode == HALFQ_SHM_ACOPY_EX) {
 		xpu->DeInitAcopy();
 	}
 	delete kv_xpu;
@@ -194,7 +194,7 @@ void MFWorker::PrepareCPUResources()
 	size_t size_p = m * k;
 	size_t size_q = n * k;
 
-	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode == HALFQ_SHM_EX) || (trans_mode == HALFQ_SHM_ACOPY)) {
+	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode >= HALFQ_SHM_EX && trans_mode <= HALFQ_SHM_ACOPY_EX)) {
 #ifdef CAL_PORTION_RMSE
 		feature = (float *)aligned_alloc(64, (size_p + size_q + 1) * sizeof(float));
 		PinnedBuf(feature, (size_p+size_q+1)*sizeof(float));
@@ -295,7 +295,7 @@ int MFWorker::PrepareShmbuf()
 		PinnedBuf(shm_buf, shm_size);
 	}
 
-	if(trans_mode == HALFQ_SHM_EX || trans_mode == HALFQ_SHM_ACOPY) {
+	if(trans_mode >= HALFQ_SHM_EX && trans_mode <= HALFQ_SHM_ACOPY_EX) {
 		key = ftok("/home", 9999);
 		if(key == -1) {
 	    	perror("ftok fail!\n");
@@ -349,7 +349,7 @@ void MFWorker::LinkShmbuf()
 
 void MFWorker::PrepareResources()
 {
-	if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM_ACOPY) {
+	if(trans_mode >= ALL_SHM && trans_mode < UNKONWN_MODE) {
 		CreateShmbuf();					//Share memory is create by worker
 		LinkShmbuf();					//push cmd to server to link the shmbuf; 
 	}
@@ -366,7 +366,7 @@ void MFWorker::PrepareResources()
 
 void MFWorker::ReleaseCPUResources()
 {
-	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode == HALFQ_SHM_EX) || (trans_mode == HALFQ_SHM_ACOPY)) {
+	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode >= HALFQ_SHM_EX && trans_mode <= HALFQ_SHM_ACOPY_EX)) {
 		UnpinnedBuf(feature);
 		free(feature);
 #ifdef CAL_PORTION_RMSE
@@ -422,7 +422,7 @@ void MFWorker::PreProcess()
 		GridProblemFromWorkers();
 		CreateWorkers(fpsgd_kernel);
 	} else if(xpu->xpu_type == XPU_TYPE::GPU) {
-		if(trans_mode == HALFQ_SHM_ACOPY) {
+		if(trans_mode == HALFQ_SHM_ACOPY || trans_mode == HALFQ_SHM_ACOPY_EX) {
 			GridProblemFromStreams(xpu->num_streams);
 		} 
 		PullGPUData();
@@ -578,7 +578,7 @@ void MFWorker::PullHalfQShmAcopy(int stream)
 	std::vector<ps::Key> keys;
 	std::vector<float> vals;
 	std::vector<int> lens;
-	CMD cmd = PULL_HALF_FEATURE_SHM_ACOPY;
+	CMD cmd = PULL_HALF_FEATURE_SHM_ACOPY_EX;
 
 	int id = index[stream];
 	int start_q = dm.infos[id].start_q;
@@ -635,7 +635,7 @@ void MFWorker::PushHalfQShmAcopy(int stream)
     std::vector<ps::Key> keys;
     std::vector<float> vals;
     std::vector<int> lens;
-    CMD cmd = PUSH_HALF_FEATURE_SHM_ACOPY;
+    CMD cmd = PUSH_HALF_FEATURE_SHM_ACOPY_EX;
 
     push_counts++;
 
@@ -1052,6 +1052,21 @@ void MFWorker::Pull()
 			PullHalfQShmAcopy();
 			break;
 
+		case HALFQ_SHM_ACOPY_EX:
+			random_shuffle(index.begin(), index.end());
+			if(xpu->current_epoch == 0)
+				PullHalfQShmAcopy();
+			else {
+				xpu->current_epoch++;
+#if defined USEOMP
+#pragma omp parallel for schedule(static) num_threads(xpu->num_streams)
+#endif
+				for(int stream = 0; stream < xpu->num_streams; stream++) {
+					PullHalfQShmAcopy(stream);
+				}				
+			}
+			break;
+
 		default:
 			printf("Unkown trans_mode, exit!\n");
 			exit(-1);
@@ -1093,6 +1108,15 @@ void MFWorker::Push()
 			PushHalfQShmAcopy();
 			break;
 
+		case HALFQ_SHM_ACOPY_EX:
+#if defined USEOMP
+#pragma omp parallel for schedule(static) num_threads(xpu->num_streams)
+#endif
+			for(int stream = 0; stream < xpu->num_streams; stream++) {
+				PushHalfQShmAcopy(stream);
+			}
+			break;
+
 		default:
 			printf("Unkown trans_mode, exit!\n");
 			exit(-1);
@@ -1125,7 +1149,7 @@ void MFWorker::CreateWorkers(pFunc func)
 			xpu->CreateTasks(i, func, &args[i]);
 		}
 	}else if(xpu->xpu_type == XPU_TYPE::GPU) {
-		if(trans_mode != HALFQ_SHM_ACOPY) {
+		if(trans_mode != HALFQ_SHM_ACOPY && trans_mode != HALFQ_SHM_ACOPY_EX) {
 			args.resize(1);
 			args[0].lambda_p = lambda_p;
 			args[0].lambda_q = lambda_q;
@@ -1174,7 +1198,7 @@ void MFWorker::CreateWorkers(pFunc func)
 
 void MFWorker::Computing()
 {
-	if(trans_mode != HALFQ_SHM_ACOPY) {
+	if(trans_mode != HALFQ_SHM_ACOPY && trans_mode != HALFQ_SHM_ACOPY_EX) {
 		xpu->RunTask(0);
 		if(xpu->xpu_type == XPU_TYPE::CPU)
 			dm.ClearBlockFlags();

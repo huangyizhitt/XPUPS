@@ -14,7 +14,7 @@ void MFWorker::PrepareGPUResources()
 	loss_size = 32 * workers;
 	cudaMalloc(&feature, (size_p + size_q + 1) * sizeof(float));
 
-	if(trans_mode != HALFQ_SHM_ACOPY) {
+	if(trans_mode != HALFQ_SHM_ACOPY && trans_mode != HALFQ_SHM_ACOPY_EX) {
 		cudaMallocHost(&loss, sizeof(float) * loss_size);
 		cudaMalloc(&gpu_loss, sizeof(float) * loss_size);
 	} else {

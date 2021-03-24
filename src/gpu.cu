@@ -36,7 +36,7 @@ void GPU::InitAcopy()
 	if(val != NULL)
 		this->num_streams = std::atoi(val);
 	else
-		this->num_streams = 24;
+		this->num_streams = 4;
 
 	global::streams.resize(this->num_streams);
 	for(int stream = 0; stream < this->num_streams; stream++) {
