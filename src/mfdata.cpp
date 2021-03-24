@@ -295,7 +295,6 @@ void DataManager::InitModel()
                     			feature[i * k + j] = (float)(distribution(generator)*s);
 			} else {
                 		for(size_t j = 0; j < k; j++)
-                    		//	feature[i * k + j] = std::numeric_limits<float>::quiet_NaN();
 					feature[i * k + j] = 0;
             		}
         	}
@@ -336,7 +335,6 @@ void DataManager::InitModelShm(void *shm_buf)
                     			feature[i * k + j] = (float)(distribution(generator)*s);
 			} else {
                 		for(size_t j = 0; j < k; j++)
-                    		//	feature[i * k + j] = std::numeric_limits<float>::quiet_NaN();
 					feature[i * k + j] = 0;
             		}
         	}

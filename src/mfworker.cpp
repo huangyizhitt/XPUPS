@@ -194,12 +194,15 @@ void MFWorker::PrepareCPUResources()
 	size_t size_p = m * k;
 	size_t size_q = n * k;
 
+#ifdef CAL_PORTION_RMSE
+	loss_size = workers;
+        loss = (float *)malloc(sizeof(float) * loss_size);
+#endif
+
 	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode >= HALFQ_SHM_EX && trans_mode <= HALFQ_SHM_ACOPY_EX)) {
 #ifdef CAL_PORTION_RMSE
 		feature = (float *)aligned_alloc(64, (size_p + size_q + 1) * sizeof(float));
 		PinnedBuf(feature, (size_p+size_q+1)*sizeof(float));
-		loss_size = workers;
-                loss = (float *)malloc(sizeof(float) * loss_size);
 #else
 		feature = (float *)aligned_alloc(64, (size_p + size_q) * sizeof(float));
 		PinnedBuf(feature, (size_p+size_q)*sizeof(float));
@@ -369,10 +372,11 @@ void MFWorker::ReleaseCPUResources()
 	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode >= HALFQ_SHM_EX && trans_mode <= HALFQ_SHM_ACOPY_EX)) {
 		UnpinnedBuf(feature);
 		free(feature);
+	}
+
 #ifdef CAL_PORTION_RMSE
 		free(loss);
 #endif
-	}
 }
 
 void MFWorker::ReleaseResources()
@@ -1199,7 +1203,7 @@ void MFWorker::CreateWorkers(pFunc func)
 void MFWorker::Computing()
 {
 	if(trans_mode != HALFQ_SHM_ACOPY && trans_mode != HALFQ_SHM_ACOPY_EX) {
-		xpu->RunTask(0);
+		xpu->RunTasks();
 		if(xpu->xpu_type == XPU_TYPE::CPU)
 			dm.ClearBlockFlags();
 	} else {
