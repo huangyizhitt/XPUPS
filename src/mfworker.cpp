@@ -90,6 +90,11 @@ void MFWorker::Init()
 			}
 		}
 	}
+
+	//numa_node == server numa node
+	if((numa_node == 0) && (trans_mode >= HALFQ_SHM_EX && trans_mode <= HALFQ_SHM_ACOPY_EX)) {
+		is_special = true;
+	}
 	
 	push_counts = 0;	
 	workers = xpu->workers;
@@ -203,7 +208,7 @@ void MFWorker::PrepareCPUResources()
         loss = (float *)malloc(sizeof(float) * loss_size);
 #endif
 
-	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode >= HALFQ_SHM_EX && trans_mode <= HALFQ_SHM_ACOPY_EX)) {
+	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode >= HALFQ_SHM_EX && trans_mode <= HALFQ_SHM_ACOPY_EX && !is_special)) {
 #ifdef CAL_PORTION_RMSE
 		feature = (float *)aligned_alloc(64, (size_p + size_q + 1) * sizeof(float));
 		PinnedBuf(feature, (size_p+size_q+1)*sizeof(float));
@@ -211,6 +216,9 @@ void MFWorker::PrepareCPUResources()
 		feature = (float *)aligned_alloc(64, (size_p + size_q) * sizeof(float));
 		PinnedBuf(feature, (size_p+size_q)*sizeof(float));
 #endif
+	} else if(is_special) { 
+		LinkSpecialbuf();
+		feature = (float *)special_buf;
 	} else {
 		feature = (float *)shm_buf;
 		printf("share memory feature: %p\n", feature);
@@ -254,7 +262,7 @@ void MFWorker::DestroyShmbuf()
 //Pull buf is a share memory create by server, this function will link the shm;
 int MFWorker::LinkPullbuf()
 {
-	int key = key = ftok("/home", server_rank);
+	int key = ftok("/home", server_rank);
 	if(key == -1) {
     	perror("ftok fail!\n");
     	return -1;
@@ -277,6 +285,34 @@ int MFWorker::LinkPullbuf()
 	PinnedBuf(pull_buf, shm_size);
 	return 0;
 }
+
+//Special buf is a share memory create by server, this function will link the shm;
+int MFWorker::LinkSpecialbuf()
+{
+	int key = ftok("/tmp", server_rank);
+	if(key == -1) {
+    	perror("[%s] ftok fail!\n", __FUNCTION__);
+    	return -1;
+	}
+
+	size_t shm_size = sizeof(float)*(m * k + n * k);
+	int shmid = shmget(key, shm_size, IPC_CREAT | 0777);
+
+	shmid = shmget(key, shm_size, IPC_CREAT | 0777);
+	if(shmid == -1) {
+		perror("[%s] Worker pull_shmid shmget fail!\n", __FUNCTION__);
+		return -1;
+	}
+
+	special_buf = (unsigned char *)shmat(shmid, NULL, 0);
+	if(!special_buf) {
+		perror("[%s] Worker pull_buf create fail!\n", __FUNCTION__);
+		return -1;
+	}
+	PinnedBuf(special_buf, shm_size);
+	return 0;
+}
+
 
 int MFWorker::PrepareShmbuf()
 {
@@ -1024,110 +1060,153 @@ void MFWorker::PushHalfQShmEX()
         kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 }
 
+
+void MFWorker::SpecialPull()
+{
+	std::vector<ps::Key> keys;
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = SPECIAL_PULL;
+
+	xpu->current_epoch++;
+
+	keys.push_back(rank);
+	kv_xpu->Wait(kv_xpu->Pull(keys, &vals, &lens, cmd));
+}
+
+void MFWorker::SpecialPush()
+{
+	std::vector<ps::Key> keys;
+    std::vector<float> vals;
+    std::vector<int> lens;
+    CMD cmd = SPECIAL_PUSH;
+
+	keys.push_back(rank);
+    vals.push_back(0);
+    lens.push_back(1); 
+
+#ifdef CAL_PORTION_RMSE
+	keys.push_back(rank+1);
+	lens.push_back(1);
+	vals.push_back(std::accumulate(loss, loss+loss_size, 0.0));
+#endif
+
+	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
+}
+
+
 void MFWorker::Pull()
 {
-	switch(trans_mode) {
-		case ALL: 
-			PullAll();
-			break;
+	if(is_special) {
+		SpecialPull();
+	} else {	
+		switch(trans_mode) {
+			case ALL: 
+				PullAll();
+				break;
 
-		case Q:
-			PullQ();
-			break;
+			case Q:
+				PullQ();
+				break;
 
-		case HALFQ:
-			PullHalfQ();
-			break;
+			case HALFQ:
+				PullHalfQ();
+				break;
 
-		case ALL_SHM:
-			PullAllShm();
-			break;
+			case ALL_SHM:
+				PullAllShm();
+				break;
 
-		case Q_SHM:
-			PullQShm();
-			break;
+			case Q_SHM:
+				PullQShm();
+				break;
 
-		case HALFQ_SHM:
-			PullHalfQShm();
-			break;
+			case HALFQ_SHM:
+				PullHalfQShm();
+				break;
 
-		case HALFQ_SHM_EX:
-			PullHalfQShmEX();
-			break;
+			case HALFQ_SHM_EX:
+				PullHalfQShmEX();
+				break;
 
-		case HALFQ_SHM_ACOPY:
-			random_shuffle(index.begin(), index.end());
-			PullHalfQShmAcopy();
-			break;
-
-		case HALFQ_SHM_ACOPY_EX:
-			random_shuffle(index.begin(), index.end());
-			if(xpu->current_epoch == 0)
+			case HALFQ_SHM_ACOPY:
+				random_shuffle(index.begin(), index.end());
 				PullHalfQShmAcopy();
-			else {
-				xpu->current_epoch++;
+				break;
+
+			case HALFQ_SHM_ACOPY_EX:
+				random_shuffle(index.begin(), index.end());
+				if(xpu->current_epoch == 0)
+					PullHalfQShmAcopy();
+				else {
+					xpu->current_epoch++;
 #if defined USEOMP
 #pragma omp parallel for schedule(static) num_threads(xpu->num_streams)
 #endif
-				for(int stream = 0; stream < xpu->num_streams; stream++) {
-					PullHalfQShmAcopy(stream);
-				}				
-			}
-			break;
+					for(int stream = 0; stream < xpu->num_streams; stream++) {
+						PullHalfQShmAcopy(stream);
+					}				
+				}
+				break;
 
-		default:
-			printf("Unkown trans_mode, exit!\n");
-			exit(-1);
+			default:
+				printf("Unkown trans_mode, exit!\n");
+				exit(-1);
+		}
 	}
 }
 
 void MFWorker::Push()
 {
-	switch(trans_mode) {
-		case ALL: 
-			PushAll();
-			break;
+	if(is_special) {
+		SpecialPush();
+	} else {
+		switch(trans_mode) {
+			case ALL: 
+				PushAll();
+				break;
 
-		case Q:
-			PushQ();
-			break;
+			case Q:
+				PushQ();
+				break;
 
-		case HALFQ:
-			PushHalfQ();
-			break;
-		
-		case ALL_SHM:
-			PushAllShm();
-			break;
+			case HALFQ:
+				PushHalfQ();
+				break;
+			
+			case ALL_SHM:
+				PushAllShm();
+				break;
 
-		case Q_SHM:
-			PushQShm();
-			break;
+			case Q_SHM:
+				PushQShm();
+				break;
 
-		case HALFQ_SHM:
-			PushHalfQShm();
-			break;
+			case HALFQ_SHM:
+				PushHalfQShm();
+				break;
 
-		case HALFQ_SHM_EX:
-			PushHalfQShmEX();
-			break;
+			case HALFQ_SHM_EX:
+				PushHalfQShmEX();
+				break;
 
-		case HALFQ_SHM_ACOPY:
-			PushHalfQShmAcopy();
-			break;
+			case HALFQ_SHM_ACOPY:
+				PushHalfQShmAcopy();
+				break;
 
-		case HALFQ_SHM_ACOPY_EX:
+			case HALFQ_SHM_ACOPY_EX:
 #if defined USEOMP
 #pragma omp parallel for schedule(static) num_threads(xpu->num_streams)
 #endif
-			for(int stream = 0; stream < xpu->num_streams; stream++) {
-				PushHalfQShmAcopy(stream);
-			}
-			break;
+				for(int stream = 0; stream < xpu->num_streams; stream++) {
+					PushHalfQShmAcopy(stream);
+				}
+				break;
 
-		default:
-			printf("Unkown trans_mode, exit!\n");
-			exit(-1);
+			default:
+				printf("Unkown trans_mode, exit!\n");
+				exit(-1);
+		}
 	}
 }
 

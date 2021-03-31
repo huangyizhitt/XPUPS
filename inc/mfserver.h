@@ -32,7 +32,7 @@ public:
 		}
 #endif
 		if(trans_mode >= ALL_SHM && trans_mode < UNKONWN_MODE) {
-		       	DestroyShmbuf();
+		       	DestroyPullbuf();
 		}	
 		
 		delete server_xpu;
@@ -129,14 +129,24 @@ private:
                                   const ps::KVPairs<float>& req_data,
                                   ps::KVServer<float>* server);
 
+	void ProcessSpecialPull(const ps::KVMeta& req_meta,
+                                  const ps::KVPairs<float>& req_data,
+                                  ps::KVServer<float>* server);
+
+	void ProcessSpecialPush(const ps::KVMeta& req_meta,
+                                  const ps::KVPairs<float>& req_data,
+                                  ps::KVServer<float>* server);
+
 	void ProcessLinkShm(const ps::KVMeta& req_meta,
 					  const ps::KVPairs<float>& req_data,
 					  ps::KVServer<float>* server);
 
 	void SetCurServer();
 	void PrepareData();
-	int CreateShmbuf();
-	void DestroyShmbuf();
+	int CreatePullbuf();
+	void DestroyPullbuf();
+	int CreateSpecialbuf();
+	void DestroySpecialbuf();
 	int PrepareShmbuf();
 	int LinkShmbuf(int worker_rank);
 
@@ -164,10 +174,12 @@ private:
 	int pull_count;
 	
 	int pull_shmid;
+	int special_shmid;
 	int my_rank;
 	TransMode trans_mode;
 
 	unsigned char *pull_buf;
+	unsigned char *special_buf;
 
 #ifdef CAL_PORTION_RMSE	
 	bool need_record = false;

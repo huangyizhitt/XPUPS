@@ -195,6 +195,14 @@ void MFServer::ProcessHandle(const ps::KVMeta& req_meta,
                         cur_server->ProcessPushHalfQShmAcopyEX(req_meta, req_data, server);
                         break;
 
+		case SPECIAL_PULL:
+			cur_server->ProcessSpecialPull(req_meta, req_data, server);
+			break;
+
+		case SPECIAL_PUSH:
+			cur_server->ProcessSpecialPush(req_meta, req_data, server);
+			break;
+
 		case LINK_SHM:
 			cur_server->ProcessLinkShm(req_meta, req_data, server);
 			break;
@@ -269,11 +277,17 @@ void MFServer::PrepareData()
 		dm.GridData(prepare_data_threads);
 
 		if(trans_mode >= ALL_SHM && trans_mode < UNKONWN_MODE) {
-			CreateShmbuf();
+			CreatePullbuf();
+		}
+
+		if(trans_mode >= HALFQ_SHM_EX && trans_mode < UNKONWN_MODE) {
+			CreateSpecialbuf();
 		}
 
 		if(trans_mode >= ALL_SHM && trans_mode <= HALFQ_SHM) {
 			dm.InitModelShm(pull_buf);
+		} else if(trans_mode >= HALFQ_SHM_EX && trans_mode < UNKONWN_MODE) {
+			dm.InitModelShm(special_buf);
 		} else {
 			dm.InitModel();
 		}
@@ -281,7 +295,7 @@ void MFServer::PrepareData()
 	}
 }
 
-int MFServer::CreateShmbuf()
+int MFServer::CreatePullbuf()
 {
 	size_t size = (size_t)sizeof(float)*(dm.rows * dm.k + dm.cols * dm.k);
 	int key;
@@ -307,6 +321,34 @@ int MFServer::CreateShmbuf()
 	PinnedBuf(pull_buf, size);
 	return 0;
 }
+
+int MFServer::CreateSpecialbuf()
+{
+	size_t size = (size_t)sizeof(float)*(dm.rows * dm.k + dm.cols * dm.k);
+	int key;
+
+	key = ftok("/tmp", my_rank);
+	if(key == -1) {
+    	perror("[%s] ftok fail!\n", __FUNCTION__);
+    	return -1;
+	}
+	
+	special_shmid = shmget(key, size, IPC_CREAT | 0777);
+		if(special_shmid == -1) {
+			perror("[%s] Server pull_shmid shmget fail!\n", __FUNCTION__);
+			return -1;
+	}
+
+	special_buf = (unsigned char *)shmat(special_shmid, NULL, 0);
+	if(!special_buf) {
+		perror("[%s] Server create pull buf fail!\n", __FUNCTION__);
+		return -1;
+	}
+
+	PinnedBuf(special_buf, size);
+	return 0;
+}
+
 
 int MFServer::LinkShmbuf(int worker_rank)
 {
@@ -339,11 +381,18 @@ int MFServer::LinkShmbuf(int worker_rank)
 	return 0;
 }
 
-void MFServer::DestroyShmbuf()
+void MFServer::DestroyPullbuf()
 {
 	UnpinnedBuf(pull_buf);
 	shmdt((pull_buf));
 	shmctl(pull_shmid, IPC_RMID, NULL);
+}
+
+VOID MFServer::DestroySpecialbuf()
+{
+	UnpinnedBuf(special_buf);
+	shmdt((special_buf));
+	shmctl(special_shmid, IPC_RMID, NULL);
 }
 
 int MFServer::PrepareShmbuf()
@@ -1052,6 +1101,73 @@ void MFServer::ProcessPushHalfQShmAcopyEX(const ps::KVMeta& req_meta,
                 xpu->current_epoch++;
                 received = 0;
         }
+}
+
+void MFServer::ProcessSpecialPull(const ps::KVMeta& req_meta,
+								const ps::KVPairs<float>& req_data,
+								ps::KVServer<float>* server)
+{
+	float *src;
+	size_t size_p = dm.rows * dm.k;
+	size_t size_q = dm.cols * dm.k;
+	size_t size;
+	
+	pull_count++;
+
+	if(xpu->current_epoch != 1) {
+                size = size_q;
+                src = &dm.model.q[0];
+    } else {
+                size = size_p + size_q;
+                src = &dm.model.p[0];
+    }
+
+	if(pull_count == 1) {
+		uint16_t *_buf = (uint16_t *)pull_buf;
+		cpu_singles2halfp(_buf, src, size_q, FE_TONEAREST, 0, 16);
+	}
+
+
+	if(pull_count == xpus) {
+        	pull_count = 0;
+    }
+
+	ps::KVPairs<float> res;
+	server->Response(req_meta, res);
+}
+
+void MFServer::ProcessSpecialPush(const ps::KVMeta& req_meta,
+								  const ps::KVPairs<float>& req_data,
+								  ps::KVServer<float>* server)
+{
+	ps::KVPairs<float> res;	
+	server->Response(req_meta, res);
+	
+#ifdef CAL_PORTION_RMSE
+	loss += req_data.vals.back();
+#endif
+
+	received++;
+	if(received == xpus) {
+//	  current_epoch++;
+
+#ifdef CAL_PORTION_RMSE
+		elapse = cpu_second() - start;	
+		loss = std::sqrt(loss / dm.nnz)*dm.scale;
+		record.emplace_back(loss, elapse);
+		printf("Epoch %d loss %.4f\n", xpu->current_epoch, loss);
+		loss = 0;
+#endif
+
+#ifdef CAL_RMSE
+		if(xpu->current_epoch < xpu->target_epoch)
+			printf("Epoch %d\n",  xpu->current_epoch);
+		else
+			printf("Epoch %d global loss %.4f\n",  xpu->current_epoch, calc_rmse(dm.data.r_matrix, dm.model)*dm.scale);		  
+#endif
+		xpu->current_epoch++;
+		received = 0;
+	}	
 }
 
 void MFServer::ProcessPullHalfQShmAcopy(const ps::KVMeta& req_meta,

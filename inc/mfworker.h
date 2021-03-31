@@ -64,6 +64,8 @@ private:
 	void PullHalfQShmAcopy();
         void PushHalfQShmAcopy();
 	void PushXPUInfo();
+	void SpecialPull();
+	void SpecialPush();
 	
 	void PullGPUData();
 	void PinnedBuf(void* buf, size_t size);
@@ -71,6 +73,7 @@ private:
 	int CreateShmbuf();
 	int LinkPullbuf();
 	void LinkShmbuf();
+	int LinkSpecialbuf();
 	void DestroyShmbuf();
 /*
 public:
@@ -101,13 +104,15 @@ private:
 	float lambda_p;
 	float lambda_q;
 	float lrate;
-	
+	bool is_special = false;
+
 	float *p;
 	float *q;
 	float *feature;
 	MatrixNode *gpuR;
 	unsigned char *shm_buf;
 	unsigned char *pull_buf;
+	unsigned char *special_buf;
 
 	XPU *xpu;
 	WorkerDM dm;
