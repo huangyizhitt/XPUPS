@@ -34,7 +34,10 @@ public:
 		if(trans_mode >= ALL_SHM && trans_mode < UNKONWN_MODE) {
 		       	DestroyPullbuf();
 		}	
-		
+
+		if(trans_mode >= HALFQ_SHM_EX && trans_mode < UNKONWN_MODE) {
+			DestroySpecialbuf();
+		}		
 		delete server_xpu;
 	}
 	

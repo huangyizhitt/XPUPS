@@ -92,8 +92,14 @@ void MFWorker::Init()
 	}
 
 	//numa_node == server numa node
-	if((numa_node == 0) && (trans_mode >= HALFQ_SHM_EX && trans_mode <= HALFQ_SHM_ACOPY_EX)) {
-		is_special = true;
+	val = Environment::Get()->find("SPECIAL");
+	if(val != NULL) {
+                is_special = static_cast<TransMode>(std::atoi(val));
+        } else {
+                is_special = false;
+        }
+	if((numa_node != 0) || !(trans_mode >= HALFQ_SHM_EX && trans_mode <= HALFQ_SHM_ACOPY_EX)) {
+		is_special = false;
 	}
 	
 	push_counts = 0;	
@@ -291,8 +297,8 @@ int MFWorker::LinkSpecialbuf()
 {
 	int key = ftok("/tmp", server_rank);
 	if(key == -1) {
-    	perror("[%s] ftok fail!\n", __FUNCTION__);
-    	return -1;
+    		printf("[%s] ftok fail!\n", __FUNCTION__);
+    		return -1;
 	}
 
 	size_t shm_size = sizeof(float)*(m * k + n * k);
@@ -300,13 +306,13 @@ int MFWorker::LinkSpecialbuf()
 
 	shmid = shmget(key, shm_size, IPC_CREAT | 0777);
 	if(shmid == -1) {
-		perror("[%s] Worker pull_shmid shmget fail!\n", __FUNCTION__);
+		printf("[%s] Worker pull_shmid shmget fail!\n", __FUNCTION__);
 		return -1;
 	}
 
 	special_buf = (unsigned char *)shmat(shmid, NULL, 0);
 	if(!special_buf) {
-		perror("[%s] Worker pull_buf create fail!\n", __FUNCTION__);
+		printf("[%s] Worker pull_buf create fail!\n", __FUNCTION__);
 		return -1;
 	}
 	PinnedBuf(special_buf, shm_size);
@@ -409,9 +415,13 @@ void MFWorker::PrepareResources()
 
 void MFWorker::ReleaseCPUResources()
 {
-	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode >= HALFQ_SHM_EX && trans_mode <= HALFQ_SHM_ACOPY_EX)) {
+	if((trans_mode >= ALL && trans_mode <= HALFQ) || (trans_mode >= HALFQ_SHM_EX && trans_mode <= HALFQ_SHM_ACOPY_EX && !is_special)) {
 		UnpinnedBuf(feature);
 		free(feature);
+	}
+
+	if(is_special) {
+		UnpinnedBuf(special_buf);
 	}
 
 #ifdef CAL_PORTION_RMSE

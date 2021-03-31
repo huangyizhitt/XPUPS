@@ -329,19 +329,19 @@ int MFServer::CreateSpecialbuf()
 
 	key = ftok("/tmp", my_rank);
 	if(key == -1) {
-    	perror("[%s] ftok fail!\n", __FUNCTION__);
+    	printf("[%s] ftok fail!\n", __FUNCTION__);
     	return -1;
 	}
 	
 	special_shmid = shmget(key, size, IPC_CREAT | 0777);
 		if(special_shmid == -1) {
-			perror("[%s] Server pull_shmid shmget fail!\n", __FUNCTION__);
+			printf("[%s] Server pull_shmid shmget fail!\n", __FUNCTION__);
 			return -1;
 	}
 
 	special_buf = (unsigned char *)shmat(special_shmid, NULL, 0);
 	if(!special_buf) {
-		perror("[%s] Server create pull buf fail!\n", __FUNCTION__);
+		printf("[%s] Server create pull buf fail!\n", __FUNCTION__);
 		return -1;
 	}
 
@@ -388,7 +388,7 @@ void MFServer::DestroyPullbuf()
 	shmctl(pull_shmid, IPC_RMID, NULL);
 }
 
-VOID MFServer::DestroySpecialbuf()
+void MFServer::DestroySpecialbuf()
 {
 	UnpinnedBuf(special_buf);
 	shmdt((special_buf));
@@ -1111,9 +1111,10 @@ void MFServer::ProcessSpecialPull(const ps::KVMeta& req_meta,
 	size_t size_p = dm.rows * dm.k;
 	size_t size_q = dm.cols * dm.k;
 	size_t size;
-	
-	pull_count++;
+	size_t keys_size = req_data.keys.size();
 
+	pull_count++;
+	
 	if(xpu->current_epoch != 1) {
                 size = size_q;
                 src = &dm.model.q[0];
@@ -1133,6 +1134,11 @@ void MFServer::ProcessSpecialPull(const ps::KVMeta& req_meta,
     }
 
 	ps::KVPairs<float> res;
+	res.keys = req_data.keys;
+        int rank = req_data.keys[0];
+        res.lens.resize(keys_size);
+        res.vals.resize(1);
+
 	server->Response(req_meta, res);
 }
 
@@ -1146,7 +1152,6 @@ void MFServer::ProcessSpecialPush(const ps::KVMeta& req_meta,
 #ifdef CAL_PORTION_RMSE
 	loss += req_data.vals.back();
 #endif
-
 	received++;
 	if(received == xpus) {
 //	  current_epoch++;
