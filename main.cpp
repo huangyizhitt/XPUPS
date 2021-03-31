@@ -95,7 +95,7 @@ int main(int argc, char **argv)
 		elapse = cpu_second() - start;
 		if(record) {
 			std::ofstream out(argv[1], std::ios_base::out | std::ios_base::app);
-			out << worker->GetWorkerID() << "," << pull_elapse << "," << compute_elapse << "," << push_elapse << "," << elapse << std::endl;
+			out << worker->GetWorkerName() << "," << pull_elapse << "," << compute_elapse << "," << push_elapse << "," << elapse << std::endl;
 			out.close();
 		}
 //		printf("[Worker %d] 20 epoch cost time: %.3f\n", worker->GetWorkerID(), elapse);

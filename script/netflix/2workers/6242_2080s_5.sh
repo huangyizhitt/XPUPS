@@ -40,7 +40,7 @@ export XPU_TYPE='CPU'
 export XPU_MAX_CORES=32
 export XPU_WORKERS=24
 export NUMA_NODE=1
-export WORK_LOAD=19
+export WORK_LOAD=25
 ${bin} ${arg} &
 
 export DMLC_ROLE='worker'
@@ -48,10 +48,10 @@ export HEAPPROFILE=./W${i}
 export XPU_NAME='GeForce RTX 2080s'
 export XPU_TYPE='GPU'
 export XPU_MAX_CORES=32
-export XPU_WORKERS=43008
+export XPU_WORKERS=1344
 export NUMA_NODE=0
 export DEVICE_ID=0
-export WORK_LOAD=55
+export WORK_LOAD=75
 ${bin} ${arg} &
 
 wait

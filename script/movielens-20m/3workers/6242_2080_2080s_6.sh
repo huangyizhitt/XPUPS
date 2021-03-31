@@ -20,7 +20,7 @@ ${bin} ${arg} &
 
 export EPOCH='20'
 export TRANSMODE=6
-export DATA_PATH="yahoo_music.bin"
+export DATA_PATH="movielens-20m.bin"
 # start servers
 export DMLC_ROLE='server'
 i=0
@@ -41,28 +41,28 @@ export XPU_TYPE='CPU'
 export XPU_MAX_CORES=32
 export XPU_WORKERS=24
 export NUMA_NODE=${i}
-export WORK_LOAD=418
+export WORK_LOAD=12
 ${bin} ${arg} &
 
 export DMLC_ROLE='worker'
 export HEAPPROFILE=./W${i}
 export XPU_NAME='GeForce RTX 2080'
 export XPU_TYPE='GPU'
-export XPU_MAX_CORES=32
+export XPU_MAX_CORES=6
 export XPU_WORKERS=1288
 export NUMA_NODE=0
 export DEVICE_ID=1
-export WORK_LOAD=1045
+export WORK_LOAD=42
 ${bin} ${arg} &
 
 export DMLC_ROLE='worker'
 export HEAPPROFILE=./W${i}
 export XPU_NAME='GeForce RTX 2080s'
 export XPU_TYPE='GPU'
-export XPU_MAX_CORES=32
+export XPU_MAX_CORES=6
 export XPU_WORKERS=1344
 export NUMA_NODE=0
 export DEVICE_ID=0
-export WORK_LOAD=1210
+export WORK_LOAD=46
 ${bin} ${arg} &
 wait

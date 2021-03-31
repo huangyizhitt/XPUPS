@@ -80,10 +80,14 @@ void MFWorker::Init()
 	}
 
 	if(trans_mode == HALFQ_SHM_ACOPY || trans_mode == HALFQ_SHM_ACOPY_EX) {
-		xpu->InitAcopy();
-		index.resize(xpu->num_streams);
-		for(int i = 0; i < xpu->num_streams; i++) {
-			index[i] = i;
+		if(xpu->xpu_type == XPU_TYPE::CPU) {
+			trans_mode = HALFQ_SHM_EX;
+		} else {
+			xpu->InitAcopy();
+			index.resize(xpu->num_streams);
+			for(int i = 0; i < xpu->num_streams; i++) {
+				index[i] = i;
+			}
 		}
 	}
 	

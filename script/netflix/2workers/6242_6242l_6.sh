@@ -34,7 +34,7 @@ ${bin} ${arg} &
 #this worker share the CPU with ps
 export DMLC_ROLE='worker'
 export HEAPPROFILE=./S${i}
-export XPU_NAME='Gold 6242'
+export XPU_NAME='Gold 6242-10 threads'
 export XPU_TYPE='CPU'
 export XPU_MAX_CORES=10
 export XPU_WORKERS=10

@@ -40,7 +40,7 @@ export XPU_TYPE='CPU'
 export XPU_MAX_CORES=10
 export XPU_WORKERS=10
 export NUMA_NODE=0
-export WORK_LOAD=55
+export WORK_LOAD=45
 ${bin} ${arg} &
 
 
@@ -51,9 +51,9 @@ export HEAPPROFILE=./W${i}
 export XPU_NAME='Gold 6242'
 export XPU_TYPE='CPU'
 export XPU_MAX_CORES=32
-export XPU_WORKERS=24
+export XPU_WORKERS=16
 export NUMA_NODE=${i}
-export WORK_LOAD=78
+export WORK_LOAD=55
 ${bin} ${arg} &
 
 wait

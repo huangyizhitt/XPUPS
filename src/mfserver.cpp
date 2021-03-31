@@ -1498,10 +1498,10 @@ void MFServer::RecordLoss()
 	const char *record_file;
 	switch(trans_mode) {
 		case ALL_SHM:
-			record_file = "log/record-all.csv";
+			record_file = "log/record-allshm.csv";
 			break;
 		case Q_SHM:
-			record_file = "log/record-halfq.csv";
+			record_file = "log/record-qshm.csv";
 			break;
 		case HALFQ_SHM:
 			record_file = "log/record-halfqshm.csv";
@@ -1522,7 +1522,7 @@ void MFServer::RecordLoss()
 			record_file = "log/unknown";
 			break;
 	}
-	std::ofstream fout(record_file, std::ios_base::out | std::ios_base::app);
+	std::ofstream fout(record_file, std::ios_base::out);
 	for(int i = 0; i < record.size(); i++) {
 		fout << i << "," << record[i].loss << "," << record[i].cur_time << std::endl;
 	}

@@ -41,7 +41,7 @@ export XPU_WORKERS=1344
 export NUMA_NODE=0
 export DEVICE_ID=0
 #export WORK_LOAD=1210
-export WORK_LOAD=457
+export WORK_LOAD=46
 ${bin} ${arg} &
 
 export DMLC_ROLE='worker'
@@ -52,7 +52,7 @@ export XPU_MAX_CORES=32
 export XPU_WORKERS=24
 export NUMA_NODE=1
 #export WORK_LOAD=418
-export WORK_LOAD=153
+export WORK_LOAD=15
 ${bin} ${arg} &
 
 export DMLC_ROLE='worker'
@@ -64,7 +64,7 @@ export XPU_WORKERS=1288
 export NUMA_NODE=0
 export DEVICE_ID=1
 #export WORK_LOAD=1045
-export WORK_LOAD=390
+export WORK_LOAD=39
 ${bin} ${arg} &
 
 wait

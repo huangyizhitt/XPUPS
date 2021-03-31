@@ -20,7 +20,7 @@ ${bin} ${arg} &
 
 export EPOCH='20'
 export TRANSMODE=6
-export DATA_PATH="yahoo_music.bin"
+export DATA_PATH="movielens-20m.bin"
 # start servers
 export DMLC_ROLE='server'
 i=0
@@ -52,7 +52,7 @@ export XPU_MAX_CORES=2944
 export XPU_WORKERS=2576
 export NUMA_NODE=0
 export DEVICE_ID=1
-export WORK_LOAD=55
+export WORK_LOAD=78
 ${bin} ${arg} &
 
 wait

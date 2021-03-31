@@ -20,7 +20,7 @@ ${bin} ${arg} &
 
 export EPOCH='20'
 export TRANSMODE=6
-export DATA_PATH="yahoo_music.bin"
+export DATA_PATH="movielens-20m.bin"
 # start servers
 export DMLC_ROLE='server'
 i=0

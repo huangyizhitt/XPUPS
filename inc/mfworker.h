@@ -26,6 +26,7 @@ public:
 	inline int GetTargetEpoch() const {return xpu->target_epoch;}
 	inline int GetWorkerID() const {return rank;}
 	inline TransMode GetTransMode() const {return trans_mode;}
+	inline const char *GetWorkerName() const {return xpu->xpu_name;}
 private:
 	void Init();
 	void DeInit();
