@@ -6,7 +6,7 @@ if [ $# -lt 1 ]; then
 fi
 export DMLC_PS_VAN_TYPE='zmq_ipc'
 export DMLC_NUM_SERVER=1
-export DMLC_NUM_WORKER=3
+export DMLC_NUM_WORKER=1
 bin=$1
 shift
 arg="$@"
@@ -17,7 +17,8 @@ export DMLC_PS_ROOT_PORT=8000
 export DMLC_ROLE='scheduler'
 ${bin} ${arg} &
 
-
+export lrate=0.005
+export lambda=1
 export EPOCH='20'
 export TRANSMODE=8
 export DATA_PATH="yahoo_music.bin"
@@ -25,44 +26,22 @@ export DATA_PATH="yahoo_music.bin"
 export DMLC_ROLE='server'
 i=0
 export HEAPPROFILE=./S${i}
-export XPU_NAME='Gold 6242'
+export XPU_NAME='Gold-6242'
 export XPU_TYPE='CPU'
-export XPU_MAX_CORES=32
-export XPU_WORKERS=2
+export XPU_MAX_CORES='20'
+export XPU_WORKERS='2'
 export NUMA_NODE=0
 ${bin} ${arg} &
 
-# start workers
 export DMLC_ROLE='worker'
 export HEAPPROFILE=./W${i}
-export XPU_NAME='Gold 6242'
-export XPU_TYPE='CPU'
-export XPU_MAX_CORES=6
-export XPU_WORKERS=16
-export NUMA_NODE=1
-export WORK_LOAD=42
-${bin} ${arg} &
-
-export DMLC_ROLE='worker'
-export HEAPPROFILE=./W${i}
-export XPU_NAME='GeForce RTX 2080'
+export XPU_NAME='GeForce RTX 2080 SUPER'
 export XPU_TYPE='GPU'
-export XPU_MAX_CORES=6
-export XPU_WORKERS=1288
-export NUMA_NODE=0
-export DEVICE_ID=1
-export WORK_LOAD=1900
-${bin} ${arg} &
-
-export DMLC_ROLE='worker'
-export HEAPPROFILE=./W${i}
-export XPU_NAME='GeForce RTX 2080s'
-export XPU_TYPE='GPU'
-export XPU_MAX_CORES=6
+export XPU_MAX_CORES=3072
 export XPU_WORKERS=1344
 export NUMA_NODE=0
 export DEVICE_ID=0
-export WORK_LOAD=2200
+export WORK_LOAD=1
 ${bin} ${arg} &
 
 wait

@@ -18,7 +18,7 @@ export DMLC_ROLE='scheduler'
 ${bin} ${arg} &
 
 
-export EPOCH='20'
+export EPOCH='100'
 export TRANSMODE=8
 export DATA_PATH="yahoo_music.bin"
 # start servers

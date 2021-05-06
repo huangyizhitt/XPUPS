@@ -40,7 +40,7 @@ export XPU_TYPE='CPU'
 export XPU_MAX_CORES=6
 export XPU_WORKERS=16
 export NUMA_NODE=1
-export WORK_LOAD=42
+export WORK_LOAD=4
 ${bin} ${arg} &
 
 export DMLC_ROLE='worker'
@@ -51,7 +51,7 @@ export XPU_MAX_CORES=6
 export XPU_WORKERS=1288
 export NUMA_NODE=0
 export DEVICE_ID=1
-export WORK_LOAD=1900
+export WORK_LOAD=4800
 ${bin} ${arg} &
 
 export DMLC_ROLE='worker'
@@ -62,7 +62,7 @@ export XPU_MAX_CORES=6
 export XPU_WORKERS=1344
 export NUMA_NODE=0
 export DEVICE_ID=0
-export WORK_LOAD=2200
+export WORK_LOAD=5200
 ${bin} ${arg} &
 
 wait
