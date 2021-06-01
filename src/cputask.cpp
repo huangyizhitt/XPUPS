@@ -163,6 +163,7 @@ void *fpsgd_kernel(void *args)
 #ifdef CAL_PORTION_RMSE
                         *loss = local_loss;
 #endif
+	return NULL;
 }
 
 

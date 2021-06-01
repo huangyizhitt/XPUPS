@@ -110,4 +110,5 @@ int main(int argc, char **argv)
 	}
 
 	ps::Finalize(0, true);
+	return 0;
 }

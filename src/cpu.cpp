@@ -26,6 +26,7 @@ void* CPU::task_thread(void *args)
 
 		if(cur_cpu->current_epoch == cur_cpu->target_epoch) break;
 	}
+	return NULL;
 }
 
 void CPU::Init()
