@@ -121,7 +121,7 @@ void *fpsgd_kernel(void *args)
 	Args *cpu_args = (Args *)args;
 	WorkerDM *dm = (WorkerDM *)cpu_args->data;
 	Grid *grid = &dm->grid;
-	int k = dm->k;
+	int k = cpu_args->k;
 
 	float *p = cpu_args->p;
 	float *q = cpu_args->q;

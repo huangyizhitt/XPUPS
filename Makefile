@@ -1,7 +1,7 @@
 NVCC = nvcc
 CXX = g++
 RM = rm -rf
-CU_FLAGS = -gencode arch=compute_70,code=compute_70 -gencode arch=compute_75,code=compute_75 -Xcompiler -fopenmp
+CU_FLAGS = -gencode arch=compute_70,code=compute_70 -gencode arch=compute_75,code=compute_75 -gencode arch=compute_80,code=sm_80 -gencode arch=compute_86,code=sm_86 -Xcompiler -fopenmp
 CU_CFLAGS = -std=c++11 -g -O3 -lrt -lpthread 
 CU_LIB = -L/usr/local/cuda/lib64 -lcuda -lcudart
 CFLAGS = -std=c++11 -g -O3 -lrt -lpthread -DUSEOMP -fopenmp -lnuma 

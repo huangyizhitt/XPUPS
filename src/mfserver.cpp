@@ -78,11 +78,23 @@ void MFServer::Init()
 	
 	my_rank = ps::MyRank() + WORKER_NUM;
 
-	const char *file_path = "netflix_train.bin";
+	const char *train_file_path = "netflix_train.bin";
 	val = Environment::Get()->find("DATA_PATH");
 	if(val != NULL) {
-		file_path = val;
+		train_file_path = val;
 	}	 
+
+	const char *test_file_path = "netflix_test.bin";
+	val = Environment::Get()->find("TEST_PATH");
+	if(val != NULL) {
+		test_file_path = val;
+	}
+
+	const char *accuracy_file_path = "netflix_accuracy.txt";
+	val = Environment::Get()->find("ACCURACY_PATH");
+	if(val != NULL) {
+		accuracy_file_path = val;
+	}	
 
 	val = Environment::Get()->find("TRANSMODE");
 	if(val != NULL) {
@@ -91,7 +103,15 @@ void MFServer::Init()
 		trans_mode = ALL;
 	}
 
-	(trans_mode == HALFQ || trans_mode == HALFQ_SHM) ? dm.Init(file_path, true) : dm.Init(file_path, false);
+	int k;
+	val = Environment::Get()->find("k");
+	if(val != NULL) {
+		k = std::atoi(val);
+	} else {
+		k = 128;
+	}
+
+	(trans_mode == HALFQ || trans_mode == HALFQ_SHM) ? dm.Init(train_file_path, test_file_path, accuracy_file_path, true, k) : dm.Init(train_file_path, test_file_path, accuracy_file_path, false, k);
 
 #ifdef CAL_PORTION_RMSE	
 	loss = 0.0;
@@ -100,7 +120,7 @@ void MFServer::Init()
 		record_counts = 0;
 	}
 #endif
-	printf("Server XPU TYPE: %d, data threads: %d, work threads: %d\n", static_cast<int>(xpu->xpu_type), xpu->max_cores, xpu->workers);
+	printf("Server XPU TYPE: %d, NUMA node: %d, data threads: %d, work threads: %d\n", static_cast<int>(xpu->xpu_type), numa_node, xpu->max_cores, xpu->workers);
 }
 
 void MFServer::ProcessHandle(const ps::KVMeta& req_meta,
@@ -198,6 +218,11 @@ void MFServer::ProcessHandle(const ps::KVMeta& req_meta,
 		case LINK_SHM:
 			cur_server->ProcessLinkShm(req_meta, req_data, server);
 			break;
+
+		case REQ_TESTING:
+			cur_server->Testing(req_meta, req_data, server);
+			break;
+
 #ifdef CAL_PORTION_RMSE
 		case START_RECORD:
 			cur_server->ProcessStartRecord(req_meta, req_data, server);
@@ -222,9 +247,11 @@ void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
 	XPU_INFO xpu_info;
 
 	xpu_info.type = (XPU_TYPE)req_data.vals[0];
-	xpu_info.workers = (int)req_data.vals[1];
-	xpu_info.work_ratio = (int)req_data.vals[2];
-	printf("Worker: %d, XPU TYPE: %d, threads: %d, work_ratio: %d\n", worker_rank, static_cast<int>(xpu_info.type), xpu_info.workers, xpu_info.work_ratio);
+	xpu_info.numa_node = (int)req_data.vals[1];
+	xpu_info.workers = (int)req_data.vals[2];
+	xpu_info.work_ratio = (int)req_data.vals[3];
+	printf("Worker: %d, XPU TYPE: %d, NUMA node: %d, threads: %d, work_ratio: %d\n", worker_rank, static_cast<int>(xpu_info.type), xpu_info.numa_node, 
+		xpu_info.workers, xpu_info.work_ratio);
 	total_work_ratio += xpu_info.work_ratio;
 	worker_xpu_info.insert(std::make_pair(worker_rank, xpu_info));
 
@@ -252,6 +279,18 @@ void MFServer::GetWorkerInfo(const ps::KVMeta& req_meta,
 	xpus++;
 	ps::KVPairs<float> res;
 	server->Response(req_meta, res);
+}
+
+void MFServer::Testing(const ps::KVMeta& req_meta,
+							const ps::KVPairs<float>& req_data,
+							ps::KVServer<float>* server)
+{
+	ps::KVPairs<float> res;
+	server->Response(req_meta, res);
+
+	dm.ScaleModel();
+	dm.ShuffleModel();
+	dm.Testing();
 }
 
 
@@ -294,7 +333,7 @@ int MFServer::CreateShmbuf()
 	
 	pull_shmid = shmget(key, size, IPC_CREAT | 0777);
 		if(pull_shmid == -1) {
-			perror("Server pull_shmid shmget fail!\n");
+			printf("Server pull_shmid shmget fail!\n");
 			return -1;
 	}
 

@@ -71,7 +71,7 @@ public:
 			free(halfp);
 	}
 	
-	void Init(const char *file, const bool& use_half = false);
+	void Init(const char * train_file, const char *test_file, const char *accuracy_file, const bool& use_half, int k);
 	void DeInit();
 	void SetGrid(const Dim2& gridDim);
 	void GridData(int nr_threads);
@@ -100,8 +100,9 @@ public:
 	void SplitData(int& start, int& size, int work_ratio);
 	void PrintHead(int start, int head = 5);
 
+	void Testing();
+
 	FILE *fp;
-	const char *train_file_path;
 	int *p_map;
 	int *q_map;
 	int *inv_p_map;
@@ -134,6 +135,10 @@ public:
 	std::vector<int> counts_epoch;				//counts the block epoch;
 	std::vector<bool> busy_x;
 	std::vector<bool> busy_y;
+
+	char train_file_path[128];
+	char test_file_path[128];
+	char accuracy_file_path[128];
 };
 
 struct Block {

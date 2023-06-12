@@ -38,6 +38,7 @@ struct Args {
 	float lrate;
 	float *p;
 	float *q;
+	int k;
 	int workers;
 	int stream = -1;			// >-1 means use acopy
 	size_t size;
@@ -92,6 +93,7 @@ struct XPU {
 
 struct XPU_INFO {
 	XPU_TYPE type;
+	int numa_node;
 	int workers;
 	int work_ratio;						//work load ratio
 	int start;

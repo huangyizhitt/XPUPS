@@ -106,6 +106,7 @@ int main(int argc, char **argv)
 //		printf("pull: transmission:%.3f + half2single:%.3f\n", worker->record1_elapse, worker->record2_elapse);
 #endif
 		worker->JoinWorkers();
+		worker->RequestTesting();
 		ps::RegisterExitCallback([worker](){ delete worker;});
 	}
 

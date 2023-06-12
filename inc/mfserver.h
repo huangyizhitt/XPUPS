@@ -33,7 +33,7 @@ public:
 #endif
 		if(trans_mode >= ALL_SHM && trans_mode < UNKONWN_MODE) {
 		       	DestroyShmbuf();
-		}	
+		} 
 		
 		delete server_xpu;
 	}
@@ -132,6 +132,10 @@ private:
 	void ProcessLinkShm(const ps::KVMeta& req_meta,
 					  const ps::KVPairs<float>& req_data,
 					  ps::KVServer<float>* server);
+
+	void Testing(const ps::KVMeta& req_meta,
+							const ps::KVPairs<float>& req_data,
+							ps::KVServer<float>* server);
 
 	void SetCurServer();
 	void PrepareData();

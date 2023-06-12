@@ -56,7 +56,13 @@ void MFWorker::Init()
 	xpu->current_epoch = 0;
 	xpu->Bind();
 	this->xpu = xpu;
-	this->k = 128;
+	
+	val = Environment::Get()->find("k");
+	if(val != NULL) {
+		this->k = std::atoi(val);
+	} else {
+		this->k = 128;
+	}
 
 	val = Environment::Get()->find("lambda");
 	if(val != NULL) {
@@ -117,9 +123,10 @@ void MFWorker::PushXPUInfo()
 	CMD cmd = PUSH_INFO;
 	keys.push_back(rank);
 	vals.push_back(static_cast<float>(xpu->xpu_type));
+	vals.push_back(numa_node);
 	vals.push_back(xpu->workers);
 	vals.push_back(xpu->worker_ratio);
-	lens.push_back(3);
+	lens.push_back(4);
 	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 }
 
@@ -190,6 +197,21 @@ void MFWorker::PullTrainingData()
 	dm.end_rows = data.r_matrix[size-1].row_index;
 
 	debugp("Recive data count: %ld\n", size);
+}
+
+void MFWorker::RequestTesting()
+{
+	if(rank != 0) return;
+
+	std::vector<ps::Key> keys;									
+	std::vector<float> vals;
+	std::vector<int> lens;
+	CMD cmd = REQ_TESTING;
+	
+	keys.push_back(rank);
+	vals.push_back(0);
+	lens.push_back(1);
+	kv_xpu->Wait(kv_xpu->Push(keys, vals, lens, cmd));
 }
 
 
@@ -1144,6 +1166,7 @@ void MFWorker::CreateWorkers(pFunc func)
 			args[i].lrate = lrate;
 			args[i].p = p;
 			args[i].q = q;
+			args[i].k = k;
 			args[i].workers = workers;
 			args[i].size = size;
 #ifdef CAL_PORTION_RMSE
@@ -1164,6 +1187,7 @@ void MFWorker::CreateWorkers(pFunc func)
 			args[0].lrate = lrate;
 			args[0].p = p;
 			args[0].q = q;
+			args[0].k = k;
 			args[0].workers = workers;
 			args[0].stream = -1;
 			args[0].size = size;
@@ -1188,6 +1212,7 @@ void MFWorker::CreateWorkers(pFunc func)
                         	args[i].lrate = lrate;
 				args[i].p = p;
 				args[i].q = q;
+				args[i].k = k;
 				args[i].workers = workers;
 				args[i].stream = i;
 #ifdef CAL_PORTION_RMSE

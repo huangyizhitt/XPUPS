@@ -6,6 +6,9 @@
 #include <unordered_set>
 #include <numeric>
 #include <random>
+#include <string.h>
+#include <iostream>
+#include <fstream>
 
 namespace MF {
 
@@ -25,11 +28,13 @@ struct sort_node_by_q
     }
 };
 
-void DataManager::Init(const char * file, const bool& use_half)
+void DataManager::Init(const char * train_file, const char *test_file, const char *accuracy_file, const bool& use_half, int k)
 {
-	train_file_path = file;
+	strcpy(train_file_path, train_file);
+	strcpy(test_file_path, test_file);
+	strcpy(accuracy_file_path, accuracy_file);
 	this->use_half = use_half;
-	k = 128;
+	this->k = k;
 }
 
 bool DataManager::LoadData()
@@ -241,10 +246,10 @@ void DataManager::GridData(int nr_threads)
 #endif
     for(int block = 0; block < block_size; ++block)
     {
-        if(rows > cols)
+//        if(rows > cols)
             std::sort(ptrs[block], ptrs[block+1], sort_node_by_p());
-        else
-            std::sort(ptrs[block], ptrs[block+1], sort_node_by_q());
+//        else
+ //           std::sort(ptrs[block], ptrs[block+1], sort_node_by_q());
     }	
     elapse = cpu_second() - start;
     printf("Grid Problem to all XPU complete, cost: %.8f\n", elapse);
@@ -284,7 +289,7 @@ void DataManager::InitModel()
 	
 	model.feature.resize((rows+cols) * k, 0);
 	model.p = &model.feature[0];
-	model.q = &model.feature[rows*k];
+	model.q = &model.feature[rows*k]; 
 
 	auto init1 = [&](float *feature, size_t size, std::vector<int>& counts)
 	{
@@ -425,6 +430,94 @@ void DataManager::PrintHead(int start, int head)
 	}	
 }
 
+void DataManager::ScaleModel()
+{
+	float factor_scale = sqrt(scale);
+	long long size_p = model.m * model.k;
+	long long size_q = model.n * model.k;
+	
+    for(long long i = 0; i < size_p; i++)
+		model.p[i] = model.p[i] * factor_scale;
+
+    for(long long i = 0; i < size_q; i++)
+		model.q[i] = model.q[i] * factor_scale;
+}
+
+void DataManager::ShuffleModel()
+{
+    auto inv_shuffle = [] (float *vec,
+                            int *map,
+                            int size,
+                            int k)
+    {
+        for(int pivot = 0; pivot < size;)
+        {
+            if(pivot == map[pivot])
+            {
+                ++pivot;
+                continue;
+            }
+
+            int next = map[pivot];
+
+            for(int d = 0; d < k; d++) std::swap(*(vec + (long long)pivot*k+d), *(vec+(long long)next*k+d));
+
+            map[pivot] = map[next];
+            map[next] = next;
+        }
+    };
+
+    inv_shuffle(model.p, inv_p_map, model.m, model.k);
+    inv_shuffle(model.q, inv_q_map, model.n, model.k);	
+}
+
+void DataManager::Testing()
+{
+	FILE *fp;
+	if(test_file_path)
+		fp = fopen(test_file_path, "rb");
+
+	if(fp == nullptr) {
+		printf("Fail: cannot open %s!\n", test_file_path);
+		return;
+	}
+
+	float loss = 0.0;
+	long long nnz = 0;
+	int rows = 0, cols = 0;
+
+	while(true) {
+		int flag = 0;
+		int row_index, col_index;
+		float r;
+
+		flag += fread(&row_index, sizeof(int), 1, fp);
+		flag += fread(&col_index, sizeof(int), 1, fp);
+		flag += fread(&r, sizeof(float), 1, fp);
+
+		if(flag != 3) break;
+
+		if(row_index < 0 || col_index < 0 || r < 0) continue;		// Exclude illegal data
+
+		if(row_index + 1 > rows) rows = row_index + 1;
+		if(col_index + 1 > cols) cols = col_index + 1;
+
+		float *p = model.p + row_index * k;
+		float *q = model.q + col_index * k;
+
+		float e = r - std::inner_product(p, p+k, q, (float)0.0f);
+
+		loss += e * e;
+		nnz++;
+	}
+
+	loss = std::sqrt(loss / nnz);
+	printf("Testing rows: %d, cols: %d, nnz: %lld, rmse loss: %f\n", rows, cols, nnz, loss);
+	std::ofstream fout(accuracy_file_path, std::ios::app);
+	fout << loss << std::endl;
+	fout.close();
+}
+
 
 int WorkerDM::GetBlockId(Grid& grid, MatrixNode& n)
 {
@@ -475,7 +568,7 @@ void WorkerDM::InitBlockScheduler()
 
 void WorkerDM::GridData(int rank, int nr_threads)
 {
-	printf("[Work %d]Grid Problem...\n", rank);
+	printf("[Work %d]Grid Problem...block_size: %d\n", rank, block_size);
 	double start, elapse;
 	start = cpu_second();
 	counts.resize(block_size, 0);
@@ -517,10 +610,10 @@ void WorkerDM::GridData(int rank, int nr_threads)
 #endif
     for(int block = 0; block < block_size; ++block)
     {
-        if(rows > cols)
+//        if(rows > cols)
             std::sort(ptrs[block], ptrs[block+1], sort_node_by_p());
-        else
-            std::sort(ptrs[block], ptrs[block+1], sort_node_by_q());
+//        else
+//            std::sort(ptrs[block], ptrs[block+1], sort_node_by_q());
     }
 	
     elapse = cpu_second() - start;

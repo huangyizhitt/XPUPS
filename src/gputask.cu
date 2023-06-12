@@ -119,19 +119,16 @@ __global__ void sgd_k128_kernel_hogwild_warp32(
 			int base_p = u*k;
 			int base_q = v*k;
 
-			float tmp_p1 = (p[base_p + lane_id]);
-			float tmp_q1 = (q[base_q + lane_id]);
-			
-			float tmp_p2 = (p[base_p + lane_id + 32]);
-			float tmp_q2 = (q[base_q + lane_id + 32]);
-			
-			float tmp_p3 = (p[base_p + lane_id + 64]);
-			float tmp_q3 = (q[base_q + lane_id + 64]);
-			
-			float tmp_p4 = (p[base_p + lane_id + 96]);
-			float tmp_q4 = (q[base_q + lane_id + 96]);
+			float tmp_product = 0.0;
+			float tmp_p[32], tmp_q[32];
 
-			float tmp_product = tmp_p1*tmp_q1 + tmp_p2*tmp_q2 + tmp_p3*tmp_q3 + tmp_p4*tmp_q4;
+			for(int j = 0; j < k; j+=32) {
+				int index = j/32;
+				tmp_p[index] = (p[base_p + lane_id + j]);
+				tmp_q[index] = (q[base_q + lane_id + j]);
+
+				tmp_product += tmp_p[index] * tmp_q[index];
+			}
 
 				//get dot product.
 			tmp_product += __shfl_down_sync(__activemask(), tmp_product, 16);
@@ -147,17 +144,11 @@ __global__ void sgd_k128_kernel_hogwild_warp32(
 
 				//update
 				//only works for k=blockDim.x=128
-			p[base_p + lane_id +  0] = (tmp_p1 + lrate*(ruv*tmp_q1 - lambda_p*tmp_p1));
-			q[base_q + lane_id +  0] = (tmp_q1 + lrate*(ruv*tmp_p1 - lambda_q*tmp_q1));
-
-			p[base_p + lane_id + 32] = (tmp_p2 + lrate*(ruv*tmp_q2 - lambda_p*tmp_p2));
-			q[base_q + lane_id + 32] = (tmp_q2 + lrate*(ruv*tmp_p2 - lambda_q*tmp_q2));
-
-			p[base_p + lane_id + 64] = (tmp_p3 + lrate*(ruv*tmp_q3 - lambda_p*tmp_p3));
-			q[base_q + lane_id + 64] = (tmp_q3 + lrate*(ruv*tmp_p3 - lambda_q*tmp_q3));
-
-			p[base_p + lane_id + 96] = (tmp_p4 + lrate*(ruv*tmp_q4 - lambda_p*tmp_p4));
-			q[base_q + lane_id + 96] = (tmp_q4 + lrate*(ruv*tmp_p4 - lambda_q*tmp_q4)); 
+			for(int j = 0; j < k; j+=32) {
+					const int index = j/32;
+					p[base_p + lane_id + j] = (tmp_p[index] + lrate*(ruv*tmp_q[index] - lambda_p*tmp_p[index]));
+					q[base_q + lane_id + j] = (tmp_q[index] + lrate*(ruv*tmp_p[index] - lambda_q*tmp_q[index]));
+			}
 		}	 
 	}
 }
@@ -209,19 +200,16 @@ __global__ void sgd_k128_kernel_hogwild_warp32(
 			int base_p = u*k;
 			int base_q = v*k;
 
-			float tmp_p1 = (p[base_p + lane_id]);
-			float tmp_q1 = (q[base_q + lane_id]);
-			
-			float tmp_p2 = (p[base_p + lane_id + 32]);
-			float tmp_q2 = (q[base_q + lane_id + 32]);
-			
-			float tmp_p3 = (p[base_p + lane_id + 64]);
-			float tmp_q3 = (q[base_q + lane_id + 64]);
-			
-			float tmp_p4 = (p[base_p + lane_id + 96]);
-			float tmp_q4 = (q[base_q + lane_id + 96]);
+			float tmp_product = 0.0;
+			float tmp_p[32], tmp_q[32];
 
-			float tmp_product = tmp_p1*tmp_q1 + tmp_p2*tmp_q2 + tmp_p3*tmp_q3 + tmp_p4*tmp_q4;
+			for(int j = 0; j < k; j+=32) {
+				int index = j/32;
+				tmp_p[index] = (p[base_p + lane_id + j]);
+				tmp_q[index] = (q[base_q + lane_id + j]);
+
+				tmp_product += tmp_p[index] * tmp_q[index];
+			}
 
 				//get dot product.
 			tmp_product += __shfl_down_sync(__activemask(), tmp_product, 16);
@@ -236,17 +224,11 @@ __global__ void sgd_k128_kernel_hogwild_warp32(
 			float ruv = r - tmp_product;
 				//update
 				//only works for k=blockDim.x=128
-			p[base_p + lane_id +  0] = (tmp_p1 + lrate*(ruv*tmp_q1 - lambda_p*tmp_p1));
-			q[base_q + lane_id +  0] = (tmp_q1 + lrate*(ruv*tmp_p1 - lambda_q*tmp_q1));
-
-			p[base_p + lane_id + 32] = (tmp_p2 + lrate*(ruv*tmp_q2 - lambda_p*tmp_p2));
-			q[base_q + lane_id + 32] = (tmp_q2 + lrate*(ruv*tmp_p2 - lambda_q*tmp_q2));
-
-			p[base_p + lane_id + 64] = (tmp_p3 + lrate*(ruv*tmp_q3 - lambda_p*tmp_p3));
-			q[base_q + lane_id + 64] = (tmp_q3 + lrate*(ruv*tmp_p3 - lambda_q*tmp_q3));
-
-			p[base_p + lane_id + 96] = (tmp_p4 + lrate*(ruv*tmp_q4 - lambda_p*tmp_p4));
-			q[base_q + lane_id + 96] = (tmp_q4 + lrate*(ruv*tmp_p4 - lambda_q*tmp_q4)); 
+			for(int j = 0; j < k; j+=32) {
+					const int index = j/32;
+					p[base_p + lane_id + j] = (tmp_p[index] + lrate*(ruv*tmp_q[index] - lambda_p*tmp_p[index]));
+					q[base_q + lane_id + j] = (tmp_q[index] + lrate*(ruv*tmp_p[index] - lambda_q*tmp_q[index]));
+			} 
 
 			if(lane_id == 0)
 				gpu_loss[tid] += ruv * ruv;
@@ -356,14 +338,14 @@ void *sgd_update_k128_gpu(void *args)
 
 //	printf("current_epoch: %d, gpu_workers: %d, R: %p, size: %ld, update_count: %d, update_vector_size: %d, p: %p, q: %p, gpu_loss: %p, rand_state: %p, stream: %d\n", global::current_epoch, gpu_workers, R, size, update_count, update_vector_size, para->p, para->q, gpu_loss, rand_state, para->stream);
 	if(para->stream == -1) {
-		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, gpu_loss, para->p, para->q, 128, update_count,
+		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, gpu_loss, para->p, para->q, para->k, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
 		gpuErr(cudaPeekAtLastError());
         	cudaDeviceSynchronize();
 		cudaMemcpy(loss, gpu_loss, (gpu_workers * 32) * sizeof(float), cudaMemcpyDeviceToHost);
 	} else {
 		cudaStream_t stream = global::streams[para->stream];
-		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128, 0, stream>>>(R, size, rand_state, gpu_loss, para->p, para->q, 128, update_count,
+		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128, 0, stream>>>(R, size, rand_state, gpu_loss, para->p, para->q, para->k, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
 //		cudaDeviceSynchronize();
 		cudaMemcpyAsync(loss, gpu_loss, (gpu_workers * 32) * sizeof(float), cudaMemcpyDeviceToHost, stream);
@@ -377,13 +359,13 @@ void *sgd_update_k128_gpu(void *args)
 //	cudaDeviceSynchronize();
 #else
 	if(para->stream == -1) {
-		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, para->p, para->q, 128, update_count,
+		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128>>>(R, size, rand_state, para->p, para->q, para->k, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
 		gpuErr(cudaPeekAtLastError());
 		cudaDeviceSynchronize();
 	} else {
 		cudaStream_t stream = global::streams[para->stream];
-		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128, 0, stream>>>(R, size, rand_state, para->p, para->q, 128, update_count,
+		sgd_k128_kernel_hogwild_warp32<<<gpu_workers/4, 128, 0, stream>>>(R, size, rand_state, para->p, para->q, para->k, update_count,
 									update_vector_size, para->lrate, para->lambda_p, para->lambda_q);
 	}
 #endif
